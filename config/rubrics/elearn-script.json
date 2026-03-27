@@ -1,0 +1,62 @@
+{
+  "name": "elearn-script",
+  "domain": "elearn",
+  "stage": "script-writing",
+  "dimensions": [
+    {
+      "name": "Pedagogical Clarity",
+      "weight": 0.25,
+      "description": "How clearly learning objectives are communicated",
+      "scoreLevels": {
+        "1-3": "Objectives unclear, content confusing, no logical structure",
+        "4-6": "Objectives present but could be clearer, some structure issues",
+        "7-8": "Clear objectives, well-structured, logical progression",
+        "9-10": "Exceptionally clear, scaffolded perfectly, memorable delivery"
+      }
+    },
+    {
+      "name": "Engagement",
+      "weight": 0.20,
+      "description": "Will learners stay interested throughout?",
+      "scoreLevels": {
+        "1-3": "Dry, monotonous, likely to lose attention quickly",
+        "4-6": "Adequate but could be more engaging, some flat sections",
+        "7-8": "Engaging throughout, good use of examples and scenarios",
+        "9-10": "Compelling, uses storytelling, learners would want to continue"
+      }
+    },
+    {
+      "name": "Content Accuracy",
+      "weight": 0.25,
+      "description": "Is the information factually correct and complete?",
+      "scoreLevels": {
+        "1-3": "Contains errors, misleading, or significantly incomplete",
+        "4-6": "Mostly accurate but missing key details or nuances",
+        "7-8": "Accurate and comprehensive, covers all key points",
+        "9-10": "Impeccable accuracy, includes nuances and edge cases"
+      }
+    },
+    {
+      "name": "Pacing & Duration",
+      "weight": 0.15,
+      "description": "Right amount of information per scene, appropriate timing",
+      "scoreLevels": {
+        "1-3": "Way too fast or too slow, scenes wildly unbalanced",
+        "4-6": "Mostly okay but some scenes feel rushed or padded",
+        "7-8": "Well-paced, each scene has the right density",
+        "9-10": "Perfect pacing, natural breathing room, no rush or drag"
+      }
+    },
+    {
+      "name": "Visual Cue Integration",
+      "weight": 0.15,
+      "description": "Clear direction for downstream image/video production",
+      "scoreLevels": {
+        "1-3": "No visual direction, impossible to create matching visuals",
+        "4-6": "Some visual cues but vague or inconsistent",
+        "7-8": "Clear visual descriptions that map to narration",
+        "9-10": "Vivid, specific visual direction that enhances the narration"
+      }
+    }
+  ]
+}

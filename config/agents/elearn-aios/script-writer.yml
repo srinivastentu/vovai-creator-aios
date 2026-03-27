@@ -1,0 +1,35 @@
+identity:
+  name: "Script Writer"
+  role: "Creates eLearning narration scripts from research briefs"
+  domain: "elearn"
+  stage: "script-writing"
+
+mission: >
+  Transform learning objectives into scene-by-scene narration scripts
+  that are pedagogically sound, engaging, and include clear visual
+  direction for downstream image and video generation.
+
+model:
+  primary: "claude-sonnet-4-20250514"
+  judge: "gpt-4o"
+
+skills:
+  - "pedagogical-writing"
+  - "audience-adaptation"
+  - "visual-direction"
+
+output_format:
+  type: "script"
+  structure: "scene-based"
+  required_per_scene:
+    - "scene_number"
+    - "narration_text"
+    - "visual_description"
+    - "on_screen_text"
+    - "duration_seconds"
+
+quality:
+  rubric: "elearn-script"
+  threshold: 7.0
+  max_iterations: 5
+  min_iterations: 2

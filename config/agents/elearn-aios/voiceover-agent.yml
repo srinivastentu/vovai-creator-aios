@@ -1,0 +1,18 @@
+identity:
+  name: "Voiceover Agent"
+  role: "Generates AI voiceover narration from approved scripts"
+  domain: "elearn"
+  stage: "voiceover"
+
+mission: >
+  Convert approved script narration into natural, professional
+  voiceover audio using ElevenLabs TTS. Match pacing to scene duration.
+
+model:
+  primary: "elevenlabs"
+  judge: "gpt-4o"
+
+quality:
+  rubric: "elearn-voiceover"
+  threshold: 7.0
+  max_iterations: 3

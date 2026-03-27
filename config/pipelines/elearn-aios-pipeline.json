@@ -1,0 +1,23 @@
+{
+  "name": "elearn-aios-pipeline",
+  "domain": "elearn",
+  "description": "16-stage eLearning video production pipeline",
+  "stages": [
+    { "id": 1, "name": "Discovery", "ring": 1, "agent": "researcher", "dependencies": [], "review_gate": false },
+    { "id": 2, "name": "Script Writing", "ring": 1, "agent": "script-writer", "dependencies": [1], "review_gate": false, "per_scene": true },
+    { "id": 3, "name": "Script Review", "ring": 1, "agent": null, "dependencies": [2], "review_gate": true },
+    { "id": 4, "name": "Image Prompts", "ring": 2, "agent": "image-prompt-engineer", "dependencies": [3], "per_scene": true },
+    { "id": 5, "name": "Image Generation", "ring": 2, "agent": "image-generator", "dependencies": [4], "per_scene": true, "tournament": true },
+    { "id": 6, "name": "Storyboard Assembly", "ring": 2, "agent": "storyboard-assembler", "dependencies": [5] },
+    { "id": 7, "name": "Storyboard Review", "ring": 2, "agent": null, "dependencies": [6], "review_gate": true },
+    { "id": 8, "name": "Voice-Over", "ring": 3, "agent": "voiceover-agent", "dependencies": [3], "per_scene": true },
+    { "id": 9, "name": "Video Generation", "ring": 3, "agent": "video-agent", "dependencies": [5], "per_scene": true },
+    { "id": 10, "name": "Music & SFX", "ring": 3, "agent": "music-agent", "dependencies": [3] },
+    { "id": 11, "name": "Per-Scene Assembly", "ring": 3, "agent": "assembly-agent", "dependencies": [8, 9, 10], "per_scene": true },
+    { "id": 12, "name": "Full Assembly", "ring": 3, "agent": "assembly-agent", "dependencies": [11] },
+    { "id": 13, "name": "Captions", "ring": 4, "agent": "caption-agent", "dependencies": [12] },
+    { "id": 14, "name": "Final Render", "ring": 4, "agent": "render-agent", "dependencies": [13], "review_gate": true },
+    { "id": 15, "name": "Quality Assurance", "ring": 4, "agent": "qa-agent", "dependencies": [14] },
+    { "id": 16, "name": "Delivery", "ring": 4, "agent": "delivery-agent", "dependencies": [15], "review_gate": true }
+  ]
+}
