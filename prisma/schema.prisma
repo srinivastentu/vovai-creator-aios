@@ -1,7 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// VOVAI eLearn AIOS — Prisma Schema
+// Models derived from src/lib/types.ts
+// Ring 1 schema — covers the full recursive loop engine
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +9,90 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum ProjectStatus {
+  draft
+  in_progress
+  completed
+}
+
+enum SessionStatus {
+  idle
+  generating
+  evaluating
+  presenting
+  awaiting_review
+  approved
+}
+
+enum IterationOutcome {
+  revised
+  presented
+  escalated
+  approved
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model Project {
+  id              String         @id @default(uuid())
+  name            String
+  topic           String
+  targetAudience  String
+  durationMinutes Int
+  status          ProjectStatus  @default(draft)
+  currentRing     Int            @default(0)
+  totalCostUSD    Float          @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  stageSessions   StageSession[]
+}
+
+model StageSession {
+  id                String           @id @default(uuid())
+  projectId         String
+  project           Project          @relation(fields: [projectId], references: [id])
+  stageId           Int
+  status            SessionStatus    @default(idle)
+  currentArtifactId String?
+  bestArtifactId    String?
+  bestGrade         Json?            // Grade struct stored as JSON
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  artifacts         Artifact[]
+  iterations        IterationRecord[]
+}
+
+// Artifact — immutable. New version = new row. Never update content.
+model Artifact {
+  id             String        @id @default(uuid())
+  stageSessionId String
+  stageSession   StageSession  @relation(fields: [stageSessionId], references: [id])
+  version        Int
+  content        String        // script text, image URL, file path, etc.
+  stage          String
+  sceneIndex     Int?
+  createdAt      DateTime      @default(now())
+  metadata       Json          @default("{}")
+}
+
+// IterationRecord — one row per loop iteration. Grade + cost embedded.
+model IterationRecord {
+  id               String           @id @default(uuid())
+  stageSessionId   String
+  stageSession     StageSession     @relation(fields: [stageSessionId], references: [id])
+  artifactId       String
+  iteration        Int
+  grade            Json             // Grade { dimensions[], compositeScore, ... }
+  outcome          IterationOutcome
+  costModel        String
+  costInputTokens  Int
+  costOutputTokens Int
+  costUSD          Float
+  createdAt        DateTime         @default(now())
 }

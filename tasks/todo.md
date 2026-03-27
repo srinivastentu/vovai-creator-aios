@@ -15,10 +15,10 @@
 - [x] Verify: `npm run dev` works, see page at http://localhost:3000
 
 ### Day 2: Database
-- [ ] Install PostgreSQL via Homebrew (if not installed)
-- [ ] Create database: vovai_elearn_dev
-- [ ] Tell Claude: create Prisma schema (projects, artifacts, grades, stages)
-- [ ] Run first migration: npx prisma migrate dev
+- [x] Install PostgreSQL via Homebrew (if not installed)
+- [x] Create database: vovai_elearn_dev
+- [x] Tell Claude: create Prisma schema (projects, artifacts, grades, stages)
+- [x] Run first migration: npx prisma migrate dev
 - [ ] Verify: npx prisma studio shows tables
 
 ---
@@ -26,7 +26,7 @@
 ## Ring 1: Script Pipeline (Weeks 1-4)
 
 ### Week 1: UI Shell (Visual-First)
-- [ ] Dashboard page — project list with status
+- [x] Dashboard page — project list with status
 - [ ] New project form — topic, audience, duration
 - [ ] Project detail page — pipeline stages with status
 - [ ] Review interface skeleton — script, scorecard, 3 buttons
