@@ -4,15 +4,15 @@
 
 ### Day 0: Setup
 - [x] Run setup script — project structure created
-- [ ] Open in VS Code: `code vovai-elearn-aios`
-- [ ] Open Claude Code in VS Code (Cmd+Shift+P → "Claude Code: Open")
-- [ ] Tell Claude: "Read CLAUDE.md and tasks/todo.md. Confirm you understand."
+- [x] Open in VS Code: `code vovai-elearn-aios`
+- [x] Open Claude Code in VS Code (Cmd+Shift+P → "Claude Code: Open")
+- [x] Tell Claude: "Read CLAUDE.md and tasks/todo.md. Confirm you understand."
 
 ### Day 1: Install Dependencies
-- [ ] Tell Claude: install Next.js 14, TypeScript, Tailwind, shadcn/ui
-- [ ] Tell Claude: install Prisma, set up PostgreSQL connection
-- [ ] Tell Claude: install Vitest for testing
-- [ ] Verify: `npm run dev` works, see page at http://localhost:3000
+- [x] Tell Claude: install Next.js 14, TypeScript, Tailwind, shadcn/ui
+- [x] Tell Claude: install Prisma, set up PostgreSQL connection
+- [x] Tell Claude: install Vitest for testing
+- [x] Verify: `npm run dev` works, see page at http://localhost:3000
 
 ### Day 2: Database
 - [ ] Install PostgreSQL via Homebrew (if not installed)
