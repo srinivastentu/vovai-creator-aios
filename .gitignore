@@ -2,17 +2,40 @@ node_modules/
 .next/
 out/
 dist/
+
+# Environment (never commit secrets)
 .env
 .env.local
-.env.production.local
+.env.*.local
+
+# IDE
 .vscode/
 .idea/
 *.swp
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Test
 coverage/
+
+# Database
 *.db
+
+# Media storage
 storage/
+
+# Claude local settings
 .claude/settings.local.json
 
+# Prisma generated client
 /src/generated/prisma
+
+# SSH/Secrets (safety net)
+*.pem
+*.key
+*.p12
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
