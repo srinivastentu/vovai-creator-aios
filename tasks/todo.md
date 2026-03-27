@@ -27,7 +27,7 @@
 
 ### Week 1: UI Shell (Visual-First)
 - [x] Dashboard page — project list with status
-- [ ] New project form — topic, audience, duration
+- [x] New project form — topic, audience, duration
 - [ ] Project detail page — pipeline stages with status
 - [ ] Review interface skeleton — script, scorecard, 3 buttons
 
