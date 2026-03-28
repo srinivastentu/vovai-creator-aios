@@ -1,6 +1,6 @@
 # VOVAI eLearn AIOS
 
-> AI-powered eLearning video production platform. AI agent teams produce broadcast-quality eLearning videos while humans guide and approve at every gate.
+> Agentic AI-powered eLearning OS platform. AI agent teams produce broadcast-quality eLearning videos while humans guide and approve at every gate.
 
 ## Quick Start (Mac)
 
