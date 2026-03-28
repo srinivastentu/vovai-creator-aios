@@ -50,6 +50,7 @@ model Project {
   updatedAt       DateTime       @updatedAt
 
   stageSessions   StageSession[]
+  blueprint       ProjectBlueprint?
 }
 
 model StageSession {
@@ -66,6 +67,7 @@ model StageSession {
 
   artifacts         Artifact[]
   iterations        IterationRecord[]
+  nodeComponents    NodeComponent[]
 }
 
 // Artifact — immutable. New version = new row. Never update content.
@@ -95,4 +97,185 @@ model IterationRecord {
   costOutputTokens Int
   costUSD          Float
   createdAt        DateTime         @default(now())
+}
+
+// ─── Project Component Layer — Enums ──────────────────────────────────────────
+
+enum ProjectArchetype {
+  course
+  workshop
+  certification
+  tutorial
+  bootcamp
+  microlearning
+}
+
+enum NodeStatus {
+  draft
+  ideating
+  structured
+  approved
+  in_production
+  completed
+}
+
+enum ComponentStatus {
+  planned
+  configured
+  queued
+  in_production
+  completed
+  skipped
+}
+
+enum ComponentPriority {
+  core
+  recommended
+  optional
+}
+
+enum IdeationPhase {
+  brainstorm
+  structure
+  refinement
+  review
+  approved
+}
+
+enum BrainstormRole {
+  human
+  facilitator
+  researcher
+  pedagogy_expert
+  audience_analyst
+  structure_architect
+  creative_director
+  critic
+  synthesizer
+}
+
+enum GradeRecommendation {
+  approve
+  revise
+  restructure
+  reject
+}
+
+// ─── Project Component Layer — Models ─────────────────────────────────────────
+
+model ProjectBlueprint {
+  id                String            @id @default(uuid())
+  projectId         String            @unique
+  project           Project           @relation(fields: [projectId], references: [id])
+  archetype         ProjectArchetype  @default(course)
+  hierarchyLabels   Json              // {"level0":"Course","level1":"Module","level2":"Topic","level3":"Subtopic"}
+  targetAudience    Json              // Detailed audience profile
+  learningOutcomes  Json              // High-level learning outcomes array
+  enabledComponents Json              // ["video","quiz","study_material","activity","capstone"]
+  ideationPhase     IdeationPhase     @default(brainstorm)
+  ideationScore     Float?
+  structureSummary  Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  nodes             ProjectNode[]
+  conversations     IdeationConversation[]
+  versions          BlueprintVersion[]
+  grades            StructureGrade[]
+}
+
+model ProjectNode {
+  id               String            @id @default(uuid())
+  blueprintId      String
+  blueprint        ProjectBlueprint  @relation(fields: [blueprintId], references: [id])
+  parentId         String?
+  parent           ProjectNode?      @relation("NodeTree", fields: [parentId], references: [id])
+  children         ProjectNode[]     @relation("NodeTree")
+  title            String
+  slug             String
+  description      String?
+  notes            String?
+  depth            Int               @default(0)
+  sortOrder        Int               @default(0)
+  learningOutcomes Json              @default("[]")
+  status           NodeStatus        @default(draft)
+  agentConfidence  Float?
+  path             String            // Materialized path: "/module-1/topic-2/subtopic-1"
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  components       NodeComponent[]
+
+  @@unique([blueprintId, path])
+  @@index([blueprintId, depth])
+  @@index([parentId])
+}
+
+model NodeComponent {
+  id              String            @id @default(uuid())
+  nodeId          String
+  node            ProjectNode       @relation(fields: [nodeId], references: [id])
+  componentType   String            // "video","quiz","study_material","activity","capstone"
+  config          Json              @default("{}")
+  priority        ComponentPriority @default(core)
+  status          ComponentStatus   @default(planned)
+  relevanceScore  Float?
+  pipelineJobId   String?
+  pipelineJob     StageSession?     @relation(fields: [pipelineJobId], references: [id])
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([nodeId])
+  @@index([pipelineJobId])
+}
+
+model IdeationConversation {
+  id           String            @id @default(uuid())
+  blueprintId  String
+  blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id])
+  phase        IdeationPhase
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  messages     IdeationMessage[]
+
+  @@index([blueprintId])
+}
+
+model IdeationMessage {
+  id              String                @id @default(uuid())
+  conversationId  String
+  conversation    IdeationConversation  @relation(fields: [conversationId], references: [id])
+  role            BrainstormRole
+  messageType     String                // "text","suggestion","question","decision","structure_update"
+  content         String
+  structuredData  Json?
+  createdAt       DateTime              @default(now())
+
+  @@index([conversationId])
+}
+
+model BlueprintVersion {
+  id           String            @id @default(uuid())
+  blueprintId  String
+  blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id])
+  version      Int
+  snapshot     Json              // Full blueprint + nodes + components snapshot
+  rubricScore  Json?
+  createdAt    DateTime          @default(now())
+
+  @@unique([blueprintId, version])
+}
+
+model StructureGrade {
+  id              String              @id @default(uuid())
+  blueprintId     String
+  blueprint       ProjectBlueprint    @relation(fields: [blueprintId], references: [id])
+  overallScore    Float
+  dimensionScores Json                // 7 dimensions: coverage, depth, progression, balance, engagement, feasibility, coherence
+  recommendation  GradeRecommendation
+  feedback        String?
+  createdAt       DateTime            @default(now())
+
+  @@index([blueprintId])
 }
