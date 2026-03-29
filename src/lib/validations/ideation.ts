@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 // ─── Ideation Start ──────────────────────────────────────────────────────────
 
 export const startIdeationSchema = z.object({
-  brief: z.string().min(10, 'Brief must be at least 10 characters'),
+  brief: z.string().min(10, 'Brief must be at least 10 characters').max(10000, 'Brief cannot exceed 10,000 characters'),
 })
 
 export type StartIdeationInput = z.infer<typeof startIdeationSchema>
@@ -11,7 +11,7 @@ export type StartIdeationInput = z.infer<typeof startIdeationSchema>
 // ─── Ideation Message ────────────────────────────────────────────────────────
 
 export const sendMessageSchema = z.object({
-  message: z.string().min(1, 'Message cannot be empty'),
+  message: z.string().min(1, 'Message cannot be empty').max(5000, 'Message cannot exceed 5,000 characters'),
 })
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>

@@ -79,7 +79,13 @@ export type ReorderNodesInput = z.infer<typeof reorderNodesSchema>
 
 export const addComponentSchema = z.object({
   nodeId: z.string().min(1, 'nodeId is required'),
-  componentType: z.string().min(1, 'componentType is required'),
+  componentType: z.enum([
+    'video', 'video_short', 'study_material', 'practice_worksheet',
+    'flashcards', 'quiz', 'pre_assessment', 'post_assessment',
+    'activity', 'scenario_exercise', 'capstone_project',
+    'discussion_prompt', 'glossary', 'resource_library',
+    'certificate', 'mentor_checklist',
+  ]),
   config: z.record(z.string(), z.unknown()).optional(),
   priority: z.enum(['core', 'recommended', 'optional']).optional(),
 })

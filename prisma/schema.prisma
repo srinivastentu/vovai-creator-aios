@@ -56,7 +56,7 @@ model Project {
 model StageSession {
   id                String           @id @default(uuid())
   projectId         String
-  project           Project          @relation(fields: [projectId], references: [id])
+  project           Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   stageId           Int
   status            SessionStatus    @default(idle)
   currentArtifactId String?
@@ -74,7 +74,7 @@ model StageSession {
 model Artifact {
   id             String        @id @default(uuid())
   stageSessionId String
-  stageSession   StageSession  @relation(fields: [stageSessionId], references: [id])
+  stageSession   StageSession  @relation(fields: [stageSessionId], references: [id], onDelete: Cascade)
   version        Int
   content        String        // script text, image URL, file path, etc.
   stage          String
@@ -87,7 +87,7 @@ model Artifact {
 model IterationRecord {
   id               String           @id @default(uuid())
   stageSessionId   String
-  stageSession     StageSession     @relation(fields: [stageSessionId], references: [id])
+  stageSession     StageSession     @relation(fields: [stageSessionId], references: [id], onDelete: Cascade)
   artifactId       String
   iteration        Int
   grade            Json             // Grade { dimensions[], compositeScore, ... }
@@ -163,7 +163,7 @@ enum GradeRecommendation {
 model ProjectBlueprint {
   id                String            @id @default(uuid())
   projectId         String            @unique
-  project           Project           @relation(fields: [projectId], references: [id])
+  project           Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   archetype         ProjectArchetype  @default(professional_training)
   hierarchyLabels   Json              // {"level0":"Course","level1":"Module","level2":"Topic","level3":"Subtopic"}
   targetAudience    Json              // Detailed audience profile
@@ -184,9 +184,9 @@ model ProjectBlueprint {
 model ProjectNode {
   id               String            @id @default(uuid())
   blueprintId      String
-  blueprint        ProjectBlueprint  @relation(fields: [blueprintId], references: [id])
+  blueprint        ProjectBlueprint  @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
   parentId         String?
-  parent           ProjectNode?      @relation("NodeTree", fields: [parentId], references: [id])
+  parent           ProjectNode?      @relation("NodeTree", fields: [parentId], references: [id], onDelete: SetNull)
   children         ProjectNode[]     @relation("NodeTree")
   title            String
   slug             String
@@ -211,14 +211,14 @@ model ProjectNode {
 model NodeComponent {
   id              String            @id @default(uuid())
   nodeId          String
-  node            ProjectNode       @relation(fields: [nodeId], references: [id])
+  node            ProjectNode       @relation(fields: [nodeId], references: [id], onDelete: Cascade)
   componentType   String            // "video","quiz","study_material","activity","capstone"
   config          Json              @default("{}")
   priority        ComponentPriority @default(core)
   status          ComponentStatus   @default(planned)
   relevanceScore  Float?
   pipelineJobId   String?
-  pipelineJob     StageSession?     @relation(fields: [pipelineJobId], references: [id])
+  pipelineJob     StageSession?     @relation(fields: [pipelineJobId], references: [id], onDelete: SetNull)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -229,7 +229,7 @@ model NodeComponent {
 model IdeationConversation {
   id           String            @id @default(uuid())
   blueprintId  String
-  blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id])
+  blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
   phase        IdeationPhase
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
@@ -242,7 +242,7 @@ model IdeationConversation {
 model IdeationMessage {
   id              String                @id @default(uuid())
   conversationId  String
-  conversation    IdeationConversation  @relation(fields: [conversationId], references: [id])
+  conversation    IdeationConversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role            BrainstormRole
   messageType     String                // "text","suggestion","question","decision","structure_update"
   content         String
@@ -255,7 +255,7 @@ model IdeationMessage {
 model BlueprintVersion {
   id           String            @id @default(uuid())
   blueprintId  String
-  blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id])
+  blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
   version      Int
   snapshot     Json              // Full blueprint + nodes + components snapshot
   rubricScore  Json?
@@ -267,7 +267,7 @@ model BlueprintVersion {
 model StructureGrade {
   id              String              @id @default(uuid())
   blueprintId     String
-  blueprint       ProjectBlueprint    @relation(fields: [blueprintId], references: [id])
+  blueprint       ProjectBlueprint    @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
   overallScore    Float
   dimensionScores Json                // 7 dimensions: coverage, depth, progression, balance, engagement, feasibility, coherence
   recommendation  GradeRecommendation

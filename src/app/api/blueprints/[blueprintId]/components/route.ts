@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import { addComponentSchema, formatZodError } from '@/lib/validations/blueprint'
-import { COMPONENT_REGISTRY } from '@/lib/project-component/component-registry'
 
 export async function POST(
   request: Request,
@@ -14,14 +13,6 @@ export async function POST(
     const result = addComponentSchema.safeParse(body)
     if (!result.success) {
       return NextResponse.json({ error: formatZodError(result.error) }, { status: 400 })
-    }
-
-    // Validate componentType exists in registry
-    if (!COMPONENT_REGISTRY[result.data.componentType]) {
-      return NextResponse.json(
-        { error: `Unknown component type: ${result.data.componentType}` },
-        { status: 400 }
-      )
     }
 
     // Verify node belongs to this blueprint
