@@ -138,6 +138,45 @@ export interface AudienceProfile {
   }
 }
 
+// ─── Proposed Structure (Stage 0.2 output) ─────────────────────────────
+
+/** A topic within a proposed module */
+export interface ProposedTopic {
+  title: string
+  description: string
+  keyConcepts: string[]
+  estimatedMinutes: number
+  subtopics?: string[]
+  difficulty: 'beginner' | 'intermediate' | 'advanced'
+  bloomLevel: BloomLevel
+}
+
+/** A module within a proposed course structure */
+export interface ProposedModule {
+  title: string
+  description: string
+  topics: ProposedTopic[]
+}
+
+/** An alternative structure sketch (title + rationale only) */
+export interface AlternativeStructure {
+  title: string
+  description: string
+  rationale: string
+  moduleCount: number
+  tradeoffs: string
+}
+
+/** Full proposed course structure — output of the Curriculum Strategist agent */
+export interface ProposedStructure {
+  courseTitle: string
+  courseDescription: string
+  modules: ProposedModule[]
+  sequencingRationale: string
+  alternativeStructures: AlternativeStructure[]
+  confidenceScore: number
+}
+
 // ─── Project Node ───────────────────────────────────────────────────────────
 
 /** Full node shape including children for tree building */
