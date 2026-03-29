@@ -83,7 +83,7 @@ async function main() {
   const blueprint = await db.projectBlueprint.create({
     data: {
       projectId: project.id,
-      archetype: 'course',
+      archetype: 'professional_training',
       hierarchyLabels: {
         level0: 'Course',
         level1: 'Module',

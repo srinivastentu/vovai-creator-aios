@@ -102,12 +102,9 @@ model IterationRecord {
 // ─── Project Component Layer — Enums ──────────────────────────────────────────
 
 enum ProjectArchetype {
-  course
-  workshop
-  certification
-  tutorial
-  bootcamp
-  microlearning
+  k12_curriculum
+  professional_training
+  content_channel
 }
 
 enum NodeStatus {
@@ -167,7 +164,7 @@ model ProjectBlueprint {
   id                String            @id @default(uuid())
   projectId         String            @unique
   project           Project           @relation(fields: [projectId], references: [id])
-  archetype         ProjectArchetype  @default(course)
+  archetype         ProjectArchetype  @default(professional_training)
   hierarchyLabels   Json              // {"level0":"Course","level1":"Module","level2":"Topic","level3":"Subtopic"}
   targetAudience    Json              // Detailed audience profile
   learningOutcomes  Json              // High-level learning outcomes array

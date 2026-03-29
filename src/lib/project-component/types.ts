@@ -10,12 +10,9 @@
 
 /** Project archetype — determines hierarchy, defaults, and production mode */
 export type ProjectArchetype =
-  | 'course'
-  | 'workshop'
-  | 'certification'
-  | 'tutorial'
-  | 'bootcamp'
-  | 'microlearning'
+  | 'k12_curriculum'
+  | 'professional_training'
+  | 'content_channel'
 
 /** Bloom's taxonomy levels — ordered from lowest to highest cognitive demand */
 export type BloomLevel =
@@ -211,6 +208,7 @@ export interface ComponentDefinition {
   deliverableType: string
   deliverableFormat: string[]
   pipelineType: 'document' | 'assessment' | 'video' | 'activity' | 'capstone' | 'meta'
+  estimatedProductionTime: string
   estimatedCost: {
     min: number
     max: number
@@ -219,6 +217,7 @@ export interface ComponentDefinition {
   configSchema: Record<string, unknown>
   attachableAt: number[]
   maxPerNode: number
+  required: boolean
   dependsOn: string[]
   produces: string[]
 }
