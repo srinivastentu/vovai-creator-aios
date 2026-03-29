@@ -61,7 +61,7 @@ capstone projects) before they enter the existing production pipeline.
 
 ## Macro Phase 4: Ideation Agents (Backend)
 
-- [ ] PC-4.1: Agent framework
+- [x] PC-4.1: Agent framework
   - Agent executor: calls Anthropic API, cost tracking, retries, fallback model
   - Agent registry: register, get, list agents
   - File: src/lib/project-component/agents/framework/types.ts
@@ -70,21 +70,22 @@ capstone projects) before they enter the existing production pipeline.
   - Must track: model, tokensIn, tokensOut, costUSD per call
   - Must handle: missing API key gracefully (error, not crash)
 
-- [ ] PC-4.2: Production agents — audience analyst + curriculum strategist
+- [x] PC-4.2: Production agents — audience analyst + curriculum strategist
   - Audience analyst: brief + archetype → AudienceProfile
   - Curriculum strategist: brief + audience → ProposedStructure (modules, topics, subtopics)
   - Test with real brief: "Teacher retooling program on ID, 40 hours, self-paced..."
 
-- [ ] PC-4.3: Production agents — outcome architect + component recommender
+- [x] PC-4.3: Production agents — outcome architect + component recommender
   - Outcome architect: structure + audience → learning outcomes per node, Bloom classified
   - Component recommender: structure + outcomes → component plan, respects compatibility matrix
   - Chain test: audience → curriculum → outcomes → components
 
-- [ ] PC-4.4: Governance agents — optimizer + grader + devil's advocate
-  - Structure optimizer: checks balance, gaps, redundancy, sequencing
-  - Rubric grader: scores against 7-dimension rubric, uses calculateOverallScore
-  - Devil's advocate: challenges assumptions from learner perspective
-  - Full 7-agent chain test
+- [x] PC-4.4: Governance agents — optimizer + grader + devil's advocate
+  - Structure optimizer: checks balance, gaps, redundancy, sequencing → OptimizationReport
+  - Rubric grader: scores 7 dimensions, uses calculateOverallScore + getRecommendation → GradeReport
+  - Devil's advocate: challenges assumptions from learner perspective → DevilsAdvocateReport
+  - Full 7-agent chain test (24 tests passing)
+  - All 3 agents tier: governance, model: claude-sonnet-4-20250514
 
 - [ ] PC-4.5: Orchestrator agent
   - Master coordinator: routes human input to specialist agents

@@ -354,6 +354,46 @@ export interface ComponentPlan {
   rationale: string
 }
 
+// ─── Optimization Report (Stage 0.4 — Structure Optimizer output) ────────────
+
+/** A single issue found by the Structure Optimizer */
+export interface OptimizationIssue {
+  type: 'balance' | 'gap' | 'redundancy' | 'sequencing' | 'depth' | 'component_mismatch'
+  severity: 'critical' | 'warning' | 'suggestion'
+  location: string
+  description: string
+  suggestedAction: string
+}
+
+/** Full optimization report — health score + categorized issues + actions */
+export interface OptimizationReport {
+  healthScore: number
+  criticalIssues: OptimizationIssue[]
+  warnings: OptimizationIssue[]
+  suggestions: OptimizationIssue[]
+  actions: string[]
+  summary: string
+}
+
+// ─── Challenge (Stage 0.4 — Devil's Advocate output) ─────────────────────────
+
+/** A single challenge raised by the Devil's Advocate */
+export interface Challenge {
+  assumption: string
+  perspective: string
+  severity: 'high' | 'medium' | 'low'
+  concern: string
+  suggestion: string
+}
+
+/** Full devil's advocate report */
+export interface DevilsAdvocateReport {
+  challenges: Challenge[]
+  overallRiskLevel: 'high' | 'medium' | 'low'
+  topConcerns: string[]
+  summary: string
+}
+
 // ─── Ideation Messages ──────────────────────────────────────────────────────
 
 /** A single message in an ideation conversation */
