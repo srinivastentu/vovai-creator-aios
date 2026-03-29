@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VOVAI Structure Rubric Schema",
+  "description": "Rubric for grading project structure quality during Phase 0 ideation. Evaluates the blueprint design — hierarchy, outcomes, components, feasibility — before any production begins. Uses 7 dimensions scored on a 0-100 scale.",
+  "type": "object",
+  "required": ["name", "domain", "dimensions", "passThreshold"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable rubric name, e.g. 'Project Structure Quality Rubric'"
+    },
+    "domain": {
+      "type": "string",
+      "description": "Which product domain this rubric belongs to, e.g. 'elearn'"
+    },
+    "passThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 75,
+      "description": "Minimum overall score (0-100) to pass. Structure must also have no dimension below its own passThreshold."
+    },
+    "maxRefinementLoops": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 5,
+      "description": "Maximum auto-refinement cycles before forcing human review"
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "description": "Exactly 7 evaluation dimensions. Weights must sum to 1.0.",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "weight", "passThreshold", "description", "criteria"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Machine-readable ID, e.g. 'coverage', 'depth', 'progression'"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable dimension name"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Weight for overall score. All weights must sum to 1.0."
+          },
+          "passThreshold": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Minimum score for this dimension. Failing any dimension flags it even if overall passes."
+          },
+          "description": {
+            "type": "string",
+            "description": "What this dimension evaluates"
+          },
+          "criteria": {
+            "type": "object",
+            "required": ["excellent", "good", "adequate", "poor"],
+            "description": "Score band descriptions for the grading agent",
+            "properties": {
+              "excellent": { "type": "string", "description": "Score 85-100 — production-ready" },
+              "good": { "type": "string", "description": "Score 70-84 — minor adjustments" },
+              "adequate": { "type": "string", "description": "Score 55-69 — significant gaps" },
+              "poor": { "type": "string", "description": "Score 0-54 — fundamental issues" }
+            }
+          }
+        }
+      }
+    },
+    "recommendations": {
+      "type": "object",
+      "description": "Score-to-recommendation mapping",
+      "properties": {
+        "approve": { "type": "string", "default": "Overall >= 85 and 0 failing dimensions" },
+        "revise": { "type": "string", "default": "Overall >= 75 and <= 1 failing dimension" },
+        "restructure": { "type": "string", "default": "Overall >= 60" },
+        "reject": { "type": "string", "default": "Overall < 60" }
+      }
+    }
+  }
+}
