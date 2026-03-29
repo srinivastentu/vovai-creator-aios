@@ -1,0 +1,172 @@
+import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { sendMessageSchema } from '@/lib/validations/ideation'
+import { formatZodError } from '@/lib/validations/blueprint'
+import {
+  getLatestConversation,
+  addMessage,
+  getMessages,
+  updateConversationPhase,
+} from '@/lib/project-component/ideation/conversation-manager'
+import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
+import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
+import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
+import type { IdeationPhase, ProjectArchetype } from '@/lib/project-component/types'
+
+/**
+ * POST /api/blueprints/[blueprintId]/ideation/message
+ *
+ * Send a human message during brainstorming. Persists the message,
+ * rebuilds loop state from the conversation, and runs the next step.
+ */
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ blueprintId: string }> }
+) {
+  try {
+    const { blueprintId } = await params
+    const body = await request.json()
+
+    const parsed = sendMessageSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 })
+    }
+
+    // Verify blueprint exists
+    const blueprint = await db.projectBlueprint.findUnique({
+      where: { id: blueprintId },
+    })
+    if (!blueprint) {
+      return NextResponse.json({ error: 'Blueprint not found' }, { status: 404 })
+    }
+
+    // Get active conversation
+    const conversation = await getLatestConversation(blueprintId)
+    if (!conversation) {
+      return NextResponse.json(
+        { error: 'No active conversation. Call /ideation/start first.' },
+        { status: 400 }
+      )
+    }
+
+    // Persist the human message
+    await addMessage({
+      conversationId: conversation.id,
+      role: 'human',
+      content: parsed.data.message,
+      messageType: 'text',
+    })
+
+    // Rebuild loop state from conversation + blueprint
+    const state = rebuildState(blueprintId, blueprint, conversation)
+
+    // Run the next step
+    const result = await runIdeationStep(state, parsed.data.message)
+
+    // Persist the agent response
+    await addMessage({
+      conversationId: conversation.id,
+      role: 'facilitator',
+      content: result.humanMessage,
+      messageType: inferMessageType(result),
+      structuredData: {
+        phase: result.updatedState.currentPhase,
+        archetype: result.updatedState.archetype,
+        costUSD: result.stepCostUSD,
+        awaitingHuman: result.awaitingHuman,
+      },
+    })
+
+    // Update conversation phase if it changed
+    if (result.updatedState.currentPhase !== conversation.phase) {
+      await updateConversationPhase(conversation.id, result.updatedState.currentPhase)
+    }
+
+    // Sync blueprint ideation phase
+    await db.projectBlueprint.update({
+      where: { id: blueprintId },
+      data: { ideationPhase: result.updatedState.currentPhase },
+    })
+
+    // Fetch updated messages
+    const messages = await getMessages(conversation.id)
+
+    return NextResponse.json({
+      conversationId: conversation.id,
+      phase: result.updatedState.currentPhase,
+      archetype: result.updatedState.archetype,
+      awaitingHuman: result.awaitingHuman,
+      message: result.humanMessage,
+      costUSD: result.stepCostUSD,
+      messages,
+      state: result.updatedState,
+    })
+  } catch (error) {
+    console.error('POST /api/blueprints/[blueprintId]/ideation/message error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Rebuild IdeationLoopState from the blueprint and conversation data.
+ * The loop engine is stateless — we reconstruct state each request.
+ */
+function rebuildState(
+  blueprintId: string,
+  blueprint: {
+    ideationPhase: string
+    archetype: string | null
+    targetAudience: unknown
+    structureSummary: unknown
+  },
+  conversation: {
+    messages: Array<{
+      role: string
+      content: string
+      messageType: string
+      structuredData: unknown
+    }>
+  }
+): IdeationLoopState {
+  // Find the brief from the first human message
+  const firstHumanMsg = conversation.messages.find(m => m.role === 'human')
+  const brief = firstHumanMsg?.content ?? ''
+
+  // Extract archetype from the latest facilitator message that has one
+  let archetype: ProjectArchetype | null = blueprint.archetype as ProjectArchetype | null
+  for (const msg of conversation.messages) {
+    const data = msg.structuredData as Record<string, unknown> | null
+    if (data?.archetype) {
+      archetype = data.archetype as ProjectArchetype
+    }
+  }
+
+  const state = createInitialState(blueprintId, brief)
+  state.currentPhase = blueprint.ideationPhase as IdeationPhase
+  state.archetype = archetype
+
+  // Rebuild conversation history for the orchestrator
+  state.conversationHistory = conversation.messages.map((m, i) => ({
+    id: `msg-${i}`,
+    conversationId: '',
+    role: m.role as IdeationLoopState['conversationHistory'][number]['role'],
+    messageType: m.messageType as IdeationLoopState['conversationHistory'][number]['messageType'],
+    content: m.content,
+    structuredData: (m.structuredData as Record<string, unknown>) ?? undefined,
+    createdAt: new Date(),
+  }))
+
+  return state
+}
+
+function inferMessageType(result: { updatedState: IdeationLoopState; awaitingHuman: boolean }): 'question' | 'decision' | 'structure_update' {
+  if (result.updatedState.currentPhase === 'brainstorm' && result.awaitingHuman) {
+    return 'question'
+  }
+  if (result.updatedState.currentPhase === 'structure' || result.updatedState.currentPhase === 'refinement') {
+    return 'structure_update'
+  }
+  return 'decision'
+}
