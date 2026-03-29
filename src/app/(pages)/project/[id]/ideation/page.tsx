@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, MessageSquare, PanelRight } from 'lucide-react'
@@ -12,6 +12,9 @@ import { useIdeation } from '@/lib/hooks/use-ideation'
 import { ChatMessageList } from '@/components/project-component/chat/chat-message-list'
 import { ChatInput } from '@/components/project-component/chat/chat-input'
 import { AgentSidebar } from '@/components/project-component/chat/agent-sidebar'
+import { PhaseIndicator } from '@/components/project-component/chat/phase-indicator'
+import { StructurePreview } from '@/components/project-component/chat/structure-preview'
+import { PcNav } from '@/components/project-component/shared/pc-nav'
 import type { ChatMessageData } from '@/components/project-component/chat/chat-message'
 import type { ConversationGroup } from '@/components/project-component/chat/chat-message-list'
 import type { BlueprintSummary } from '@/components/project-component/chat/agent-sidebar'
@@ -53,48 +56,6 @@ interface MessagesResponse {
   messages: ChatMessageData[]
   conversations: ConversationInfo[]
   groupedByPhase: PhaseGroup[]
-}
-
-// ─── Phase Indicator ───────────────────────────────────────────────────────
-
-const PHASE_ORDER: IdeationPhase[] = ['brainstorm', 'structure', 'refinement', 'review', 'approved']
-
-function PhaseIndicator({ currentPhase, score }: { currentPhase: IdeationPhase; score: number | null }) {
-  const currentIdx = PHASE_ORDER.indexOf(currentPhase)
-
-  return (
-    <div className="flex items-center gap-1 border-b px-4 py-2.5">
-      {PHASE_ORDER.map((phase, idx) => {
-        const isCurrent = idx === currentIdx
-        const isPast = idx < currentIdx
-        return (
-          <div key={phase} className="flex items-center gap-1">
-            <div
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-                isCurrent
-                  ? 'bg-primary text-primary-foreground'
-                  : isPast
-                    ? 'bg-muted text-foreground'
-                    : 'bg-muted/50 text-muted-foreground'
-              }`}
-            >
-              {phase}
-            </div>
-            {idx < PHASE_ORDER.length - 1 && (
-              <div className={`h-px w-4 ${isPast ? 'bg-foreground/30' : 'bg-border'}`} />
-            )}
-          </div>
-        )
-      })}
-      {score !== null && (
-        <div className="ml-auto">
-          <Badge variant="outline" className="text-xs">
-            Score: {score.toFixed(1)}
-          </Badge>
-        </div>
-      )}
-    </div>
-  )
 }
 
 // ─── Page Component ────────────────────────────────────────────────────────
@@ -221,6 +182,51 @@ export default function IdeationPage({
   // Mobile sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Structure preview refresh key — increments after each agent message
+  const [structureRefreshKey, setStructureRefreshKey] = useState(0)
+
+  // Track structure-update messages to detect when tree should refresh
+  const lastStructureMsg = useMemo(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const data = allMessages[i].structuredData as Record<string, unknown> | null
+      if (data?.proposedStructure || allMessages[i].messageType === 'structure_update') {
+        return allMessages[i].id
+      }
+    }
+    return null
+  }, [allMessages])
+
+  // Bump refresh key when new structure data arrives (use ref to avoid render-phase setState)
+  const lastKnownStructureMsgRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (lastStructureMsg && lastStructureMsg !== lastKnownStructureMsgRef.current) {
+      lastKnownStructureMsgRef.current = lastStructureMsg
+      setStructureRefreshKey(k => k + 1)
+    }
+  }, [lastStructureMsg])
+
+  // Completed phases (for phase indicator click-to-scroll)
+  const completedPhases = useMemo(
+    () => conversationGroups.map((g) => g.phase),
+    [conversationGroups]
+  )
+
+  // Derive loop count from messages
+  const loopCount = useMemo(() => {
+    let count = 0
+    for (const msg of allMessages) {
+      const data = msg.structuredData as Record<string, unknown> | null
+      if (typeof data?.loopCount === 'number') count = data.loopCount as number
+    }
+    return count
+  }, [allMessages])
+
+  // Scroll to a phase's messages in the chat
+  const handlePhaseClick = useCallback((phase: IdeationPhase) => {
+    const el = document.querySelector(`[data-phase="${phase}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   // Loading state
   if (blueprintLoading) {
     return (
@@ -277,10 +283,16 @@ export default function IdeationPage({
         </Button>
       </div>
 
-      {/* Phase indicator */}
+      {/* Project Component navigation */}
+      <PcNav projectId={projectId} currentPhase={currentPhase} />
+
+      {/* Phase indicator (sticky above chat) */}
       <PhaseIndicator
         currentPhase={currentPhase}
         score={blueprint?.ideationScore ?? null}
+        loopCount={loopCount}
+        completedPhases={completedPhases}
+        onPhaseClick={handlePhaseClick}
       />
 
       {/* Main layout: chat (70%) + sidebar (30%) */}
@@ -319,33 +331,43 @@ export default function IdeationPage({
           )}
         </div>
 
-        {/* Agent sidebar — always visible on md+, slide-over on mobile */}
+        {/* Agent sidebar + structure preview — always visible on md+, slide-over on mobile */}
         <div
-          className={`absolute inset-y-0 right-0 z-10 w-72 border-l bg-background transition-transform md:relative md:block md:w-[30%] md:translate-x-0 ${
-            sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
+          className={`absolute inset-y-0 right-0 z-10 w-72 border-l bg-background transition-transform md:relative md:flex md:w-[30%] md:translate-x-0 md:flex-col ${
+            sidebarOpen ? 'flex translate-x-0 flex-col' : 'translate-x-full md:translate-x-0'
           }`}
         >
-          <AgentSidebar
-            currentPhase={currentPhase}
-            messages={allMessages}
-            activeAgents={activeAgents}
-            disabled={anyLoading}
-            onGrade={gradeStructure}
-            gradeLoading={gradeLoading}
-            gradeError={gradeError}
-            onApprove={() => {
-              submitReview('approve').then(() => {
-                router.push(`/project/${projectId}/structure`)
-              })
-            }}
-            onFeedback={(msg) => submitReview('feedback', msg)}
-            onRestructure={() => submitReview('restructure')}
-            reviewLoading={reviewLoading}
-            blueprint={blueprint ? {
-              archetype: blueprint.archetype,
-              ideationScore: blueprint.ideationScore,
-              structureSummary: blueprint.structureSummary as BlueprintSummary['structureSummary'],
-            } : null}
+          {/* Agent sidebar (scrolls independently) */}
+          <div className="flex-1 overflow-y-auto">
+            <AgentSidebar
+              currentPhase={currentPhase}
+              messages={allMessages}
+              activeAgents={activeAgents}
+              disabled={anyLoading}
+              onGrade={gradeStructure}
+              gradeLoading={gradeLoading}
+              gradeError={gradeError}
+              onApprove={() => {
+                submitReview('approve').then(() => {
+                  router.push(`/project/${projectId}/structure`)
+                })
+              }}
+              onFeedback={(msg) => submitReview('feedback', msg)}
+              onRestructure={() => submitReview('restructure')}
+              reviewLoading={reviewLoading}
+              blueprint={blueprint ? {
+                archetype: blueprint.archetype,
+                ideationScore: blueprint.ideationScore,
+                structureSummary: blueprint.structureSummary as BlueprintSummary['structureSummary'],
+              } : null}
+            />
+          </div>
+
+          {/* Structure preview (pinned to bottom of sidebar) */}
+          <StructurePreview
+            blueprintId={blueprint?.id ?? null}
+            projectId={projectId}
+            refreshKey={structureRefreshKey}
           />
         </div>
 
