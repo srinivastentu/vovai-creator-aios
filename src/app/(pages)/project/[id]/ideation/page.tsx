@@ -1,17 +1,18 @@
 'use client'
 
-import { use, useMemo } from 'react'
+import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, PanelRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { useApi } from '@/lib/hooks/use-api'
 import { ChatMessageList } from '@/components/project-component/chat/chat-message-list'
 import { ChatInput } from '@/components/project-component/chat/chat-input'
-import { RoleAvatar, getRoleConfig } from '@/components/project-component/chat/role-avatar'
+import { AgentSidebar } from '@/components/project-component/chat/agent-sidebar'
 import type { ChatMessageData } from '@/components/project-component/chat/chat-message'
 import type { ConversationGroup } from '@/components/project-component/chat/chat-message-list'
-import type { BrainstormRole, IdeationPhase } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/project-component'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 
@@ -43,66 +44,6 @@ interface MessagesResponse {
   messages: ChatMessageData[]
   conversations: ConversationInfo[]
   groupedByPhase: PhaseGroup[]
-}
-
-// ─── Agent Activity Sidebar ────────────────────────────────────────────────
-
-const ALL_AGENTS: BrainstormRole[] = [
-  'facilitator',
-  'researcher',
-  'pedagogy_expert',
-  'audience_analyst',
-  'structure_architect',
-  'creative_director',
-  'critic',
-  'synthesizer',
-]
-
-function AgentActivitySidebar({
-  activeAgents,
-  currentPhase,
-}: {
-  activeAgents: Set<BrainstormRole>
-  currentPhase: IdeationPhase
-}) {
-  return (
-    <Card className="h-full">
-      <CardHeader className="border-b">
-        <CardTitle className="text-sm">Agent Activity</CardTitle>
-        <Badge variant="outline" className="w-fit text-xs capitalize">
-          {currentPhase} phase
-        </Badge>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="flex flex-col">
-          {ALL_AGENTS.map((role) => {
-            const config = getRoleConfig(role)
-            const isActive = activeAgents.has(role)
-            return (
-              <div
-                key={role}
-                className={`flex items-center gap-2.5 px-4 py-2.5 border-b last:border-b-0 ${
-                  isActive ? 'bg-muted/50' : 'opacity-50'
-                }`}
-              >
-                <RoleAvatar role={role} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium truncate">{config.label}</p>
-                </div>
-                {isActive ? (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    Active
-                  </Badge>
-                ) : (
-                  <span className="text-[10px] text-muted-foreground">Idle</span>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  )
 }
 
 // ─── Phase Indicator ───────────────────────────────────────────────────────
@@ -193,20 +134,16 @@ export default function IdeationPage({
     return []
   }, [messagesData])
 
-  // Determine which agents have spoken
-  const activeAgents = useMemo(() => {
-    const agents = new Set<BrainstormRole>()
-    for (const group of conversationGroups) {
-      for (const msg of group.messages) {
-        if (msg.role !== 'human') {
-          agents.add(msg.role)
-        }
-      }
-    }
-    return agents
-  }, [conversationGroups])
+  // Flatten all messages for the sidebar
+  const allMessages = useMemo(
+    () => conversationGroups.flatMap((g) => g.messages),
+    [conversationGroups]
+  )
 
   const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
+
+  // Mobile sidebar toggle
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Loading state
   if (blueprintLoading) {
@@ -253,6 +190,15 @@ export default function IdeationPage({
         <Badge variant="outline" className="text-xs capitalize">
           {blueprint?.archetype?.replace('_', ' ')}
         </Badge>
+        {/* Mobile sidebar toggle */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto md:hidden"
+          onClick={() => setSidebarOpen((v) => !v)}
+        >
+          <PanelRight size={16} />
+        </Button>
       </div>
 
       {/* Phase indicator */}
@@ -261,10 +207,10 @@ export default function IdeationPage({
         score={blueprint?.ideationScore ?? null}
       />
 
-      {/* Main layout: chat + sidebar */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Chat area */}
-        <div className="flex flex-1 flex-col">
+      {/* Main layout: chat (70%) + sidebar (30%) */}
+      <div className="relative flex flex-1 overflow-hidden">
+        {/* Chat area — takes full width on mobile, 70% on md+ */}
+        <div className="flex w-full flex-col md:w-[70%]">
           {messagesLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <Loader2 className="animate-spin text-muted-foreground" size={20} />
@@ -279,13 +225,37 @@ export default function IdeationPage({
           />
         </div>
 
-        {/* Agent activity sidebar */}
-        <div className="hidden w-64 shrink-0 border-l lg:block">
-          <AgentActivitySidebar
-            activeAgents={activeAgents}
+        {/* Agent sidebar — always visible on md+, slide-over on mobile */}
+        <div
+          className={`absolute inset-y-0 right-0 z-10 w-72 border-l bg-background transition-transform md:relative md:block md:w-[30%] md:translate-x-0 ${
+            sidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'
+          }`}
+        >
+          <AgentSidebar
             currentPhase={currentPhase}
+            messages={allMessages}
+            blueprint={blueprint ? {
+              archetype: blueprint.archetype,
+              ideationScore: blueprint.ideationScore,
+              structureSummary: blueprint.structureSummary as {
+                totalModules?: number
+                totalTopics?: number
+                totalSubtopics?: number
+                componentBreakdown?: Record<string, number>
+                estimatedHours?: number
+                recommendation?: string
+              } | null,
+            } : null}
           />
         </div>
+
+        {/* Backdrop for mobile sidebar */}
+        {sidebarOpen && (
+          <div
+            className="absolute inset-0 z-[9] bg-black/20 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
       </div>
     </main>
   )
