@@ -66,3 +66,53 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
 
   return { ...state, refetch: fetchData }
 }
+
+// ─── Mutation Hook (POST / PATCH / DELETE) ─────────────────────────────────
+
+interface UseApiMutationResult<TBody, TResponse> {
+  mutate: (body: TBody) => Promise<TResponse>
+  loading: boolean
+  error: string | null
+}
+
+export function useApiMutation<TBody, TResponse>(
+  url: string,
+  method: 'POST' | 'PATCH' | 'DELETE' = 'POST'
+): UseApiMutationResult<TBody, TResponse> {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const mutate = useCallback(
+    async (body: TBody): Promise<TResponse> => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+
+        const json = await res.json()
+
+        if (!res.ok) {
+          const message = (json as { error?: string }).error ?? `Request failed (${res.status})`
+          setError(message)
+          throw new Error(message)
+        }
+
+        return json as TResponse
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Network error'
+        setError(message)
+        throw err
+      } finally {
+        setLoading(false)
+      }
+    },
+    [url, method]
+  )
+
+  return { mutate, loading, error }
+}

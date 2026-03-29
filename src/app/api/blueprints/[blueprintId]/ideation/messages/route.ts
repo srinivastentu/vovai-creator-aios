@@ -59,20 +59,7 @@ export async function GET(
       })
     }
 
-    // Default: get the latest conversation with all messages
-    const conversation = await getLatestConversation(blueprintId)
-
-    if (!conversation) {
-      return NextResponse.json({
-        conversationId: null,
-        phase: blueprint.ideationPhase,
-        messages: [],
-      })
-    }
-
-    const messages = await getMessages(conversation.id)
-
-    // Also fetch all conversations for this blueprint (for phase navigation)
+    // Default: get ALL conversations with their messages (for full chat history)
     const conversations = await db.ideationConversation.findMany({
       where: { blueprintId },
       orderBy: { createdAt: 'asc' },
@@ -84,16 +71,44 @@ export async function GET(
       },
     })
 
+    if (conversations.length === 0) {
+      return NextResponse.json({
+        conversationId: null,
+        phase: blueprint.ideationPhase,
+        messages: [],
+        conversations: [],
+        groupedByPhase: [],
+      })
+    }
+
+    // Fetch messages from ALL conversations, grouped by phase
+    const groupedByPhase = []
+    for (const convo of conversations) {
+      const convoMessages = await getMessages(convo.id)
+      if (convoMessages.length > 0) {
+        groupedByPhase.push({
+          conversationId: convo.id,
+          phase: convo.phase,
+          messages: convoMessages,
+        })
+      }
+    }
+
+    // Flatten all messages for backward compatibility
+    const allMessages = groupedByPhase.flatMap(g => g.messages)
+    const latestConvo = conversations[conversations.length - 1]
+
     return NextResponse.json({
-      conversationId: conversation.id,
-      phase: conversation.phase,
-      messages,
+      conversationId: latestConvo.id,
+      phase: latestConvo.phase,
+      messages: allMessages,
       conversations: conversations.map(c => ({
         id: c.id,
         phase: c.phase,
         messageCount: c._count.messages,
         createdAt: c.createdAt,
       })),
+      groupedByPhase,
     })
   } catch (error) {
     console.error('GET /api/blueprints/[blueprintId]/ideation/messages error:', error)
