@@ -1,329 +1,291 @@
 # VOVAI eLearn AIOS — Task Tracker
 
-## Current Phase: Ring 0 — Project Setup (Mac)
+## Current Focus: Project Component Build (PC-1 through PC-9)
 
-### Day 0: Setup
-- [x] Run setup script — project structure created
-- [x] Open in VS Code: `code vovai-elearn-aios`
-- [x] Open Claude Code in VS Code (Cmd+Shift+P → "Claude Code: Open")
-- [x] Tell Claude: "Read CLAUDE.md and tasks/todo.md. Confirm you understand."
+**What we're building:** The Project Component layer — a pre-pipeline system
+that lets users configure multi-module, multi-topic eLearning projects with
+different component types (videos, study materials, quizzes, activities,
+capstone projects) before they enter the existing production pipeline.
 
-### Day 1: Install Dependencies
-- [x] Tell Claude: install Next.js 14, TypeScript, Tailwind, shadcn/ui
-- [x] Tell Claude: install Prisma, set up PostgreSQL connection
-- [x] Tell Claude: install Vitest for testing
-- [x] Verify: `npm run dev` works, see page at http://localhost:3000
-
-### Day 2: Database
-- [x] Install PostgreSQL via Homebrew (if not installed)
-- [x] Create database: vovai_elearn_dev
-- [x] Tell Claude: create Prisma schema (projects, artifacts, grades, stages)
-- [x] Run first migration: npx prisma migrate dev
-- [ ] Verify: npx prisma studio shows tables
+**Three target projects:**
+1. K-12 CBSE: 220 videos across Science, Social, Math for grades 6-10
+2. Teacher Retooling in ID: multi-module training with mixed components
+3. Education YouTube Channel: ongoing multi-subject video production
 
 ---
 
-## Ring 1: Script Pipeline (Weeks 1-4)
+## Macro Phase 1: Database & Seed ✅ COMPLETE
 
-### Week 1: UI Shell (Visual-First)
-- [x] Dashboard page — project list with status
-- [x] New project form — topic, audience, duration
-- [ ] Project detail page — pipeline stages with status
-- [ ] Review interface skeleton — script, scorecard, 3 buttons
+- [x] PC-1.2: Blueprint schema — 7 Prisma models, 7 enums, migration
+- [x] PC-1.3: Seed data — 1 blueprint, 12 nodes, 25 components, 3 messages
+- [x] PC-1.3: Health check API — /api/project-component/health returns counts
+- [x] Existing 4 models untouched (Project, StageSession, Artifact, IterationRecord)
+- [x] Materialized paths correct (/module/topic/subtopic format)
+- [x] Tags: PC-1.2-blueprint-schema, PC-1.3-seed-data, v0.3.0, v0.4.0
 
-### Week 2: Engine Core
-- [ ] Implement core types (from src/lib/types.ts)
-- [ ] Implement produce() — Claude API integration
-- [ ] Implement evaluate() — GPT-4o cross-model judging
-- [ ] Implement runLoop() — async generator with SSE
-- [ ] Connect SSE to UI — real-time streaming
+## Macro Phase 2: Registries & Type System ✅ COMPLETE
 
-### Week 3: Review System + Script Agent
-- [ ] Implement processReview() — approve/feedback/reject
-- [ ] Connect review buttons to API
-- [ ] Load Script Writer agent from config YAML
-- [ ] Load script rubric from config JSON
-- [ ] Integration test: topic → script → review → approve
+- [x] PC-2.1: Core TypeScript types — 12 enums/unions + 12 interfaces + TreeNode<T>
+- [x] PC-2.2: Archetype registry (3) + component registry (16) + compatibility matrix
+- [x] PC-2.3: Structure rubric — 7 dimensions, weights sum to 1.0, 15/15 tests passing
+- [x] Zero `any` types, npm run typecheck clean, npm run test:unit passes
+- [x] Tags: PC-2.1-type-system, PC-2.2-registries, PC-2.3-rubric
 
-### Week 4: Polish + Test
-- [ ] End-to-end: create project, generate script, review, approve
-- [ ] Cost tracking on every LLM call
-- [ ] Iteration history display in UI
-- [ ] Fix all bugs found during testing
-- [ ] 🎯 MILESTONE: "The loop genuinely improves eLearning scripts"
+## Macro Phase 3: Tree Engine + API ← CURRENT
 
----
+- [ ] PC-3.1: Tree utility functions
+  - 11 pure functions: buildTree, flattenTree, findNode, getAncestors,
+    getDescendants, getSiblings, addNode, removeNode, moveNode, updatePaths, getTreeStats
+  - File: src/lib/project-component/tree/tree-utils.ts
+  - Tests: tests/unit/tree-utils.test.ts
+  - Key rule: NO database imports — pure functions only
 
-## Ring 2: Visual Pipeline (Weeks 5-7)
-- [ ] Image Prompt Engineer agent + rubric
-- [ ] fal.ai integration (FLUX model)
-- [ ] Tournament engine (multiple models, parallel)
-- [ ] Image Judge (GPT-4o Vision)
-- [ ] Style anchor pattern (Scene 1 = reference)
-- [ ] Storyboard assembly view
-- [ ] Storyboard review screen
-- [ ] 🎯 MILESTONE: "Topic → Script → Images → Storyboard"
+- [ ] PC-3.2: Blueprint & node API routes (8 route groups)
+  - /api/blueprints — POST create
+  - /api/blueprints/[blueprintId] — GET, PATCH
+  - /api/blueprints/[blueprintId]/nodes — GET all, POST new
+  - /api/blueprints/[blueprintId]/nodes/[nodeId] — GET, PATCH, DELETE
+  - /api/blueprints/[blueprintId]/nodes/reorder — POST bulk reorder
+  - /api/blueprints/[blueprintId]/components — POST add, DELETE remove
+  - /api/archetypes — GET list (from registry, no DB)
+  - /api/component-registry — GET list, GET ?archetype=xxx filter
+  - All routes: Zod validation, consistent { error } format, proper HTTP status
 
-## Ring 3: Audio + Assembly (Weeks 8-10)
-- [ ] ElevenLabs voice-over integration
-- [ ] Runway/Kling video generation
-- [ ] Music/SFX generation
-- [ ] FFmpeg per-scene assembly
-- [ ] Full assembly + transitions
-- [ ] 🎯 MILESTONE: "Topic → complete eLearning video"
+- [ ] PC-3.3: Tree validation + versioning
+  - Validator: catches orphans, circular refs, depth violations, bad components,
+    missing dependencies, duplicate paths, path mismatches
+  - Serializer: serializeBlueprint/deserializeBlueprint for snapshots
+  - Version API: POST create snapshot, GET list versions, POST restore version
+  - File: src/lib/project-component/tree/tree-validator.ts
+  - File: src/lib/project-component/tree/tree-serializer.ts
 
-## Ring 4: Production UI (Weeks 11-14)
-- [ ] Full production portal
-- [ ] Workshop (prompt/rubric editors)
-- [ ] Analytics dashboard
-- [ ] 🎯 MILESTONE: "Complete, usable production system"
+## Macro Phase 4: Ideation Agents (Backend)
 
-## Ring 5: Platform (Weeks 15-20)
-- [ ] Multi-tenant + auth + billing
-- [ ] Deployment
-- [ ] First client project
-- [ ] 🎯 MILESTONE: "Commercial platform, first paying client"
+- [ ] PC-4.1: Agent framework
+  - Agent executor: calls Anthropic API, cost tracking, retries, fallback model
+  - Agent registry: register, get, list agents
+  - File: src/lib/project-component/agents/framework/types.ts
+  - File: src/lib/project-component/agents/framework/executor.ts
+  - File: src/lib/project-component/agents/framework/registry.ts
+  - Must track: model, tokensIn, tokensOut, costUSD per call
+  - Must handle: missing API key gracefully (error, not crash)
 
----
+- [ ] PC-4.2: Production agents — audience analyst + curriculum strategist
+  - Audience analyst: brief + archetype → AudienceProfile
+  - Curriculum strategist: brief + audience → ProposedStructure (modules, topics, subtopics)
+  - Test with real brief: "Teacher retooling program on ID, 40 hours, self-paced..."
 
-## Project Component Build Status
+- [ ] PC-4.3: Production agents — outcome architect + component recommender
+  - Outcome architect: structure + audience → learning outcomes per node, Bloom classified
+  - Component recommender: structure + outcomes → component plan, respects compatibility matrix
+  - Chain test: audience → curriculum → outcomes → components
 
-*Generated 2026-03-29 — full codebase audit*
+- [ ] PC-4.4: Governance agents — optimizer + grader + devil's advocate
+  - Structure optimizer: checks balance, gaps, redundancy, sequencing
+  - Rubric grader: scores against 7-dimension rubric, uses calculateOverallScore
+  - Devil's advocate: challenges assumptions from learner perspective
+  - Full 7-agent chain test
 
-### What exists today
+- [ ] PC-4.5: Orchestrator agent
+  - Master coordinator: routes human input to specialist agents
+  - Manages phase transitions: brainstorm → structure → refinement → review
+  - Test 3-turn conversation flow
+  - All 8 agents registered in registry
 
-**Prisma Models (11):**
-- Project — core project entity (name, topic, audience, duration, status, ring)
-- StageSession — one session per pipeline stage per project
-- Artifact — immutable versioned content (script text, image URL, etc.)
-- IterationRecord — one row per loop iteration with grade + cost
-- ProjectBlueprint — archetype, hierarchy labels, audience, outcomes, enabled components
-- ProjectNode — tree node (self-referential via parentId, materialized path)
-- NodeComponent — production component attached to a node (video, quiz, etc.)
-- IdeationConversation — brainstorm conversation linked to blueprint
-- IdeationMessage — individual message in ideation conversation
-- BlueprintVersion — immutable snapshot of blueprint + nodes + components
-- StructureGrade — 7-dimension grade of blueprint quality
+## Macro Phase 5: Recursive Loop Engine
 
-**Prisma Enums (10):**
-- ProjectStatus (draft, in_progress, completed)
-- SessionStatus (idle, generating, evaluating, presenting, awaiting_review, approved)
-- IterationOutcome (revised, presented, escalated, approved)
-- ProjectArchetype (course, workshop, certification, tutorial, bootcamp, microlearning)
-- NodeStatus (draft, ideating, structured, approved, in_production, completed)
-- ComponentStatus (planned, configured, queued, in_production, completed, skipped)
-- ComponentPriority (core, recommended, optional)
-- IdeationPhase (brainstorm, structure, refinement, review, approved)
-- BrainstormRole (human, facilitator, researcher, pedagogy_expert, audience_analyst, structure_architect, creative_director, critic, synthesizer)
-- GradeRecommendation (approve, revise, restructure, reject)
+- [ ] PC-5.1: Phase state machine
+  - PHASE_TRANSITIONS: brainstorm→structure→refinement→review→approved
+  - canTransition, getNextPhase (auto-routes based on grade score)
+  - IdeationLoopState interface, createInitialState
+  - File: src/lib/project-component/ideation/phase-manager.ts
 
-**Page Routes (4):**
-- src/app/page.tsx — home / landing
-- src/app/(pages)/dashboard/page.tsx — project list (sample data)
-- src/app/(pages)/project/new/page.tsx — create project form (connected to API)
-- src/app/(pages)/project/[id]/page.tsx — project detail with 3 view tabs (sample data)
+- [ ] PC-5.2: Loop engine core
+  - runIdeationStep: runs ONE step, selects agents by phase
+  - processHumanFeedback: approve / feedback / restructure
+  - Auto-refinement: score < 75 AND loopCount < 5 → refine automatically
+  - Force human review after 5 loops
+  - File: src/lib/project-component/ideation/loop-engine.ts
 
-**API Routes (2):**
-- src/app/api/projects/route.ts — POST: create project (Zod validated)
-- src/app/api/project-component/health/route.ts — GET: count blueprints/nodes/components
+- [ ] PC-5.3: Ideation API + conversation persistence
+  - Conversation manager: createConversation, addMessage, getMessages
+  - API: /ideation/start, /ideation/message, /ideation/grade, /ideation/approve
+  - All messages persisted to Prisma (IdeationConversation + IdeationMessage)
+  - Full flow testable via curl
 
-**src/lib files (6):**
-- src/lib/types.ts — Artifact, Grade, ReviewAction, IterationRecord, CostRecord, StageConfig, StageSession, Project, LoopEvent
-- src/lib/engine.ts — produce(), evaluate(), runLoop(), processReview() — all stubs (throw "Not yet implemented")
-- src/lib/pipeline.ts — STAGES[] (16 stages), RINGS[], getStage(), getLoopLabel()
-- src/lib/utils.ts — cn() utility for Tailwind class merging
-- src/lib/db.ts — Prisma client singleton (PrismaPg adapter)
-- src/lib/validations/project.ts — createProjectSchema (Zod)
+## Macro Phase 6: Chat Ideation UI (Visual-First)
 
-**UI Components (11):**
-- src/components/ui/button.tsx — shadcn button
-- src/components/ui/card.tsx — shadcn card
-- src/components/ui/input.tsx — shadcn input
-- src/components/ui/badge.tsx — shadcn badge
-- src/components/ui/label.tsx — shadcn label
-- src/components/ui/textarea.tsx — shadcn textarea
-- src/components/dashboard/project-card.tsx — project card for dashboard
-- src/components/project/stage-card.tsx — pipeline stage card
-- src/components/project/version-a.tsx — grid view of stages
-- src/components/project/version-b.tsx — timeline view of stages
-- src/components/project/version-c.tsx — sidebar view of stages
+- [ ] PC-6.1: Chat message components (static, sample data first)
+  - Different renderers for: text, suggestion, question, decision, structure_update
+  - Role avatars for human + 8 agent roles
+  - File: src/components/project-component/chat/
 
-**Config Files (5):**
-- config/agents/elearn-aios/script-writer.yml — Script Writer agent persona
-- config/agents/elearn-aios/image-prompt-engineer.yml — Image Prompt Engineer persona
-- config/agents/elearn-aios/voiceover-agent.yml — Voice-Over agent persona
-- config/rubrics/elearn-script.json — Script quality rubric (5 dimensions, 1-10 scale)
-- config/pipelines/elearn-aios-pipeline.json — 16-stage pipeline definition
+- [ ] PC-6.2: Agent activity sidebar (static, sample data first)
+  - Shows which agents are active/idle/completed
+  - Status indicators per agent
 
-**Doc/Schema Files (3):**
-- docs/rubrics/rubric-schema.json — Production rubric schema (5 dimensions, 1-10)
-- docs/rubrics/structure-rubric-schema.json — Structure rubric schema (7 dimensions, 0-100)
-- docs/rubrics/production-rubric-schema.json — Production rubric schema (5 dimensions, 1-10)
+- [ ] PC-6.3: Wire to API + SSE streaming
+  - Connect chat to /ideation/message endpoint
+  - Real-time agent response streaming via SSE
+  - Loading states during agent processing
 
-**Scripts (1):**
-- scripts/seed-project-component.ts — Seeds project, blueprint, 12 nodes, 25 components, 3 ideation messages
+- [ ] PC-6.4: Phase indicator + mini structure preview
+  - Shows current ideation phase (brainstorm/structure/refinement/review)
+  - Mini tree preview that updates as agents propose structure
+  - Transition button: "View full structure on canvas →"
 
-**Generated (Prisma Client):**
-- src/generated/prisma/ — 11 model files + client + enums + types (auto-generated, do not edit)
+## Macro Phase 7: Canvas Structure UI
 
----
+- [ ] PC-7.1: Tree visualization (collapsible, interactive)
+  - Render seed data as collapsible tree
+  - Show component badges per node (video, quiz, study_material icons)
+  - File: src/app/(pages)/project/[id]/structure/page.tsx
 
-### What the Project Component adds
+- [ ] PC-7.2: Node detail panel
+  - Edit: title, description, learning outcomes
+  - View: attached components with config
+  - Add/remove components from registry
 
-#### Macro 2: Registries & Types
+- [ ] PC-7.3: Component palette (drag-drop from registry)
+  - Shows available components filtered by archetype compatibility
+  - Drag to attach to a node
+  - May need: @dnd-kit/core (install when needed, not before)
 
-**TypeScript types:**
-- src/lib/types/project-component.ts — Blueprint, ProjectNode, NodeComponent TS interfaces (mirrors Prisma but for app layer)
-- src/lib/types/ideation.ts — IdeationConversation, IdeationMessage, BrainstormRole types
-- src/lib/validations/blueprint.ts — Zod schemas for blueprint creation, node CRUD, component config
+- [ ] PC-7.4: Rubric score bar + agent chat drawer
+  - Persistent score bar showing current rubric grade
+  - Updates live when structure changes
+  - Chat drawer: ask agent about specific nodes
 
-**Structure rubric (actual instance, not just schema):**
-- config/rubrics/elearn-structure.json — 7-dimension rubric instance (coverage, depth, progression, balance, engagement, feasibility, coherence)
+## Macro Phase 8: Wizard + Production Handoff
 
-**Ideation agent personas (8 brainstorm roles):**
-- config/agents/elearn-aios/facilitator.yml
-- config/agents/elearn-aios/researcher.yml
-- config/agents/elearn-aios/pedagogy-expert.yml
-- config/agents/elearn-aios/audience-analyst.yml
-- config/agents/elearn-aios/structure-architect.yml
-- config/agents/elearn-aios/creative-director.yml
-- config/agents/elearn-aios/critic.yml
-- config/agents/elearn-aios/synthesizer.yml
+- [ ] PC-8.1: Dynamic wizard stepper
+  - Steps auto-generated from enabled components
+  - Only shows steps for components the project actually uses
+  - File: src/app/(pages)/project/[id]/configure/page.tsx
 
-*Subtotal: ~12 files*
+- [ ] PC-8.2: Component config forms
+  - Video: duration, style, language, voice, subtitles, music
+  - Quiz: question count, types, difficulty, Bloom levels, passing score
+  - Study material: format, length, reading level
+  - Activity: type, duration, group size, scaffolding level
+  - Bulk config: apply settings to all vs per-module vs individual
 
-#### Macro 3: Tree Engine + API
+- [ ] PC-8.3: Review + confirm with cost estimator
+  - Summary: total components, breakdown by type
+  - Cost estimate: min/max based on component registry costs
+  - Timeline estimate: based on production times
+  - File: src/app/(pages)/project/[id]/launch/page.tsx
 
-**Engine logic:**
-- src/lib/project-component/tree-engine.ts — CRUD for ProjectNode tree (add/move/delete/reorder nodes, materialized path management)
-- src/lib/project-component/blueprint-engine.ts — Create/update blueprint, archetype logic, hierarchy label mapping
-- src/lib/project-component/component-rules.ts — Rules for which components attach at which depth (modules get overview/assessment, topics get production components, subtopics are structural only)
+- [ ] PC-8.4: Production handoff → StageSession bridge
+  - Creates StageSession jobs from approved NodeComponents
+  - Videos batched into groups of 10
+  - Documents, assessments, activities as individual jobs
+  - Sets NodeComponent.pipelineJobId → StageSession.id
+  - File: src/lib/project-component/production/handoff.ts
 
-**API routes:**
-- src/app/api/project-component/blueprint/route.ts — GET/POST/PUT blueprint
-- src/app/api/project-component/nodes/route.ts — GET (tree), POST (add node)
-- src/app/api/project-component/nodes/[id]/route.ts — GET/PUT/DELETE single node
-- src/app/api/project-component/components/route.ts — GET/POST components for a node
+## Macro Phase 9: Testing, Security & Polish
 
-*Subtotal: ~7 files*
+- [ ] PC-9.1: End-to-end test
+  - Teacher Retooling project through full flow:
+    ideation → structure → grading → approval → configure → handoff
+  - Verify: StageSession jobs created with correct stage assignments
 
-#### Macro 4: Ideation Agents
+- [ ] PC-9.2: Security
+  - All queries scoped by blueprintId (no cross-project leaks)
+  - All POST/PATCH validated with Zod
+  - Agent API calls have cost limits and timeouts
+  - No raw SQL anywhere
+  - Consistent error format on all routes
 
-**Engine logic:**
-- src/lib/project-component/ideation-engine.ts — Orchestrate multi-agent brainstorm: route turns to appropriate agent, manage conversation phases (brainstorm -> structure -> refinement -> review)
-- src/lib/project-component/agent-loader.ts — Load YAML agent persona, construct system prompt, call AI provider
-
-**API routes:**
-- src/app/api/project-component/ideation/route.ts — GET/POST conversations
-- src/app/api/project-component/ideation/[id]/messages/route.ts — GET messages, POST new message (triggers agent response)
-
-*Subtotal: ~4 files*
-
-#### Macro 5: Loop Engine (Structure Grading)
-
-**Engine logic:**
-- src/lib/project-component/structure-grader.ts — Grade blueprint against 7-dimension structure rubric using GPT-4o as judge
-- src/lib/project-component/structure-loop.ts — Refinement loop: grade -> identify weak dimensions -> auto-revise OR escalate to human -> re-grade (max N iterations)
-
-**API routes:**
-- src/app/api/project-component/grade/route.ts — POST: trigger grading, GET: latest grade
-
-*Subtotal: ~3 files*
-
-#### Macros 6-8: UI Pages & Components
-
-**Pages:**
-- src/app/(pages)/project/[id]/blueprint/page.tsx — Blueprint overview + archetype selector + hierarchy editor
-- src/app/(pages)/project/[id]/ideation/page.tsx — Multi-agent brainstorm chat interface
-- src/app/(pages)/project/[id]/structure/page.tsx — Interactive tree editor + structure scorecard
-
-**Components:**
-- src/components/project-component/blueprint-header.tsx — Archetype badge, audience, outcomes summary
-- src/components/project-component/archetype-selector.tsx — Visual picker for 6 archetypes
-- src/components/project-component/node-tree.tsx — Collapsible tree view with drag-and-drop
-- src/components/project-component/node-editor.tsx — Edit node title, description, outcomes, notes
-- src/components/project-component/component-list.tsx — Components per node with priority/status
-- src/components/project-component/ideation-chat.tsx — Chat bubbles with role avatars + structured suggestions
-- src/components/project-component/structure-scorecard.tsx — 7-dimension radar chart + grade display
-
-*Subtotal: ~10 files*
-
-#### Macro 9: Handoff + Integration
-
-**Engine logic:**
-- src/lib/project-component/handoff.ts — Convert approved NodeComponents to StageSession pipeline jobs (set pipelineJobId, create sessions)
-
-**API routes:**
-- src/app/api/project-component/handoff/route.ts — POST: trigger handoff for approved blueprint
-
-*Subtotal: ~2 files*
-
-#### Tests (throughout all macros)
-
-- tests/unit/tree-engine.test.ts
-- tests/unit/component-rules.test.ts
-- tests/unit/blueprint-engine.test.ts
-- tests/unit/ideation-engine.test.ts
-- tests/unit/structure-grader.test.ts
-- tests/unit/handoff.test.ts
-
-*Subtotal: ~6 files*
-
-**TOTAL NEW FILES: ~44**
+- [ ] PC-9.3: Polish
+  - Loading states during all async operations
+  - Empty states for new projects with no blueprint
+  - Error boundaries on all dynamic pages
+  - Mobile responsiveness for chat and canvas
 
 ---
 
-### Architecture Understanding Check
+## Architecture Understanding (Reference)
 
-**1. What is the difference between Level 1 (engine) and Level 2 (product)?**
+### 3 Project Archetypes (from PC-2.2 registries)
 
-Level 1 (Engine) is the platform code: the recursive loop engine (`runLoop`, `produce`, `evaluate`, `processReview`), the orchestrator, registries, grading system, and review interface. It is media-agnostic — the same engine works for scripts, images, videos, music, or any future content type.
+| Archetype | Hierarchy | Default Components | Production Mode |
+|---|---|---|---|
+| k12_curriculum | Subject → Grade → Chapter → Topic → Subtopic | video | batch (groups of 10) |
+| professional_training | Course → Module → Topic → Subtopic | video, study_material, quiz, activity, capstone | module_sequential |
+| content_channel | Channel → Subject → Season → Episode | video | rolling (ongoing) |
 
-Level 2 (Product) is the eLearn AIOS configuration: agent personas (YAML), rubrics (JSON), pipeline definitions (JSON), domain knowledge. Adding a "Film AIOS" or "Podcast AIOS" later means creating new config files — NOT modifying `src/lib/engine.ts`. If a new media type requires engine changes, the engine isn't flexible enough.
+### Production Pipeline Order
 
-**2. Which pipeline phase runs FIRST and why?**
+```
+Phase 0: Project Ideation & Structure (runs once)
+Phase 1: Document Pipeline (runs FIRST — textual foundation)
+Phase 2: Assessment Pipeline (aligned to documents)
+Phase 3: Video Pipeline (16 stages, references documents)
+Phase 4: Activity Pipeline (builds on all content)
+Phase 5: Capstone Pipeline (synthesizes everything, runs LAST)
+```
 
-Phase 0 (Project Component / Ideation) runs first. Before any production can happen, the system needs to know WHAT to produce: how many modules, topics, and subtopics exist, what components each needs (video, quiz, study material), and what learning outcomes to target. Phase 0 brainstorms, structures, grades, and gets human approval on the blueprint. Only then can the 16-stage production pipeline (Phases 1-5) begin processing individual NodeComponents through discovery, scripting, image gen, voiceover, assembly, etc.
+### NodeComponent → StageSession Bridge
 
-**3. How does NodeComponent.pipelineJobId bridge to StageSession?**
+When blueprint is approved and handoff runs:
+- Each approved NodeComponent gets a StageSession created
+- NodeComponent.pipelineJobId is set to StageSession.id
+- StageSession advances through pipeline stages (D1→D5, A1→A6, V1→V16, etc.)
+- This is the bridge: Phase 0 says "produce this" → pipeline says "here's how"
 
-`NodeComponent.pipelineJobId` is a foreign key pointing to `StageSession.id`. When the blueprint is approved and handoff occurs:
-- Each approved NodeComponent (e.g., "video" for "Learning Theories" topic) gets a new StageSession created for it
-- The StageSession's `stageId` points to Stage 1 (Discovery) of the 16-stage pipeline
-- `pipelineJobId` is set to this StageSession's ID
-- The production pipeline then advances that StageSession through stages 1 -> 2 -> 3 -> ... -> 16
-- This is the bridge: Phase 0 says "produce a video for this topic" (NodeComponent), and the pipeline says "here's how we'll produce it" (StageSession chain)
+### Structure Rubric (7 dimensions, 0-100 scale, pass: 75)
 
-**4. What are the 7 structure rubric dimensions?**
+1. Coverage (0.18) — learning outcomes cover full scope
+2. Depth (0.15) — hierarchy deep enough for meaningful learning
+3. Progression (0.18) — topics build logically
+4. Balance (0.12) — modules roughly similar in scope
+5. Engagement (0.15) — enough activities, not just passive content
+6. Feasibility (0.10) — realistic for timeline and budget
+7. Coherence (0.12) — every component serves a learning outcome
 
-Per `docs/rubrics/structure-rubric-schema.json` and the `StructureGrade.dimensionScores` comment:
-1. **Coverage** — Are all necessary topics addressed? No critical gaps?
-2. **Depth** — Is the level of detail appropriate for the audience and duration?
-3. **Progression** — Does learning build logically from foundations to advanced concepts?
-4. **Balance** — Are modules/topics reasonably balanced in scope and weight?
-5. **Engagement** — Does the structure support varied, engaging learning experiences?
-6. **Feasibility** — Can this structure be realistically produced within constraints (time, budget, tools)?
-7. **Coherence** — Do all parts fit together into a unified, consistent whole?
+---
 
-Scored on 0-100 scale (not 1-10 like production rubrics). Pass threshold default: 75.
+## Existing Codebase (Pre-Project Component)
 
-**5. What are the project archetypes and their production modes?**
+### What was here before we started
 
-The `ProjectArchetype` enum defines 6 archetypes, which group into 3 production modes:
+**Prisma models (4 original):** Project, StageSession, Artifact, IterationRecord
+**Pages (4):** home, dashboard, project/new, project/[id]
+**API (1):** POST /api/projects
+**Engine (stubs):** produce(), evaluate(), runLoop(), processReview() — all "Not yet implemented"
+**Pipeline config:** 16 stages defined in src/lib/pipeline.ts
+**Agent personas (3):** script-writer, image-prompt-engineer, voiceover-agent
+**Production rubric (1):** elearn-script.json (5 dimensions, 1-10 scale)
 
-| Production Mode | Archetypes | Characteristics |
-|---|---|---|
-| **Full Curriculum** | `course`, `certification`, `bootcamp` | All components enabled (video, quiz, study_material, activity, capstone). Deep hierarchy (3+ levels). Full pipeline with all 16 stages. Longest production. |
-| **Focused Training** | `workshop`, `tutorial` | Selective components (video + activity primary). Shallower hierarchy (2 levels). Fewer stages needed. Medium production. |
-| **Bite-Sized** | `microlearning` | Minimal components (video only or video + quiz). Flat hierarchy (1-2 levels). Streamlined pipeline. Fastest production. |
+### What the Project Component added so far
 
-The archetype drives: which `enabledComponents` are available, how deep the hierarchy goes, and which pipeline stages are actually needed for each NodeComponent.
+**Prisma models (+7):** ProjectBlueprint, ProjectNode, NodeComponent,
+IdeationConversation, IdeationMessage, BlueprintVersion, StructureGrade
+**Prisma enums (+7):** ProjectArchetype, NodeStatus, ComponentStatus,
+ComponentPriority, IdeationPhase, BrainstormRole, GradeRecommendation
+**TypeScript types:** 12 enums/unions + 12 interfaces + TreeNode<T> in
+src/lib/project-component/types.ts
+**Registries:** archetypes.ts (3), component-registry.ts (16), compatibility.ts
+**Rubric:** structure-rubric.ts (7 dimensions, scoring helpers, 15 tests)
+**Schemas:** structure-rubric-schema.json, production-rubric-schema.json
+**API (+1):** GET /api/project-component/health
+**Seed:** scripts/seed-project-component.ts
 
-**6. What loop pattern does Phase 0 (ideation) use?**
+---
 
-Phase 0 uses **Pattern 2: Strategic + Production Loop**.
+## Completed Sessions Log
 
-- **Strategic Phase:** Multiple specialist agents (facilitator, researcher, pedagogy_expert, audience_analyst, structure_architect, creative_director, critic, synthesizer) brainstorm in a multi-turn conversation. They analyze the project brief, discuss approaches, and propose structure. This is the "research before production" phase.
-- **Production Phase:** The synthesizer/structure_architect assembles the brainstorm output into a concrete blueprint (nodes + components). This structure is then graded against the 7-dimension structure rubric.
-- **Loop:** If the grade is below threshold (75), the system identifies weak dimensions and refines. Up to `maxRefinementLoops` (default 5) before forcing human review.
-- **Human Gate:** Human reviews the graded structure with 4 actions: approve, revise, restructure, reject (mapped from `GradeRecommendation` enum).
+| Phase | Date | Git Tag | Summary |
+|---|---|---|---|
+| PC-1.2 | 2026-03-28 | PC-1.2-blueprint-schema | 7 Prisma models + 7 enums migrated |
+| PC-1.3 | 2026-03-29 | PC-1.3-seed-data, v0.3.0, v0.4.0 | Seed data + health check API |
+| PC-2.1 | 2026-03-29 | PC-2.1-type-system | 12 enums + 12 interfaces + TreeNode<T> |
+| PC-2.2 | 2026-03-29 | PC-2.2-registries | 3 archetypes + 16 components + compatibility |
+| PC-2.3 | 2026-03-29 | PC-2.3-rubric | 7-dimension rubric + scoring + 15 tests |
+
+---
+
+## Lessons Learned
+
+See `tasks/lessons.md` for patterns and corrections captured during implementation.
