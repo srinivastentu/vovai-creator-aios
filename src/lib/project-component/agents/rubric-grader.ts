@@ -41,7 +41,8 @@ export const RUBRIC_GRADER_CONFIG: IdeationAgentConfig = {
     fallback: 'claude-haiku-4-5-20251001',
   },
   maxRetries: 2,
-  timeoutMs: 60_000,
+  timeoutMs: 90_000,
+  maxTokens: 8192,
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────

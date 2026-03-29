@@ -47,6 +47,8 @@ export interface IdeationAgentConfig {
   maxRetries: number
   /** Timeout per LLM call in milliseconds (default: 30000) */
   timeoutMs: number
+  /** Max output tokens for the LLM call (default: 4096) */
+  maxTokens?: number
 }
 
 // ─── Agent Result ──────────────────────────────────────────────────────────

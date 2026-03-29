@@ -35,7 +35,8 @@ export const COMPONENT_RECOMMENDER_CONFIG: IdeationAgentConfig = {
     fallback: 'claude-haiku-4-5-20251001',
   },
   maxRetries: 2,
-  timeoutMs: 60_000,
+  timeoutMs: 90_000,
+  maxTokens: 16384,
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────

@@ -96,7 +96,7 @@ async function tryModel<T>(
       const response = await client.messages.create(
         {
           model,
-          max_tokens: 4096,
+          max_tokens: config.maxTokens ?? 4096,
           system: systemPrompt,
           messages: [{ role: 'user', content: finalUserMessage }],
         },
@@ -107,6 +107,12 @@ async function tryModel<T>(
       const tokensOut = response.usage.output_tokens
       const costUSD = calculateCost(model, tokensIn, tokensOut)
       const durationMs = Math.round(performance.now() - start)
+
+      // Check if response was truncated (hit max_tokens before completing)
+      if (response.stop_reason === 'max_tokens') {
+        lastError = `Response truncated (hit ${config.maxTokens ?? 4096} token limit)`
+        continue
+      }
 
       // Extract text from response
       const textBlock = response.content.find(

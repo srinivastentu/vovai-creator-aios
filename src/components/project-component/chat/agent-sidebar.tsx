@@ -1,8 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChevronDown, Check, DollarSign, Layers } from 'lucide-react'
+import { ChevronDown, Check, DollarSign, Layers, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -31,6 +32,16 @@ export interface AgentSidebarProps {
   currentPhase: IdeationPhase
   messages: ChatMessageData[]
   blueprint: BlueprintSummary | null
+  activeAgents?: BrainstormRole[]
+  /** Disables all action buttons (e.g. when another mutation is in progress) */
+  disabled?: boolean
+  onGrade?: () => void
+  gradeLoading?: boolean
+  gradeError?: string | null
+  onApprove?: () => void
+  onFeedback?: (message: string) => void
+  onRestructure?: () => void
+  reviewLoading?: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -60,11 +71,15 @@ const PHASE_COLORS: Record<IdeationPhase, string> = {
 type AgentStatus = 'active' | 'completed' | 'idle'
 
 function deriveAgentStatuses(
-  messages: ChatMessageData[]
+  messages: ChatMessageData[],
+  activeAgents: BrainstormRole[] = []
 ): Map<BrainstormRole, AgentStatus> {
   const statuses = new Map<BrainstormRole, AgentStatus>()
   for (const msg of messages) {
     statuses.set(msg.role, 'completed')
+  }
+  for (const agent of activeAgents) {
+    statuses.set(agent, 'active')
   }
   return statuses
 }
@@ -89,6 +104,34 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`
 }
 
+interface GradeReportSummary {
+  overallScore: number
+  recommendation: string
+  totalOutcomes: number
+  totalComponents: number
+  dimensions: Array<{ id: string; name: string; score: number }>
+}
+
+function extractLatestGradeReport(messages: ChatMessageData[]): GradeReportSummary | null {
+  // Walk messages in reverse to find the latest grade report
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const data = messages[i].structuredData as Record<string, unknown> | null
+    if (!data?.gradeReport) continue
+    const report = data.gradeReport as Record<string, unknown>
+    const outcomes = data.outcomesMap as Record<string, unknown> | undefined
+    const components = data.componentPlan as Record<string, unknown> | undefined
+    return {
+      overallScore: (report.overallScore as number) ?? 0,
+      recommendation: (report.recommendation as string) ?? '',
+      totalOutcomes: (outcomes?.totalOutcomes as number) ??
+        ((report.totalOutcomes as number) ?? 0),
+      totalComponents: (components?.totalComponents as number) ?? 0,
+      dimensions: (report.dimensionScores as GradeReportSummary['dimensions']) ?? [],
+    }
+  }
+  return null
+}
+
 // ─── Status Indicator ─────────────────────────────────────────────────────────
 
 function StatusDot({ status }: { status: AgentStatus }) {
@@ -109,11 +152,30 @@ function StatusDot({ status }: { status: AgentStatus }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function AgentSidebar({ currentPhase, messages, blueprint }: AgentSidebarProps) {
+export function AgentSidebar({
+  currentPhase,
+  messages,
+  blueprint,
+  activeAgents = [],
+  disabled = false,
+  onGrade,
+  gradeLoading = false,
+  gradeError = null,
+  onApprove,
+  onFeedback,
+  onRestructure,
+  reviewLoading = false,
+}: AgentSidebarProps) {
   const [summaryOpen, setSummaryOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackText, setFeedbackText] = useState('')
 
-  const agentStatuses = useMemo(() => deriveAgentStatuses(messages), [messages])
+  const agentStatuses = useMemo(
+    () => deriveAgentStatuses(messages, activeAgents),
+    [messages, activeAgents]
+  )
   const totalCost = useMemo(() => computeTotalCost(messages), [messages])
+  const gradeReport = useMemo(() => extractLatestGradeReport(messages), [messages])
 
   const summary = blueprint?.structureSummary
   const totalComponents = summary?.componentBreakdown
@@ -170,6 +232,188 @@ export function AgentSidebar({ currentPhase, messages, blueprint }: AgentSidebar
           <span className="text-sm font-semibold tabular-nums">{formatCost(totalCost)}</span>
         </div>
       </div>
+
+      {/* Grade report details */}
+      {gradeReport && (
+        <Collapsible>
+          <div className="border-b px-4 py-3">
+            <CollapsibleTrigger className="flex w-full items-center justify-between text-left">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                Grade Report
+              </p>
+              <ChevronDown size={14} className="text-muted-foreground" />
+            </CollapsibleTrigger>
+
+            {/* Score summary — always visible */}
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Score</span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${
+                  gradeReport.overallScore >= 75
+                    ? 'border-green-300 text-green-700 dark:border-green-700 dark:text-green-300'
+                    : 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {gradeReport.overallScore.toFixed(1)}/100 ({gradeReport.recommendation})
+              </Badge>
+            </div>
+
+            <CollapsibleContent>
+              <div className="mt-2 flex flex-col gap-1.5">
+                {/* Outcomes & components */}
+                {gradeReport.totalOutcomes > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Outcomes</span>
+                    <span className="text-xs font-medium">{gradeReport.totalOutcomes}</span>
+                  </div>
+                )}
+                {gradeReport.totalComponents > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Components</span>
+                    <span className="text-xs font-medium">{gradeReport.totalComponents}</span>
+                  </div>
+                )}
+
+                {/* Dimension scores */}
+                {gradeReport.dimensions.length > 0 && (
+                  <div className="mt-1">
+                    <p className="mb-1 text-[10px] font-medium text-muted-foreground">Dimensions</p>
+                    <div className="flex flex-col gap-1">
+                      {gradeReport.dimensions.map((dim) => (
+                        <div key={dim.id || dim.name} className="flex items-center gap-2">
+                          <span className="flex-1 truncate text-[11px] text-muted-foreground">
+                            {dim.name}
+                          </span>
+                          <div className="h-1.5 w-16 rounded-full bg-muted">
+                            <div
+                              className={`h-full rounded-full ${
+                                dim.score >= 75 ? 'bg-green-500' : dim.score >= 60 ? 'bg-amber-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(dim.score, 100)}%` }}
+                            />
+                          </div>
+                          <span className="w-7 text-right text-[10px] tabular-nums font-medium">
+                            {dim.score}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </div>
+        </Collapsible>
+      )}
+
+      {/* Grade action */}
+      {onGrade && (currentPhase === 'structure' || currentPhase === 'refinement') && (
+        <div className="border-b px-4 py-3">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Actions
+          </p>
+          <Button
+            size="sm"
+            className="w-full"
+            onClick={onGrade}
+            disabled={disabled || gradeLoading}
+          >
+            {gradeLoading ? (
+              <>
+                <Loader2 size={14} className="mr-2 animate-spin" />
+                Grading...
+              </>
+            ) : (
+              'Grade Structure'
+            )}
+          </Button>
+          {gradeError && (
+            <p className="mt-2 text-xs text-destructive">{gradeError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Review actions */}
+      {currentPhase === 'review' && onApprove && (
+        <div className="border-b px-4 py-3">
+          <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Review Actions
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button
+              size="sm"
+              className="w-full bg-green-600 text-white hover:bg-green-700"
+              onClick={onApprove}
+              disabled={disabled || reviewLoading}
+            >
+              {reviewLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                'Approve Structure'
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={() => setFeedbackOpen(true)}
+              disabled={disabled || reviewLoading || feedbackOpen}
+            >
+              Give Feedback
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full text-destructive hover:text-destructive"
+              onClick={() => {
+                if (window.confirm('Start over from brainstorm? Brief and audience will be retained.')) {
+                  onRestructure?.()
+                }
+              }}
+              disabled={disabled || reviewLoading}
+            >
+              Restructure
+            </Button>
+          </div>
+
+          {/* Inline feedback textarea */}
+          {feedbackOpen && (
+            <div className="mt-3 flex flex-col gap-2">
+              <textarea
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                placeholder="Describe what should change..."
+                rows={3}
+                value={feedbackText}
+                onChange={(e) => setFeedbackText(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    if (feedbackText.trim()) {
+                      onFeedback?.(feedbackText.trim())
+                      setFeedbackText('')
+                      setFeedbackOpen(false)
+                    }
+                  }}
+                  disabled={reviewLoading || !feedbackText.trim()}
+                >
+                  {reviewLoading ? <Loader2 size={14} className="animate-spin" /> : 'Send Feedback'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setFeedbackOpen(false); setFeedbackText('') }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Blueprint summary (collapsible) */}
       {blueprint && (

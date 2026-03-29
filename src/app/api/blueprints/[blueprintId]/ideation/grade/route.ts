@@ -10,7 +10,15 @@ import {
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import type { IdeationPhase, ProjectArchetype } from '@/lib/project-component/types'
+import type {
+  IdeationPhase,
+  ProjectArchetype,
+  AudienceProfile,
+  ProposedStructure,
+  OutcomesMap,
+  ComponentPlan,
+  GradeReport,
+} from '@/lib/project-component/types'
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/grade
@@ -73,7 +81,7 @@ export async function POST(
       result = await runIdeationStep(result.updatedState)
     }
 
-    // Persist the grading result as a message
+    // Persist the grading result as a message (include accumulated state for rebuild)
     await addMessage({
       conversationId: conversation.id,
       role: 'critic',
@@ -82,8 +90,13 @@ export async function POST(
       structuredData: {
         phase: result.updatedState.currentPhase,
         loopCount: result.updatedState.loopCount,
-        gradeReport: result.updatedState.gradeReport,
         costUSD: result.stepCostUSD,
+        archetype: result.updatedState.archetype ?? undefined,
+        audienceProfile: result.updatedState.audienceProfile ?? undefined,
+        proposedStructure: result.updatedState.proposedStructure ?? undefined,
+        outcomesMap: result.updatedState.outcomesMap ?? undefined,
+        componentPlan: result.updatedState.componentPlan ?? undefined,
+        gradeReport: result.updatedState.gradeReport ?? undefined,
       },
     })
 
@@ -136,17 +149,33 @@ function rebuildStateForGrading(
   const firstHumanMsg = conversation.messages.find(m => m.role === 'human')
   const brief = firstHumanMsg?.content ?? ''
 
+  // Extract accumulated state from messages
   let archetype: ProjectArchetype | null = blueprint.archetype as ProjectArchetype | null
+  let audienceProfile: AudienceProfile | null = null
+  let proposedStructure: ProposedStructure | null = null
+  let outcomesMap: OutcomesMap | null = null
+  let componentPlan: ComponentPlan | null = null
+  let gradeReport: GradeReport | null = null
+
   for (const msg of conversation.messages) {
     const data = msg.structuredData as Record<string, unknown> | null
-    if (data?.archetype) {
-      archetype = data.archetype as ProjectArchetype
-    }
+    if (!data) continue
+    if (data.archetype) archetype = data.archetype as ProjectArchetype
+    if (data.audienceProfile) audienceProfile = data.audienceProfile as AudienceProfile
+    if (data.proposedStructure) proposedStructure = data.proposedStructure as ProposedStructure
+    if (data.outcomesMap) outcomesMap = data.outcomesMap as OutcomesMap
+    if (data.componentPlan) componentPlan = data.componentPlan as ComponentPlan
+    if (data.gradeReport) gradeReport = data.gradeReport as GradeReport
   }
 
   const state = createInitialState(blueprintId, brief)
   state.currentPhase = blueprint.ideationPhase as IdeationPhase
   state.archetype = archetype
+  state.audienceProfile = audienceProfile
+  state.proposedStructure = proposedStructure
+  state.outcomesMap = outcomesMap
+  state.componentPlan = componentPlan
+  state.gradeReport = gradeReport
 
   // Rebuild conversation history
   state.conversationHistory = conversation.messages.map((m, i) => ({

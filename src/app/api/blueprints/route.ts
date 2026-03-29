@@ -22,6 +22,9 @@ export async function GET(request: Request) {
     const blueprint = await db.projectBlueprint.findUnique({
       where: { projectId },
       include: {
+        project: {
+          select: { id: true, name: true, topic: true, targetAudience: true },
+        },
         nodes: {
           include: { components: true },
           orderBy: { sortOrder: 'asc' },

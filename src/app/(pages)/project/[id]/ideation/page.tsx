@@ -1,17 +1,20 @@
 'use client'
 
-import { use, useMemo, useState } from 'react'
+import { use, useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, PanelRight } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, Loader2, MessageSquare, PanelRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useApi } from '@/lib/hooks/use-api'
+import { useIdeation } from '@/lib/hooks/use-ideation'
 import { ChatMessageList } from '@/components/project-component/chat/chat-message-list'
 import { ChatInput } from '@/components/project-component/chat/chat-input'
 import { AgentSidebar } from '@/components/project-component/chat/agent-sidebar'
 import type { ChatMessageData } from '@/components/project-component/chat/chat-message'
 import type { ConversationGroup } from '@/components/project-component/chat/chat-message-list'
+import type { BlueprintSummary } from '@/components/project-component/chat/agent-sidebar'
 import type { IdeationPhase } from '@/lib/project-component'
 
 // ─── API Response Types ────────────────────────────────────────────────────
@@ -23,6 +26,12 @@ interface BlueprintResponse {
   ideationPhase: IdeationPhase
   ideationScore: number | null
   structureSummary: Record<string, unknown> | null
+  project: {
+    id: string
+    name: string
+    topic: string
+    targetAudience: string
+  }
 }
 
 interface ConversationInfo {
@@ -96,12 +105,14 @@ export default function IdeationPage({
   params: Promise<{ id: string }>
 }) {
   const { id: projectId } = use(params)
+  const router = useRouter()
 
   // Fetch blueprint for this project
   const {
     data: blueprint,
     loading: blueprintLoading,
     error: blueprintError,
+    refetch: refetchBlueprint,
   } = useApi<BlueprintResponse>(`/api/blueprints?projectId=${projectId}`)
 
   // Fetch all messages (depends on blueprint being loaded)
@@ -109,38 +120,103 @@ export default function IdeationPage({
   const {
     data: messagesData,
     loading: messagesLoading,
+    refetch: refetchMessages,
   } = useApi<MessagesResponse>(messagesUrl ?? '', { skip: !blueprint })
+
+  const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
+  const hasConversation = (messagesData?.conversations?.length ?? 0) > 0
+
+  // Ideation mutation hook
+  const {
+    startIdeation,
+    startLoading,
+    startError,
+    sendMessage,
+    sendLoading,
+    sendError,
+    gradeStructure,
+    gradeLoading,
+    gradeError,
+    submitReview,
+    reviewLoading,
+    anyLoading,
+    activeAgents,
+  } = useIdeation({
+    blueprintId: blueprint?.id ?? null,
+    currentPhase,
+    hasConversation,
+    refetchMessages,
+    refetchBlueprint,
+  })
+
+  // "Start Ideation" reveals the input; first message goes to /start
+  const [readyToChat, setReadyToChat] = useState(false)
+
+  // Optimistic messages — shown immediately before API responds
+  const [optimisticMessages, setOptimisticMessages] = useState<ChatMessageData[]>([])
+
+  const handleSendMessage = useCallback(async (message: string) => {
+    const optimisticMsg: ChatMessageData = {
+      id: `optimistic-${Date.now()}`,
+      role: 'human',
+      messageType: 'text',
+      content: message,
+      createdAt: new Date().toISOString(),
+    }
+    setOptimisticMessages(prev => [...prev, optimisticMsg])
+
+    try {
+      if (!hasConversation) {
+        // First message — create conversation via /start
+        await startIdeation(message)
+      } else {
+        await sendMessage(message)
+      }
+      setOptimisticMessages([])
+    } catch (err) {
+      setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
+      throw err // Re-throw so ChatInput preserves the text
+    }
+  }, [hasConversation, startIdeation, sendMessage])
 
   // Group messages by conversation phase
   const conversationGroups: ConversationGroup[] = useMemo(() => {
-    if (!messagesData) return []
+    let groups: ConversationGroup[] = []
 
-    // Use groupedByPhase from the API — already organized by conversation phase
-    if (messagesData.groupedByPhase?.length > 0) {
-      return messagesData.groupedByPhase.map((group) => ({
+    if (!messagesData) {
+      groups = []
+    } else if (messagesData.groupedByPhase?.length > 0) {
+      groups = messagesData.groupedByPhase.map((group) => ({
         phase: group.phase as IdeationPhase,
         messages: group.messages,
       }))
-    }
-
-    // Fallback: single group from flat messages
-    if (messagesData.messages?.length > 0) {
-      return [{
+    } else if (messagesData.messages?.length > 0) {
+      groups = [{
         phase: messagesData.phase as IdeationPhase,
         messages: messagesData.messages,
       }]
     }
 
-    return []
-  }, [messagesData])
+    // Append optimistic messages to the last group
+    if (optimisticMessages.length > 0) {
+      const lastGroup = groups[groups.length - 1]
+      if (lastGroup) {
+        return [
+          ...groups.slice(0, -1),
+          { ...lastGroup, messages: [...lastGroup.messages, ...optimisticMessages] },
+        ]
+      }
+      return [{ phase: currentPhase, messages: optimisticMessages }]
+    }
+
+    return groups
+  }, [messagesData, optimisticMessages, currentPhase])
 
   // Flatten all messages for the sidebar
   const allMessages = useMemo(
     () => conversationGroups.flatMap((g) => g.messages),
     [conversationGroups]
   )
-
-  const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
 
   // Mobile sidebar toggle
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -215,14 +291,32 @@ export default function IdeationPage({
             <div className="flex flex-1 items-center justify-center">
               <Loader2 className="animate-spin text-muted-foreground" size={20} />
             </div>
+          ) : !hasConversation && !readyToChat ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
+              <MessageSquare size={32} strokeWidth={1.5} />
+              <div className="text-center">
+                <p className="text-sm font-medium">Ready to begin ideation</p>
+                <p className="mt-1 text-xs">Describe your course idea and AI agents will brainstorm the structure</p>
+              </div>
+              <Button onClick={() => setReadyToChat(true)}>
+                Start Ideation
+              </Button>
+            </div>
           ) : (
             <ChatMessageList conversations={conversationGroups} />
           )}
-          <ChatInput
-            onSend={() => {
-              // Visual-first: no-op for now. Will wire to API in PC-6.3.
-            }}
-          />
+          {(hasConversation || readyToChat) && (
+            <ChatInput
+              onSend={handleSendMessage}
+              loading={startLoading || sendLoading}
+              disabled={anyLoading}
+              error={startError || sendError}
+              placeholder={!hasConversation
+                ? 'Describe your course idea... (Ctrl+Enter to send)'
+                : undefined
+              }
+            />
+          )}
         </div>
 
         {/* Agent sidebar — always visible on md+, slide-over on mobile */}
@@ -234,17 +328,23 @@ export default function IdeationPage({
           <AgentSidebar
             currentPhase={currentPhase}
             messages={allMessages}
+            activeAgents={activeAgents}
+            disabled={anyLoading}
+            onGrade={gradeStructure}
+            gradeLoading={gradeLoading}
+            gradeError={gradeError}
+            onApprove={() => {
+              submitReview('approve').then(() => {
+                router.push(`/project/${projectId}/structure`)
+              })
+            }}
+            onFeedback={(msg) => submitReview('feedback', msg)}
+            onRestructure={() => submitReview('restructure')}
+            reviewLoading={reviewLoading}
             blueprint={blueprint ? {
               archetype: blueprint.archetype,
               ideationScore: blueprint.ideationScore,
-              structureSummary: blueprint.structureSummary as {
-                totalModules?: number
-                totalTopics?: number
-                totalSubtopics?: number
-                componentBreakdown?: Record<string, number>
-                estimatedHours?: number
-                recommendation?: string
-              } | null,
+              structureSummary: blueprint.structureSummary as BlueprintSummary['structureSummary'],
             } : null}
           />
         </div>

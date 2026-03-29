@@ -51,7 +51,7 @@ export async function POST(
     const state = createInitialState(blueprintId, parsed.data.brief)
     const result = await runIdeationStep(state, parsed.data.brief)
 
-    // Persist the orchestrator's response
+    // Persist the orchestrator's response (include accumulated state for rebuild)
     await addMessage({
       conversationId: conversation.id,
       role: 'facilitator',
@@ -61,6 +61,11 @@ export async function POST(
         phase: result.updatedState.currentPhase,
         archetype: result.updatedState.archetype,
         costUSD: result.stepCostUSD,
+        audienceProfile: result.updatedState.audienceProfile ?? undefined,
+        proposedStructure: result.updatedState.proposedStructure ?? undefined,
+        outcomesMap: result.updatedState.outcomesMap ?? undefined,
+        componentPlan: result.updatedState.componentPlan ?? undefined,
+        gradeReport: result.updatedState.gradeReport ?? undefined,
       },
     })
 

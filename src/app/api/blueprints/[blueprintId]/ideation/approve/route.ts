@@ -11,7 +11,15 @@ import {
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { processHumanFeedback, runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import type { IdeationPhase, ProjectArchetype } from '@/lib/project-component/types'
+import type {
+  IdeationPhase,
+  ProjectArchetype,
+  AudienceProfile,
+  ProposedStructure,
+  OutcomesMap,
+  ComponentPlan,
+  GradeReport,
+} from '@/lib/project-component/types'
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/approve
@@ -89,7 +97,7 @@ export async function POST(
         break
     }
 
-    // Persist the system response
+    // Persist the system response (include accumulated state for rebuild)
     await addMessage({
       conversationId: conversation.id,
       role: 'facilitator',
@@ -98,6 +106,12 @@ export async function POST(
       structuredData: {
         action: parsed.data.action,
         phase: updatedState.currentPhase,
+        archetype: updatedState.archetype ?? undefined,
+        audienceProfile: updatedState.audienceProfile ?? undefined,
+        proposedStructure: updatedState.proposedStructure ?? undefined,
+        outcomesMap: updatedState.outcomesMap ?? undefined,
+        componentPlan: updatedState.componentPlan ?? undefined,
+        gradeReport: updatedState.gradeReport ?? undefined,
       },
     })
 
@@ -121,6 +135,12 @@ export async function POST(
         structuredData: {
           phase: stepResult.updatedState.currentPhase,
           costUSD: stepResult.stepCostUSD,
+          archetype: stepResult.updatedState.archetype ?? undefined,
+          audienceProfile: stepResult.updatedState.audienceProfile ?? undefined,
+          proposedStructure: stepResult.updatedState.proposedStructure ?? undefined,
+          outcomesMap: stepResult.updatedState.outcomesMap ?? undefined,
+          componentPlan: stepResult.updatedState.componentPlan ?? undefined,
+          gradeReport: stepResult.updatedState.gradeReport ?? undefined,
         },
       })
 
@@ -181,17 +201,33 @@ function rebuildStateForReview(
   const firstHumanMsg = conversation.messages.find(m => m.role === 'human')
   const brief = firstHumanMsg?.content ?? ''
 
+  // Extract accumulated state from messages
   let archetype: ProjectArchetype | null = blueprint.archetype as ProjectArchetype | null
+  let audienceProfile: AudienceProfile | null = null
+  let proposedStructure: ProposedStructure | null = null
+  let outcomesMap: OutcomesMap | null = null
+  let componentPlan: ComponentPlan | null = null
+  let gradeReport: GradeReport | null = null
+
   for (const msg of conversation.messages) {
     const data = msg.structuredData as Record<string, unknown> | null
-    if (data?.archetype) {
-      archetype = data.archetype as ProjectArchetype
-    }
+    if (!data) continue
+    if (data.archetype) archetype = data.archetype as ProjectArchetype
+    if (data.audienceProfile) audienceProfile = data.audienceProfile as AudienceProfile
+    if (data.proposedStructure) proposedStructure = data.proposedStructure as ProposedStructure
+    if (data.outcomesMap) outcomesMap = data.outcomesMap as OutcomesMap
+    if (data.componentPlan) componentPlan = data.componentPlan as ComponentPlan
+    if (data.gradeReport) gradeReport = data.gradeReport as GradeReport
   }
 
   const state = createInitialState(blueprintId, brief)
   state.currentPhase = 'review'
   state.archetype = archetype
+  state.audienceProfile = audienceProfile
+  state.proposedStructure = proposedStructure
+  state.outcomesMap = outcomesMap
+  state.componentPlan = componentPlan
+  state.gradeReport = gradeReport
 
   // Rebuild conversation history
   state.conversationHistory = conversation.messages.map((m, i) => ({
