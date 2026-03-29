@@ -394,6 +394,24 @@ export interface DevilsAdvocateReport {
   summary: string
 }
 
+// ─── Orchestrator Output (Stage 0.1–0.7 — Orchestrator decision) ────────────
+
+/** Phase action the orchestrator recommends */
+export type PhaseAction =
+  | 'continue'
+  | 'advance_phase'
+  | 'request_human_input'
+  | 'trigger_grading'
+
+/** Structured output from the Orchestrator agent */
+export interface OrchestratorOutput {
+  phaseAction: PhaseAction
+  nextPhase?: IdeationPhase
+  agentsToRun: string[]
+  humanFacingMessage: string
+  structuredProposal?: Record<string, unknown>
+}
+
 // ─── Ideation Messages ──────────────────────────────────────────────────────
 
 /** A single message in an ideation conversation */
