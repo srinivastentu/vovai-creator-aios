@@ -31,7 +31,7 @@ capstone projects) before they enter the existing production pipeline.
 - [x] Zero `any` types, npm run typecheck clean, npm run test:unit passes
 - [x] Tags: PC-2.1-type-system, PC-2.2-registries, PC-2.3-rubric
 
-## Macro Phase 3: Tree Engine + API ← CURRENT
+## Macro Phase 3: Tree Engine + API ✅ COMPLETE
 
 - [x] PC-3.1: Tree utility functions
   - 11 pure functions: buildTree, flattenTree, findNode, getAncestors,
@@ -40,7 +40,7 @@ capstone projects) before they enter the existing production pipeline.
   - Tests: tests/unit/tree-utils.test.ts (50 tests passing)
   - Key rule: NO database imports — pure functions only
 
-- [ ] PC-3.2: Blueprint & node API routes (8 route groups)
+- [x] PC-3.2: Blueprint & node API routes (8 route groups)
   - /api/blueprints — POST create
   - /api/blueprints/[blueprintId] — GET, PATCH
   - /api/blueprints/[blueprintId]/nodes — GET all, POST new
@@ -51,7 +51,7 @@ capstone projects) before they enter the existing production pipeline.
   - /api/component-registry — GET list, GET ?archetype=xxx filter
   - All routes: Zod validation, consistent { error } format, proper HTTP status
 
-- [ ] PC-3.3: Tree validation + versioning
+- [x] PC-3.3: Tree validation + versioning
   - Validator: catches orphans, circular refs, depth violations, bad components,
     missing dependencies, duplicate paths, path mismatches
   - Serializer: serializeBlueprint/deserializeBlueprint for snapshots
@@ -59,7 +59,7 @@ capstone projects) before they enter the existing production pipeline.
   - File: src/lib/project-component/tree/tree-validator.ts
   - File: src/lib/project-component/tree/tree-serializer.ts
 
-## Macro Phase 4: Ideation Agents (Backend)
+## Macro Phase 4: Ideation Agents (Backend) ✅ COMPLETE
 
 - [x] PC-4.1: Agent framework
   - Agent executor: calls Anthropic API, cost tracking, retries, fallback model
@@ -87,34 +87,34 @@ capstone projects) before they enter the existing production pipeline.
   - Full 7-agent chain test (24 tests passing)
   - All 3 agents tier: governance, model: claude-sonnet-4-20250514
 
-- [ ] PC-4.5: Orchestrator agent
+- [x] PC-4.5: Orchestrator agent
   - Master coordinator: routes human input to specialist agents
   - Manages phase transitions: brainstorm → structure → refinement → review
   - Test 3-turn conversation flow
   - All 8 agents registered in registry
 
-## Macro Phase 5: Recursive Loop Engine
+## Macro Phase 5: Recursive Loop Engine ✅ COMPLETE
 
-- [ ] PC-5.1: Phase state machine
+- [x] PC-5.1: Phase state machine
   - PHASE_TRANSITIONS: brainstorm→structure→refinement→review→approved
   - canTransition, getNextPhase (auto-routes based on grade score)
   - IdeationLoopState interface, createInitialState
   - File: src/lib/project-component/ideation/phase-manager.ts
 
-- [ ] PC-5.2: Loop engine core
+- [x] PC-5.2: Loop engine core
   - runIdeationStep: runs ONE step, selects agents by phase
   - processHumanFeedback: approve / feedback / restructure
   - Auto-refinement: score < 75 AND loopCount < 5 → refine automatically
   - Force human review after 5 loops
   - File: src/lib/project-component/ideation/loop-engine.ts
 
-- [ ] PC-5.3: Ideation API + conversation persistence
+- [x] PC-5.3: Ideation API + conversation persistence
   - Conversation manager: createConversation, addMessage, getMessages
   - API: /ideation/start, /ideation/message, /ideation/grade, /ideation/approve
   - All messages persisted to Prisma (IdeationConversation + IdeationMessage)
   - Full flow testable via curl
 
-## Macro Phase 6: Chat Ideation UI (Visual-First)
+## Macro Phase 6: Chat Ideation UI (Visual-First) ← NEXT
 
 - [ ] PC-6.1: Chat message components (static, sample data first)
   - Different renderers for: text, suggestion, question, decision, structure_update
@@ -290,3 +290,199 @@ src/lib/project-component/types.ts
 ## Lessons Learned
 
 See `tasks/lessons.md` for patterns and corrections captured during implementation.
+
+---
+
+## Pre-Frontend Audit (PC-5 → PC-6 Transition)
+
+**Audit Date:** 2026-03-29
+**Auditor:** Claude (senior engineer review)
+**Purpose:** Verify backend readiness before starting UI phase (PC-6+)
+
+---
+
+### 1. Build & Type Safety — PASS
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | Compiled successfully, 0 errors, 0 warnings |
+| `npm run typecheck` | Clean — no type errors |
+| `npm run test` | **12 test files, 262 tests, ALL passing** (631ms) |
+| Skipped tests | 0 |
+| Warnings | 0 |
+
+**Test file inventory (12):**
+- rubric.test.ts, tree-utils.test.ts, tree-validator-serializer.test.ts
+- agent-framework.test.ts, stage02-agents.test.ts, stage03-agents.test.ts
+- stage04-agents.test.ts, orchestrator-agent.test.ts
+- phase-manager.test.ts, loop-engine.test.ts
+- ideation-validations.test.ts, conversation-manager.test.ts
+
+**Verdict:** Backend is type-safe and fully tested. Green light.
+
+---
+
+### 2. API Contract Audit — 16 routes, all functional
+
+| # | Route | Methods | Zod? | Tested? |
+|---|-------|---------|------|---------|
+| 1 | `/api/projects` | POST | Yes | No |
+| 2 | `/api/project-component/health` | GET | No (none needed) | No |
+| 3 | `/api/blueprints` | POST | Yes | No |
+| 4 | `/api/blueprints/[blueprintId]` | GET, PATCH | Yes (PATCH) | No |
+| 5 | `/api/archetypes` | GET | No (none needed) | No |
+| 6 | `/api/component-registry` | GET | No (query param only) | No |
+| 7 | `/api/blueprints/[id]/nodes` | GET, POST | Yes (POST) | No |
+| 8 | `/api/blueprints/[id]/nodes/[nodeId]` | GET, PATCH, DELETE | Yes (PATCH) | No |
+| 9 | `/api/blueprints/[id]/nodes/reorder` | POST | Yes | No |
+| 10 | `/api/blueprints/[id]/components` | POST, DELETE | Yes (POST) | No |
+| 11 | `/api/blueprints/[id]/versions` | GET, POST | No | No |
+| 12 | `/api/blueprints/[id]/versions/[v]/restore` | POST | No | No |
+| 13 | `/api/blueprints/[id]/ideation/start` | POST | Yes | No |
+| 14 | `/api/blueprints/[id]/ideation/message` | POST | Yes | No |
+| 15 | `/api/blueprints/[id]/ideation/grade` | POST | Yes (optional) | No |
+| 16 | `/api/blueprints/[id]/ideation/approve` | POST | Yes | No |
+
+**Zod coverage:** 13/16 routes use Zod validation (81%). The 3 without don't need it (GET-only or no body).
+**API test coverage:** 0/16 routes have route-level tests. Business logic IS tested (262 unit tests), but no integration/route tests exist.
+**Error format:** Consistent `{ error: string }` across all routes.
+**Response shapes:** All documented in full detail (see audit notes).
+
+**Key response shapes the UI will consume:**
+- `GET /blueprints/[id]` → full blueprint with nested nodes[] and components[]
+- `GET /blueprints/[id]/versions` → `[{ id, version, rubricScore, createdAt }]`
+- `POST /ideation/message` → `{ conversationId, phase, awaitingHuman, message, costUSD, messages[], state }`
+- `POST /ideation/grade` → `{ phase, loopCount, gradeReport, awaitingHuman, costUSD, state }`
+- `POST /ideation/approve` → `{ action, phase, awaitingHuman, nextStep, costUSD, messages[], state }`
+
+**Verdict:** APIs are solid. No route-level tests but unit coverage compensates. Response shapes are consistent and well-structured for frontend consumption.
+
+---
+
+### 3. Seed Data Completeness — GAPS FOUND
+
+| Data | Seeded? | UI Impact |
+|------|---------|-----------|
+| Project (1) | Yes | Dashboard works |
+| Blueprint (1, professional_training) | Yes | Canvas works |
+| Nodes (14, 3-level hierarchy) | Yes | Tree renders |
+| Components (31, mixed types) | Yes | Component badges work |
+| Conversation (1, brainstorm phase) | Yes | Chat has sample messages |
+| Messages (3: human + 2 agents) | Yes | Chat renders |
+| StructureGrade | **NO** | Score bar has NO data |
+| BlueprintVersion | **NO** | Version history is EMPTY |
+| Conversations for other phases | **NO** | Only brainstorm phase has messages |
+| IdeationLoopState | **N/A** | Not a DB model (in-memory state) |
+
+**What's MISSING that UI screens need:**
+1. **StructureGrade record** — score bar, dimension breakdown, recommendation badge
+2. **BlueprintVersion snapshots** — version history dropdown, restore button
+3. **Multi-phase conversations** — the chat needs messages from structure/refinement/review phases
+4. **Grade report on blueprint** — `ideationScore` is null, `structureSummary` is null
+
+**Verdict:** Seed covers canvas and basic chat, but score bar and versioning UI will render empty. Must extend seed before building those components.
+
+---
+
+### 4. Type Export Audit — Well organized, minor gaps
+
+**Central hub:** `src/lib/project-component/types.ts` — 43 exported types
+
+| UI Consumer | Types Available | Location |
+|-------------|----------------|----------|
+| **Chat UI** | IdeationPhase, BrainstormRole, IdeationMessageKind, IdeationMessageType | types.ts |
+| **Chat state** | IdeationLoopState, HumanFeedbackEntry, BlueprintVersion, IdeationStepResult, HumanFeedback | phase-manager.ts, loop-engine.ts |
+| **Canvas** | ProjectNodeType, ProjectBlueprintType, AttachedComponentType, TreeNode<T>, TreeStats | types.ts, tree-utils.ts |
+| **Canvas validation** | ValidationError, ValidationResult, ValidationErrorCode | tree-validator.ts |
+| **Wizard** | ArchetypeDefinition, ComponentDefinition, ProjectArchetype, ComponentCategory, ComponentPriority | types.ts |
+| **Wizard compat** | CompatibilityEntry, getCompatibleComponents | compatibility.ts |
+| **Score bar** | GradeReport, DimensionGradeScore, GradeRecommendation, BloomLevel | types.ts |
+| **Score rubric** | RubricDimension, StructureRubric, ScoreResult | structure-rubric.ts |
+| **Agent framework** | AgentTier, IdeationAgentConfig, AgentResult<T>, ModelPricing | agents/framework/types.ts (INTERNAL) |
+
+**No types defined inside API routes** — all correctly centralized in lib layer.
+
+**Observations:**
+- Chat state types are spread across 3 files (types.ts, phase-manager.ts, loop-engine.ts)
+- React components will need imports from multiple paths
+- Consider a barrel export (`src/lib/project-component/index.ts`) for cleaner imports
+
+**Verdict:** Types are comprehensive and well-defined. Spread across files but all exported. A barrel re-export file would simplify frontend imports.
+
+---
+
+### 5. Missing API Endpoints — NONE
+
+| UI Data Flow | API Route | Exists? |
+|-------------|-----------|---------|
+| Get blueprint with full node tree (canvas) | `GET /blueprints/[id]` (includes nodes + components) | Yes |
+| Get conversation messages (chat) | `POST /ideation/message` returns messages[] | Yes |
+| Get latest grade report (score bar) | `POST /ideation/grade` returns gradeReport | Yes |
+| Get available archetypes (project creation) | `GET /archetypes` | Yes |
+| Get compatible components (palette) | `GET /component-registry?archetype=xxx` | Yes |
+| Update node title/description (inline edit) | `PATCH /blueprints/[id]/nodes/[nodeId]` | Yes |
+| Reorder nodes (drag-drop) | `POST /blueprints/[id]/nodes/reorder` | Yes |
+| Create version snapshot (save button) | `POST /blueprints/[id]/versions` | Yes |
+| Restore version | `POST /blueprints/[id]/versions/[v]/restore` | Yes |
+| Add/remove components | `POST/DELETE /blueprints/[id]/components` | Yes |
+| Start ideation | `POST /blueprints/[id]/ideation/start` | Yes |
+| Human review actions | `POST /blueprints/[id]/ideation/approve` (approve/feedback/restructure) | Yes |
+
+**Verdict:** Every UI data flow has a corresponding API. No new endpoints needed.
+
+---
+
+### 6. File Structure Readiness
+
+**Current pages:**
+```
+src/app/(pages)/
+  dashboard/page.tsx          ← exists
+  project/new/page.tsx        ← exists
+  project/[id]/page.tsx       ← exists
+  review/[stageId]/           ← empty (placeholder)
+```
+
+**Current components:**
+```
+src/components/
+  ui/           ← badge, button, card, input, label, textarea (shadcn)
+  dashboard/    ← project-card.tsx
+  project/      ← stage-card.tsx, version-a/b/c.tsx
+  pipeline/     ← empty
+  review/       ← empty
+```
+
+**Directories that NEED creating for PC-6+:**
+
+| Directory | Purpose | Exists? |
+|-----------|---------|---------|
+| `src/app/(pages)/project/[id]/ideation/` | Chat ideation page | No |
+| `src/app/(pages)/project/[id]/structure/` | Canvas structure page | No |
+| `src/app/(pages)/project/[id]/configure/` | Wizard config page | No |
+| `src/app/(pages)/project/[id]/launch/` | Review + launch page | No |
+| `src/components/project-component/chat/` | Chat message components | No |
+| `src/components/project-component/canvas/` | Tree visualization | No |
+| `src/components/project-component/wizard/` | Config form components | No |
+| `src/components/project-component/shared/` | Phase indicator, score bar | No |
+
+**Verdict:** All 8 directories need creating. No conflicts with existing structure.
+
+---
+
+### 7. Action Items — Fix BEFORE Starting UI
+
+**MUST FIX (blocks UI development):**
+- [ ] **Extend seed data:** Add StructureGrade record with 7-dimension scores
+- [ ] **Extend seed data:** Add at least 1 BlueprintVersion snapshot
+- [ ] **Extend seed data:** Add messages for structure + review phases (not just brainstorm)
+- [ ] **Extend seed data:** Set blueprint.ideationScore and blueprint.structureSummary
+- [ ] **Create barrel export:** `src/lib/project-component/index.ts` re-exporting all UI-facing types
+
+**SHOULD DO (improves DX):**
+- [ ] Create the 8 frontend directories listed above
+- [ ] Add a `GET /blueprints/[id]/ideation/messages` endpoint (currently messages only come embedded in POST responses — chat needs to load history on page mount)
+
+**NICE TO HAVE (can defer):**
+- [ ] Route-level API tests (business logic is tested; routes are thin wrappers)
+- [ ] Add more seed messages (currently only 3 — chat UI demo would benefit from 8-10)

@@ -263,15 +263,16 @@ async function main() {
   await createNodes(tree, null, '')
   console.log(`  Created ${nodeCount} nodes, ${componentCount} components`)
 
-  // 5. Create IdeationConversation with 3 sample messages
-  const conversation = await db.ideationConversation.create({
+  // 5. Create IdeationConversations with sample messages across phases
+  // --- Brainstorm phase ---
+  const brainstormConvo = await db.ideationConversation.create({
     data: {
       blueprintId: blueprint.id,
       phase: 'brainstorm',
     },
   })
 
-  const messages = [
+  const brainstormMessages = [
     {
       role: 'human' as const,
       messageType: 'text',
@@ -292,25 +293,214 @@ async function main() {
     },
   ]
 
-  for (const msg of messages) {
+  for (const msg of brainstormMessages) {
     await db.ideationMessage.create({
       data: {
-        conversationId: conversation.id,
+        conversationId: brainstormConvo.id,
         role: msg.role,
         messageType: msg.messageType,
         content: msg.content,
       },
     })
   }
-  console.log(`  Created 1 conversation with ${messages.length} messages`)
 
-  // 6. Summary
+  // --- Structure phase ---
+  const structureConvo = await db.ideationConversation.create({
+    data: {
+      blueprintId: blueprint.id,
+      phase: 'structure',
+    },
+  })
+
+  const structureMessages = [
+    {
+      role: 'structure_architect' as const,
+      messageType: 'structure_update',
+      content:
+        'I\'ve built out the full hierarchy. Module 1 "Foundations of ID" has 2 topics (What is ID?, Learning Theories) each with 2 subtopics. Module 2 "ADDIE Framework" covers Analysis and Design phases. Module 3 "Digital Tools" focuses on Authoring Tools. Total: 3 modules, 5 topics, 4 subtopics. The progression follows a theory → framework → application arc.',
+    },
+    {
+      role: 'audience_analyst' as const,
+      messageType: 'suggestion',
+      content:
+        'The structure looks solid for mid-career teachers. One concern: Module 3 has only 1 topic while Modules 1-2 have 2 each. Consider adding a "Collaboration & LMS Platforms" topic to balance the workload and cover tools teachers will actually use in their institutions.',
+    },
+    {
+      role: 'human' as const,
+      messageType: 'text',
+      content:
+        'Good point about the balance. Let\'s keep Module 3 focused for now — we can always expand it later. Move forward with grading this structure.',
+    },
+  ]
+
+  for (const msg of structureMessages) {
+    await db.ideationMessage.create({
+      data: {
+        conversationId: structureConvo.id,
+        role: msg.role,
+        messageType: msg.messageType,
+        content: msg.content,
+      },
+    })
+  }
+
+  // --- Refinement phase ---
+  const refinementConvo = await db.ideationConversation.create({
+    data: {
+      blueprintId: blueprint.id,
+      phase: 'refinement',
+    },
+  })
+
+  const refinementMessages = [
+    {
+      role: 'critic' as const,
+      messageType: 'suggestion',
+      content:
+        'The rubric flagged "Balance" at 68 (below the 65 threshold it passes, but barely). Module 3 has 1 topic vs 2 for the others. The "Progression" score of 82 is strong — the theory→framework→tools arc works well. I suggest we strengthen Module 3 descriptions to show it\'s intentionally focused, not incomplete.',
+    },
+    {
+      role: 'facilitator' as const,
+      messageType: 'decision',
+      content:
+        'Refinement complete. Updated Module 3 description to clarify its focused scope. Overall score improved from 74.6 to 78.2. All dimensions now pass their individual thresholds. The structure is ready for human review.',
+    },
+  ]
+
+  for (const msg of refinementMessages) {
+    await db.ideationMessage.create({
+      data: {
+        conversationId: refinementConvo.id,
+        role: msg.role,
+        messageType: msg.messageType,
+        content: msg.content,
+      },
+    })
+  }
+
+  let totalMessages = brainstormMessages.length + structureMessages.length + refinementMessages.length
+  console.log(`  Created 3 conversations with ${totalMessages} messages`)
+
+  // 6. Create StructureGrade with realistic 7-dimension scores
+  const dimensionScores = [
+    { id: 'coverage', name: 'Coverage', score: 82, weight: 0.18, passThreshold: 70, feedback: 'Learning outcomes cover all three modules well. Minor gap: no explicit outcome for collaborative ID workflows.' },
+    { id: 'depth', name: 'Depth', score: 76, weight: 0.15, passThreshold: 65, feedback: 'Hierarchy is 3 levels deep (Module → Topic → Subtopic). Adequate for a 40-hour program. Subtopics could be more granular in Module 2.' },
+    { id: 'progression', name: 'Progression', score: 82, weight: 0.18, passThreshold: 75, feedback: 'Strong theory → framework → application arc. Topics build logically within each module.' },
+    { id: 'balance', name: 'Balance', score: 68, weight: 0.12, passThreshold: 65, feedback: 'Module 3 has 1 topic vs 2 for others. Borderline but acceptable given the focused scope. Consider expanding if time permits.' },
+    { id: 'engagement', name: 'Engagement', score: 80, weight: 0.15, passThreshold: 70, feedback: 'Good mix of videos, quizzes, activities, and capstone. Each module has hands-on components.' },
+    { id: 'feasibility', name: 'Feasibility', score: 85, weight: 0.10, passThreshold: 60, feedback: '40 hours is realistic for 3 modules with the proposed component mix. Production cost within typical range.' },
+    { id: 'coherence', name: 'Coherence', score: 74, weight: 0.12, passThreshold: 70, feedback: 'Most components serve clear learning outcomes. The capstone in Module 1 could be better tied to specific topic outcomes.' },
+  ]
+  // Weighted average: 82*0.18 + 76*0.15 + 82*0.18 + 68*0.12 + 80*0.15 + 85*0.10 + 74*0.12 = 78.62
+  const overallScore = 78.62
+
+  await db.structureGrade.create({
+    data: {
+      blueprintId: blueprint.id,
+      overallScore,
+      dimensionScores,
+      recommendation: 'revise',
+      feedback: 'Structure passes overall threshold (78.62 >= 75). Balance dimension is borderline at 68 — consider expanding Module 3. Coherence could be tightened by mapping capstone outcomes more explicitly.',
+    },
+  })
+  console.log(`  Created StructureGrade (overall: ${overallScore})`)
+
+  // 7. Update blueprint with ideation score and structure summary
+  await db.projectBlueprint.update({
+    where: { id: blueprint.id },
+    data: {
+      ideationPhase: 'refinement',
+      ideationScore: overallScore,
+      structureSummary: {
+        totalModules: 3,
+        totalTopics: 5,
+        totalSubtopics: 4,
+        componentBreakdown: { video: 10, quiz: 10, study_material: 5, activity: 4, capstone: 2 },
+        estimatedHours: 40,
+        overallScore,
+        recommendation: 'revise',
+      },
+    },
+  })
+  console.log(`  Updated blueprint: ideationScore=${overallScore}, phase=refinement`)
+
+  // 8. Create BlueprintVersion (snapshot of current state)
+  const allNodes = await db.projectNode.findMany({
+    where: { blueprintId: blueprint.id },
+    orderBy: [{ depth: 'asc' }, { sortOrder: 'asc' }],
+  })
+  const allComponents = await db.nodeComponent.findMany({
+    where: { nodeId: { in: allNodes.map(n => n.id) } },
+  })
+
+  const updatedBlueprint = await db.projectBlueprint.findUnique({
+    where: { id: blueprint.id },
+  })
+
+  await db.blueprintVersion.create({
+    data: {
+      blueprintId: blueprint.id,
+      version: 1,
+      snapshot: {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        blueprint: {
+          id: updatedBlueprint!.id,
+          projectId: updatedBlueprint!.projectId,
+          archetype: updatedBlueprint!.archetype,
+          hierarchyLabels: updatedBlueprint!.hierarchyLabels,
+          targetAudience: updatedBlueprint!.targetAudience,
+          learningOutcomes: updatedBlueprint!.learningOutcomes,
+          enabledComponents: updatedBlueprint!.enabledComponents,
+          ideationPhase: updatedBlueprint!.ideationPhase,
+          ideationScore: updatedBlueprint!.ideationScore,
+          structureSummary: updatedBlueprint!.structureSummary,
+        },
+        nodes: allNodes.map(n => ({
+          id: n.id,
+          blueprintId: n.blueprintId,
+          parentId: n.parentId,
+          title: n.title,
+          slug: n.slug,
+          description: n.description,
+          notes: n.notes,
+          depth: n.depth,
+          sortOrder: n.sortOrder,
+          learningOutcomes: n.learningOutcomes,
+          status: n.status,
+          agentConfidence: n.agentConfidence,
+          path: n.path,
+        })),
+        components: allComponents.map(c => ({
+          id: c.id,
+          nodeId: c.nodeId,
+          componentType: c.componentType,
+          config: c.config,
+          priority: c.priority,
+          status: c.status,
+          relevanceScore: c.relevanceScore,
+          pipelineJobId: c.pipelineJobId,
+        })),
+      },
+      rubricScore: {
+        overallScore,
+        dimensionScores,
+        recommendation: 'revise',
+      },
+    },
+  })
+  console.log(`  Created BlueprintVersion v1`)
+
+  // 9. Summary
   console.log('\n✅ Seed complete!')
-  console.log(`   Projects:     1`)
-  console.log(`   Blueprints:   1`)
-  console.log(`   Nodes:        ${nodeCount}`)
-  console.log(`   Components:   ${componentCount}`)
-  console.log(`   Messages:     ${messages.length}`)
+  console.log(`   Projects:       1`)
+  console.log(`   Blueprints:     1`)
+  console.log(`   Nodes:          ${nodeCount}`)
+  console.log(`   Components:     ${componentCount}`)
+  console.log(`   Conversations:  3 (brainstorm, structure, refinement)`)
+  console.log(`   Messages:       ${totalMessages}`)
+  console.log(`   StructureGrade: 1 (score: ${overallScore})`)
+  console.log(`   Versions:       1`)
 }
 
 main()
