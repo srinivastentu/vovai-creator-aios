@@ -33,11 +33,11 @@ capstone projects) before they enter the existing production pipeline.
 
 ## Macro Phase 3: Tree Engine + API ← CURRENT
 
-- [ ] PC-3.1: Tree utility functions
+- [x] PC-3.1: Tree utility functions
   - 11 pure functions: buildTree, flattenTree, findNode, getAncestors,
     getDescendants, getSiblings, addNode, removeNode, moveNode, updatePaths, getTreeStats
   - File: src/lib/project-component/tree/tree-utils.ts
-  - Tests: tests/unit/tree-utils.test.ts
+  - Tests: tests/unit/tree-utils.test.ts (50 tests passing)
   - Key rule: NO database imports — pure functions only
 
 - [ ] PC-3.2: Blueprint & node API routes (8 route groups)
