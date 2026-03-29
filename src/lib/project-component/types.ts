@@ -298,6 +298,62 @@ export interface GradeReport {
   specificImprovements: string[]
 }
 
+// ─── Outcomes Map (Stage 0.3 — Outcome Architect output) ───────────────────
+
+/** Learning outcomes for a single node in the structure */
+export interface NodeOutcomes {
+  nodeTitle: string
+  nodePath: string
+  depth: number
+  outcomes: LearningOutcome[]
+  bloomDistribution: Record<BloomLevel, number>
+}
+
+/** Full outcomes map — all nodes with their outcomes + aggregate stats */
+export interface OutcomesMap {
+  courseOutcomes: LearningOutcome[]
+  nodeOutcomes: NodeOutcomes[]
+  totalOutcomes: number
+  bloomDistribution: Record<BloomLevel, number>
+  coverageNotes: string
+}
+
+// ─── Component Plan (Stage 0.3 — Component Recommender output) ─────────────
+
+/** A single component recommendation for a node */
+export interface ComponentRecommendation {
+  componentType: string
+  priority: ComponentPriority
+  rationale: string
+  estimatedCost: { min: number; max: number }
+}
+
+/** All component recommendations for a single node */
+export interface NodeComponentRecommendation {
+  nodeTitle: string
+  nodePath: string
+  depth: number
+  components: ComponentRecommendation[]
+}
+
+/** A budget tier — essential, recommended, or comprehensive */
+export interface BudgetTier {
+  name: 'essential' | 'recommended' | 'comprehensive'
+  description: string
+  totalComponents: number
+  estimatedCost: { min: number; max: number; currency: 'USD' }
+  includedTypes: string[]
+}
+
+/** Full component plan — per-node recommendations + budget tiers */
+export interface ComponentPlan {
+  nodeRecommendations: NodeComponentRecommendation[]
+  totalComponents: number
+  componentBreakdown: Record<string, number>
+  budgetTiers: BudgetTier[]
+  rationale: string
+}
+
 // ─── Ideation Messages ──────────────────────────────────────────────────────
 
 /** A single message in an ideation conversation */
