@@ -66,7 +66,7 @@ export async function POST(
     })
 
     // Rebuild loop state from conversation + blueprint
-    const state = rebuildState(blueprintId, blueprint, conversation)
+    const state = await rebuildState(blueprintId, blueprint, conversation)
 
     // Run the next step
     const result = await runIdeationStep(state, parsed.data.message)
@@ -126,7 +126,7 @@ export async function POST(
  * Rebuild IdeationLoopState from the blueprint and conversation data.
  * The loop engine is stateless — we reconstruct state each request.
  */
-function rebuildState(
+async function rebuildState(
   blueprintId: string,
   blueprint: {
     ideationPhase: string
@@ -142,7 +142,7 @@ function rebuildState(
       structuredData: unknown
     }>
   }
-): IdeationLoopState {
+): Promise<IdeationLoopState> {
   // Find the brief from the first human message
   const firstHumanMsg = conversation.messages.find(m => m.role === 'human')
   const brief = firstHumanMsg?.content ?? ''
@@ -164,6 +164,50 @@ function rebuildState(
     if (data.outcomesMap) outcomesMap = data.outcomesMap as OutcomesMap
     if (data.componentPlan) componentPlan = data.componentPlan as ComponentPlan
     if (data.gradeReport) gradeReport = data.gradeReport as GradeReport
+  }
+
+  // Fall back to blueprint columns if conversation messages lack the data
+  // (e.g. seeded projects where early messages don't carry structuredData)
+  if (!audienceProfile && blueprint.targetAudience) {
+    audienceProfile = blueprint.targetAudience as AudienceProfile
+  }
+  if (!proposedStructure) {
+    // Synthesize a minimal ProposedStructure from the blueprint's actual nodes
+    // so the loop engine can proceed with refinement
+    const nodes = await db.projectNode.findMany({
+      where: { blueprintId },
+      orderBy: [{ depth: 'asc' }, { sortOrder: 'asc' }],
+      select: { id: true, title: true, description: true, depth: true, parentId: true, learningOutcomes: true },
+    })
+    if (nodes.length > 0) {
+      const modules = nodes.filter(n => n.depth === 0)
+      proposedStructure = {
+        courseTitle: blueprint.structureSummary
+          ? (blueprint.structureSummary as Record<string, unknown>).courseTitle as string ?? 'Untitled Course'
+          : 'Untitled Course',
+        courseDescription: '',
+        modules: modules.map(mod => ({
+          title: mod.title,
+          description: mod.description ?? '',
+          topics: nodes
+            .filter(n => n.parentId === mod.id && n.depth === 1)
+            .map(topic => ({
+              title: topic.title,
+              description: topic.description ?? '',
+              keyConcepts: [],
+              estimatedMinutes: 60,
+              subtopics: nodes
+                .filter(n => n.parentId === topic.id)
+                .map(st => st.title),
+              difficulty: 'intermediate' as const,
+              bloomLevel: 'apply' as const,
+            })),
+        })),
+        sequencingRationale: '',
+        alternativeStructures: [],
+        confidenceScore: 0.8,
+      }
+    }
   }
 
   const state = createInitialState(blueprintId, brief)

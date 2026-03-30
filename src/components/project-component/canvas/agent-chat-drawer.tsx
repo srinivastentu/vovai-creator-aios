@@ -58,7 +58,7 @@ export function AgentChatDrawer({ blueprintId }: AgentChatDrawerProps) {
     setSending(true)
 
     try {
-      const res = await fetch(`/api/blueprints/${blueprintId}/ideation/message`, {
+      const res = await fetch(`/api/blueprints/${blueprintId}/ideation/ask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
@@ -71,35 +71,13 @@ export function AgentChatDrawer({ blueprintId }: AgentChatDrawerProps) {
 
       const data = await res.json()
 
-      // Extract agent responses from the returned messages
-      const agentMessages: ChatMessage[] = []
-      if (data.messages && Array.isArray(data.messages)) {
-        // Get the last non-human message as the response
-        const agentResponses = data.messages.filter(
-          (m: { role: string }) => m.role !== 'human'
-        )
-        const lastResponse = agentResponses[agentResponses.length - 1]
-        if (lastResponse) {
-          agentMessages.push({
-            id: lastResponse.id ?? `agent-${Date.now()}`,
-            role: 'agent',
-            content: lastResponse.content,
-            createdAt: new Date(lastResponse.createdAt ?? Date.now()),
-          })
-        }
-      } else if (data.content) {
-        // Fallback: direct content response
-        agentMessages.push({
-          id: `agent-${Date.now()}`,
-          role: 'agent',
-          content: data.content,
-          createdAt: new Date(),
-        })
+      const agentMsg: ChatMessage = {
+        id: `agent-${Date.now()}`,
+        role: 'agent',
+        content: data.answer ?? 'No response from agent.',
+        createdAt: new Date(),
       }
-
-      if (agentMessages.length > 0) {
-        setMessages(prev => [...prev, ...agentMessages])
-      }
+      setMessages(prev => [...prev, agentMsg])
     } catch (err) {
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,

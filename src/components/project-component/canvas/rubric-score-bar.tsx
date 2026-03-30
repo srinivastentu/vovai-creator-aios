@@ -188,37 +188,43 @@ export function RubricScoreBar({
     }
   }
 
+  // Find the lowest scoring dimension to flag as "weakest"
+  const sortedDims = [...grade.dimensionScores].sort((a, b) => a.score - b.score)
+  const weakestId = sortedDims[0]?.id
+
   return (
     <div className="border-t bg-muted/20">
-      {/* Collapsed row — always visible */}
+      {/* Summary row — always visible */}
       <div className="flex items-center gap-3 px-4 py-3">
-        {/* Expand toggle */}
+        {/* Clickable expand area — score label + bar + score number */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="flex flex-1 items-center gap-3 cursor-pointer group"
         >
-          {expanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-          Structure Score
+          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+            Structure Score
+            {expanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+          </span>
+
+          {/* Overall progress bar */}
+          <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${style.barBg}`}
+              style={{ width: `${pct}%` }}
+            />
+            <div
+              className="absolute inset-y-0 w-px bg-foreground/30"
+              style={{ left: '75%' }}
+              title="Pass threshold: 75"
+            />
+          </div>
+
+          {/* Score */}
+          <span className={`text-sm font-bold tabular-nums ${scoreColor(grade.overallScore)}`}>
+            {grade.overallScore.toFixed(2)}
+            <span className="text-muted-foreground font-normal">/100</span>
+          </span>
         </button>
-
-        {/* Overall progress bar */}
-        <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-          <div
-            className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${style.barBg}`}
-            style={{ width: `${pct}%` }}
-          />
-          <div
-            className="absolute inset-y-0 w-px bg-foreground/30"
-            style={{ left: '75%' }}
-            title="Pass threshold: 75"
-          />
-        </div>
-
-        {/* Score */}
-        <span className={`text-sm font-bold tabular-nums ${scoreColor(grade.overallScore)}`}>
-          {grade.overallScore.toFixed(2)}
-          <span className="text-muted-foreground font-normal">/100</span>
-        </span>
 
         {/* Recommendation badge */}
         <Badge variant="outline" className={`text-xs ${style.text}`}>
@@ -271,23 +277,38 @@ export function RubricScoreBar({
         </div>
       )}
 
-      {/* Collapsed dimension scores — compact row */}
+      {/* Collapsed dimension scores — compact row with color coding */}
       {!expanded && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 pb-3">
+        <button
+          onClick={() => setExpanded(true)}
+          className="flex w-full flex-wrap gap-x-4 gap-y-1 px-4 pb-3 cursor-pointer hover:bg-muted/30 transition-colors"
+        >
           {grade.dimensionScores.map((dim) => {
-            const passing = dim.score >= dim.passThreshold
+            const failing = dim.score < dim.passThreshold
+            const nearThreshold = !failing && (dim.score - dim.passThreshold) <= 5
+            const isWeakest = dim.id === weakestId
             return (
               <span
                 key={dim.id}
-                className={`text-[11px] ${passing ? 'text-muted-foreground' : 'text-destructive font-medium'}`}
+                className={`text-[11px] ${
+                  failing
+                    ? 'text-destructive font-medium'
+                    : nearThreshold || isWeakest
+                      ? 'text-amber-600 dark:text-amber-400 font-medium'
+                      : 'text-muted-foreground'
+                }`}
                 title={dim.feedback}
               >
                 {dim.name}: <span className="font-medium tabular-nums">{dim.score}</span>
-                {!passing && <span className="ml-0.5">!</span>}
+                {failing && <span className="ml-0.5">!</span>}
+                {(nearThreshold || isWeakest) && !failing && <span className="ml-0.5">⚠</span>}
               </span>
             )
           })}
-        </div>
+          <span className="text-[10px] text-muted-foreground/50 ml-auto">
+            click to expand ▴
+          </span>
+        </button>
       )}
 
       {/* Expanded dimension details */}
@@ -313,6 +334,15 @@ export function RubricScoreBar({
               {grade.feedback}
             </p>
           )}
+
+          {/* Collapse button */}
+          <button
+            onClick={() => setExpanded(false)}
+            className="mt-3 flex w-full items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronDown size={12} />
+            collapse
+          </button>
         </div>
       )}
     </div>
