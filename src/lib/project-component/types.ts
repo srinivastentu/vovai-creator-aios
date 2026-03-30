@@ -216,6 +216,22 @@ export interface AttachedComponentType {
   updatedAt: Date
 }
 
+// ─── Workflow Template ──────────────────────────────────────────────────────
+
+/** Which components are enabled at a specific hierarchy depth */
+export interface LevelComponentDefaults {
+  depth: number
+  label: string
+  enabledComponents: string[]
+}
+
+/** Project-level production workflow — component selection, order, per-level defaults */
+export interface WorkflowTemplate {
+  enabledComponents: string[]
+  productionOrder: string[]
+  levelDefaults: LevelComponentDefaults[]
+}
+
 // ─── Project Blueprint ──────────────────────────────────────────────────────
 
 /** Full blueprint shape with nodes array — the top-level project structure */
@@ -227,6 +243,7 @@ export interface ProjectBlueprintType {
   targetAudience: AudienceProfile
   learningOutcomes: LearningOutcome[]
   enabledComponents: string[]
+  workflowTemplate: WorkflowTemplate | null
   ideationPhase: IdeationPhase
   ideationScore: number | null
   structureSummary: Record<string, unknown> | null

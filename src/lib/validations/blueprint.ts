@@ -32,6 +32,20 @@ export const createBlueprintSchema = z.object({
 
 export type CreateBlueprintInput = z.infer<typeof createBlueprintSchema>
 
+// ─── Workflow Template Schema ─────────────────────────────────────────────────
+
+const levelComponentDefaultsSchema = z.object({
+  depth: z.number().int().min(0),
+  label: z.string().min(1),
+  enabledComponents: z.array(z.string()),
+})
+
+export const workflowTemplateSchema = z.object({
+  enabledComponents: z.array(z.string()).min(1, 'At least one component must be enabled'),
+  productionOrder: z.array(z.string()).min(1),
+  levelDefaults: z.array(levelComponentDefaultsSchema),
+})
+
 export const updateBlueprintSchema = z.object({
   archetype: z.enum(['k12_curriculum', 'professional_training', 'content_channel']).optional(),
   hierarchyLabels: z.record(z.string(), z.string()).optional(),
@@ -40,6 +54,7 @@ export const updateBlueprintSchema = z.object({
   learningOutcomes: z.array(z.unknown()).optional(),
   ideationPhase: z.enum(['brainstorm', 'structure', 'refinement', 'review', 'approved']).optional(),
   structureSummary: z.record(z.string(), z.unknown()).nullable().optional(),
+  workflowTemplate: workflowTemplateSchema.nullable().optional(),
 })
 
 export type UpdateBlueprintInput = z.infer<typeof updateBlueprintSchema>

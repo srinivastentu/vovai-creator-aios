@@ -181,6 +181,7 @@ export function deserializeBlueprint(snapshot: BlueprintSnapshot): {
     targetAudience: bp.targetAudience as unknown as ProjectBlueprintType['targetAudience'],
     learningOutcomes: bp.learningOutcomes as ProjectBlueprintType['learningOutcomes'],
     enabledComponents: bp.enabledComponents,
+    workflowTemplate: (bp as unknown as Record<string, unknown>).workflowTemplate as ProjectBlueprintType['workflowTemplate'] ?? null,
     ideationPhase: bp.ideationPhase as ProjectBlueprintType['ideationPhase'],
     ideationScore: bp.ideationScore,
     structureSummary: bp.structureSummary,

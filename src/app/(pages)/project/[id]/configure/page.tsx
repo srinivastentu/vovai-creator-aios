@@ -9,14 +9,17 @@ import { useApi } from '@/lib/hooks/use-api'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
 import { WizardStepper, generateWizardSteps } from '@/components/project-component/wizard/wizard-stepper'
 import { WizardStepOverview } from '@/components/project-component/wizard/wizard-step-overview'
+import { WizardStepWorkflow } from '@/components/project-component/wizard/wizard-step-workflow'
 import {
   getArchetype,
   COMPONENT_REGISTRY,
+  buildDefaultWorkflowTemplate,
 } from '@/lib/project-component'
 import type {
   IdeationPhase,
   ProjectNodeType,
   ComponentDefinition,
+  WorkflowTemplate,
 } from '@/lib/project-component'
 
 // ─── API Response Types ────────────────────────────────────────────────────
@@ -26,6 +29,7 @@ interface BlueprintResponse {
   projectId: string
   archetype: string
   enabledComponents: string[]
+  workflowTemplate: WorkflowTemplate | null
   ideationPhase: IdeationPhase
   ideationScore: number | null
   structureSummary: Record<string, unknown> | null
@@ -72,6 +76,33 @@ export default function ConfigurePage({
     }
   }, [blueprint])
 
+  // Workflow template — use saved value or generate default from archetype
+  const [workflowTemplate, setWorkflowTemplate] = useState<WorkflowTemplate | null>(null)
+  const effectiveWorkflow = useMemo(() => {
+    if (workflowTemplate) return workflowTemplate
+    if (blueprint?.workflowTemplate) return blueprint.workflowTemplate
+    if (archetypeDef) return buildDefaultWorkflowTemplate(archetypeDef, COMPONENT_REGISTRY)
+    return null
+  }, [workflowTemplate, blueprint?.workflowTemplate, archetypeDef])
+
+  // Persist workflow template changes to API
+  const handleWorkflowChange = useCallback(async (template: WorkflowTemplate) => {
+    setWorkflowTemplate(template)
+    if (!blueprint) return
+    try {
+      await fetch(`/api/blueprints/${blueprint.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workflowTemplate: template,
+          enabledComponents: template.enabledComponents,
+        }),
+      })
+    } catch {
+      // Silently fail — local state is still updated
+    }
+  }, [blueprint])
+
   // Compute component instance counts from actual nodes
   const componentCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -103,11 +134,11 @@ export default function ConfigurePage({
 
   // Component definitions for enabled types
   const enabledComponentDefs = useMemo((): ComponentDefinition[] => {
-    const enabled = blueprint?.enabledComponents ?? []
+    const enabled = effectiveWorkflow?.enabledComponents ?? blueprint?.enabledComponents ?? []
     return enabled
       .map(type => COMPONENT_REGISTRY[type])
       .filter((d): d is ComponentDefinition => d !== undefined)
-  }, [blueprint?.enabledComponents])
+  }, [effectiveWorkflow?.enabledComponents, blueprint?.enabledComponents])
 
   // Cost range
   const costRange = useMemo(() => {
@@ -125,11 +156,12 @@ export default function ConfigurePage({
   // Generate wizard steps dynamically
   const wizardSteps = useMemo(
     () => generateWizardSteps(
-      blueprint?.enabledComponents ?? [],
+      effectiveWorkflow?.enabledComponents ?? blueprint?.enabledComponents ?? [],
       enabledComponentDefs,
       componentCounts,
+      effectiveWorkflow,
     ),
-    [blueprint?.enabledComponents, enabledComponentDefs, componentCounts],
+    [effectiveWorkflow, blueprint?.enabledComponents, enabledComponentDefs, componentCounts],
   )
 
   // Step navigation
@@ -239,8 +271,17 @@ export default function ConfigurePage({
                 />
               )}
 
-              {/* Steps 1..N-2: Component config forms (PC-8.2) */}
-              {currentStep > 0 && currentStep < wizardSteps.length - 1 && (
+              {/* Step 1: Production Workflow */}
+              {currentStep === 1 && archetypeDef && effectiveWorkflow && (
+                <WizardStepWorkflow
+                  archetype={archetypeDef}
+                  workflowTemplate={effectiveWorkflow}
+                  onChange={handleWorkflowChange}
+                />
+              )}
+
+              {/* Steps 2..N-2: Component config forms (PC-8.2) */}
+              {currentStep > 1 && currentStep < wizardSteps.length - 1 && (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <p className="text-sm text-muted-foreground">

@@ -57,6 +57,7 @@ export async function PATCH(
     if (fields.learningOutcomes !== undefined) data.learningOutcomes = fields.learningOutcomes
     if (fields.ideationPhase !== undefined) data.ideationPhase = fields.ideationPhase
     if (fields.structureSummary !== undefined) data.structureSummary = fields.structureSummary
+    if (fields.workflowTemplate !== undefined) data.workflowTemplate = fields.workflowTemplate
 
     const updated = await db.projectBlueprint.update({
       where: { id: blueprintId },

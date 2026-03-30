@@ -62,6 +62,7 @@ function makeBlueprint(overrides: Partial<ProjectBlueprintType> = {}): ProjectBl
     targetAudience: { primaryAudience: { description: 'Test audience' } } as ProjectBlueprintType['targetAudience'],
     learningOutcomes: [],
     enabledComponents: ['video', 'study_material', 'quiz'],
+    workflowTemplate: null,
     ideationPhase: 'structure',
     ideationScore: null,
     structureSummary: null,

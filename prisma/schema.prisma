@@ -169,6 +169,7 @@ model ProjectBlueprint {
   targetAudience    Json              // Detailed audience profile
   learningOutcomes  Json              // High-level learning outcomes array
   enabledComponents Json              // ["video","quiz","study_material","activity","capstone"]
+  workflowTemplate  Json?             // WorkflowTemplate: enabledComponents, productionOrder, levelDefaults
   ideationPhase     IdeationPhase     @default(brainstorm)
   ideationScore     Float?
   structureSummary  Json?

@@ -37,6 +37,8 @@ export type {
   ProjectBlueprintType,
   ComponentDefinition,
   ArchetypeDefinition,
+  LevelComponentDefaults,
+  WorkflowTemplate,
   DimensionGradeScore,
   GradeReport,
   NodeOutcomes,
@@ -74,6 +76,14 @@ export {
   getCompatibleComponents,
   isComponentAvailable,
 } from './compatibility'
+
+// ─── Workflow Defaults ──────────────────────────────────────────────────────
+
+export {
+  PIPELINE_PHASE_ORDER,
+  buildDefaultWorkflowTemplate,
+  getRecommendedProductionOrder,
+} from './workflow-defaults'
 
 // ─── Rubric ─────────────────────────────────────────────────────────────────
 

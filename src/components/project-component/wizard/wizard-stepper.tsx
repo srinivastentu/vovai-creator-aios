@@ -23,10 +23,11 @@ import {
   Package,
   ChevronRight,
   ChevronLeft,
+  ListOrdered,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { ComponentDefinition } from '@/lib/project-component'
+import type { ComponentDefinition, WorkflowTemplate } from '@/lib/project-component'
 
 // ─── Icon Map ────────────────────────────────────────────────────────────────
 
@@ -71,20 +72,27 @@ export interface WizardStepperProps {
 
 /**
  * Generate wizard steps from enabled component types and their instance counts.
- * Always includes Overview (first) and Review & Confirm (last).
+ * Always includes Overview (first), Production Workflow (second),
+ * and Review & Confirm (last). Component config steps follow the
+ * production order from the workflow template when available.
  */
 export function generateWizardSteps(
   enabledComponents: string[],
   componentDefs: ComponentDefinition[],
   componentCounts: Record<string, number>,
+  workflowTemplate?: WorkflowTemplate | null,
 ): WizardStep[] {
   const steps: WizardStep[] = [
     { id: 'overview', label: 'Overview', icon: Settings },
+    { id: 'workflow', label: 'Production Workflow', icon: ListOrdered },
   ]
 
-  // One step per enabled component TYPE (ordered by registry definition order)
+  // Use production order from workflow template if available, else enabledComponents
+  const ordering = workflowTemplate?.productionOrder ?? enabledComponents
+
+  // One step per enabled component TYPE (ordered by production order)
   const defMap = new Map(componentDefs.map(d => [d.id, d]))
-  for (const compType of enabledComponents) {
+  for (const compType of ordering) {
     const def = defMap.get(compType)
     if (!def) continue
     const count = componentCounts[compType] ?? 0
