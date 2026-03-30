@@ -42,8 +42,8 @@ const levelComponentDefaultsSchema = z.object({
 })
 
 export const workflowTemplateSchema = z.object({
-  enabledComponents: z.array(z.string()).min(1, 'At least one component must be enabled'),
-  productionOrder: z.array(z.string()).min(1),
+  enabledComponents: z.array(z.string()),
+  productionOrder: z.array(z.string()),
   levelDefaults: z.array(levelComponentDefaultsSchema),
 }).superRefine((data, ctx) => {
   const enabledSet = new Set(data.enabledComponents)

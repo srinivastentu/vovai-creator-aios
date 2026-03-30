@@ -23,13 +23,14 @@ describe('workflowTemplateSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('rejects empty enabledComponents', () => {
+  it('accepts empty enabledComponents (structure-only project)', () => {
     const result = workflowTemplateSchema.safeParse({
       ...validTemplate(),
       enabledComponents: [],
       productionOrder: [],
+      levelDefaults: [],
     })
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
   })
 
   it('rejects productionOrder with different items than enabledComponents', () => {

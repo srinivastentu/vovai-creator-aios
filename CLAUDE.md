@@ -58,6 +58,7 @@ Full details: @docs/architecture/recursive-loop-engine.md
 5. **Human Sovereignty:** No artifact enters approved state without explicit human action.
 6. **Cost Transparency:** Every LLM call is metered, tracked, attributable.
 7. **Graceful Degradation:** On failure, preserve all state, resume from last stable point.
+8. **User Sovereignty Over Defaults:** The system suggests, never enforces. Archetypes provide recommended defaults, but users can disable/enable ANY component at ANY level (Course, Module, Topic, Subtopic) at ANY time. No component is compulsory. No level has mandatory components. Subtopics have ZERO default components — they are structural only unless the user explicitly adds components. The system's job is to recommend; the user's job is to decide.
 
 ### eLearn Pipeline — 6 Phases
 

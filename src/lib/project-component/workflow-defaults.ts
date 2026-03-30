@@ -89,14 +89,21 @@ export function buildDefaultWorkflowTemplate(
 
   const levelDefaults = Array.from(
     { length: archetype.maxDepth + 1 },
-    (_, depth) => ({
-      depth,
-      label: archetype.hierarchy[depth] ?? `Level ${depth}`,
-      enabledComponents: enabled.filter(type => {
-        const def = registry[type]
-        return def ? def.attachableAt.includes(depth) : false
-      }),
-    }),
+    (_, depth) => {
+      const label = archetype.hierarchy[depth] ?? `Level ${depth}`
+      // Subtopics are structural only — zero default components
+      const isSubtopic = /sub[-\s]?topic/i.test(label)
+      return {
+        depth,
+        label,
+        enabledComponents: isSubtopic
+          ? []
+          : enabled.filter(type => {
+              const def = registry[type]
+              return def ? def.attachableAt.includes(depth) : false
+            }),
+      }
+    },
   )
 
   return { enabledComponents: enabled, productionOrder, levelDefaults }

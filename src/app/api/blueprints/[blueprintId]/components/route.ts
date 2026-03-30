@@ -32,7 +32,7 @@ export async function POST(
         nodeId: result.data.nodeId,
         componentType: result.data.componentType,
         config: (result.data.config ?? {}) as Prisma.InputJsonValue,
-        priority: result.data.priority ?? 'core',
+        priority: result.data.priority ?? 'recommended',
       },
     })
 

@@ -273,6 +273,11 @@ export interface ComponentDefinition {
   configSchema: Record<string, unknown>
   attachableAt: number[]
   maxPerNode: number
+  /**
+   * Advisory only — indicates the curriculum design considers this component
+   * essential. NEVER used to block user actions. Users can always disable
+   * any component regardless of this flag.
+   */
   required: boolean
   dependsOn: string[]
   produces: string[]

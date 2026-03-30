@@ -106,6 +106,9 @@ describe('buildDefaultWorkflowTemplate', () => {
     expect(template.levelDefaults[2].label).toBe('Topic')
     expect(template.levelDefaults[3].label).toBe('Subtopic')
 
+    // Subtopic (depth 3) is structural only — ZERO default components
+    expect(template.levelDefaults[3].enabledComponents).toEqual([])
+
     // capstone_project attachableAt: [0, 1] — only at Course and Module
     const capstoneAtDepth0 = template.levelDefaults[0].enabledComponents.includes('capstone_project')
     const capstoneAtDepth1 = template.levelDefaults[1].enabledComponents.includes('capstone_project')
@@ -139,6 +142,26 @@ describe('buildDefaultWorkflowTemplate', () => {
     const quizAtDepth1 = template.levelDefaults[1].enabledComponents.includes('quiz')
     expect(quizAtDepth0).toBe(false)
     expect(quizAtDepth1).toBe(true)
+  })
+
+  it('sets empty enabledComponents for subtopic levels', () => {
+    // k12: depth 4 = "Sub-topic" → empty
+    const k12 = PROJECT_ARCHETYPES.k12_curriculum
+    const k12Template = buildDefaultWorkflowTemplate(k12, COMPONENT_REGISTRY)
+    expect(k12Template.levelDefaults[4].label).toBe('Sub-topic')
+    expect(k12Template.levelDefaults[4].enabledComponents).toEqual([])
+
+    // professional_training: depth 3 = "Subtopic" → empty
+    const pt = PROJECT_ARCHETYPES.professional_training
+    const ptTemplate = buildDefaultWorkflowTemplate(pt, COMPONENT_REGISTRY)
+    expect(ptTemplate.levelDefaults[3].label).toBe('Subtopic')
+    expect(ptTemplate.levelDefaults[3].enabledComponents).toEqual([])
+
+    // content_channel: depth 3 = "Episode" → NOT a subtopic, should have components if attachable
+    const cc = PROJECT_ARCHETYPES.content_channel
+    const ccTemplate = buildDefaultWorkflowTemplate(cc, COMPONENT_REGISTRY)
+    expect(ccTemplate.levelDefaults[3].label).toBe('Episode')
+    // Episode is not a subtopic, so components with attachableAt including 3 should appear
   })
 
   it('falls back to "Level N" for missing hierarchy labels', () => {

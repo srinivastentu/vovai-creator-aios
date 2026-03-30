@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import {
   Check,
   DollarSign,
@@ -12,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
+import { COMPONENT_REGISTRY } from '@/lib/project-component'
 import type {
   ArchetypeDefinition,
   ComponentDefinition,
@@ -31,6 +33,7 @@ export interface WizardStepReviewProps {
   costRange: { min: number; max: number }
   configuredTypes: Set<string>
   onGoToStep: (stepIndex: number) => void
+  onWorkflowChange?: (template: WorkflowTemplate) => void
 }
 
 const CATEGORY_BG: Record<ComponentCategory, string> = {
@@ -68,8 +71,24 @@ export function WizardStepReview({
   costRange,
   configuredTypes,
   onGoToStep,
+  onWorkflowChange,
 }: WizardStepReviewProps) {
   const defMap = new Map(componentDefs.map(d => [d.id, d]))
+
+  const handleToggleLevelComponent = useCallback((depth: number, type: string) => {
+    if (!onWorkflowChange) return
+    const newLevelDefaults = workflowTemplate.levelDefaults.map(ld => {
+      if (ld.depth !== depth) return ld
+      const has = ld.enabledComponents.includes(type)
+      return {
+        ...ld,
+        enabledComponents: has
+          ? ld.enabledComponents.filter(t => t !== type)
+          : [...ld.enabledComponents, type],
+      }
+    })
+    onWorkflowChange({ ...workflowTemplate, levelDefaults: newLevelDefaults })
+  }, [workflowTemplate, onWorkflowChange])
 
   // Group production order by pipeline phase
   const phaseGroups: { phase: string; label: string; components: string[] }[] = []
@@ -237,43 +256,72 @@ export function WizardStepReview({
         </Card>
       )}
 
-      {/* Per-level summary */}
+      {/* Per-level defaults — interactive */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Level Defaults</CardTitle>
           <CardDescription className="text-xs">
-            Which components attach at each hierarchy level
+            Toggle which components attach at each hierarchy level. All choices are optional.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="space-y-2">
-            {workflowTemplate.levelDefaults.map(ld => (
-              <div key={ld.depth} className="flex items-start gap-2">
-                <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">
-                  {ld.label}
-                </Badge>
-                <div className="flex flex-wrap gap-1">
-                  {ld.enabledComponents.length > 0 ? (
-                    ld.enabledComponents.map(type => {
-                      const def = defMap.get(type)
-                      if (!def) return null
-                      const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
-                      return (
-                        <span
-                          key={type}
-                          className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium"
-                        >
-                          <Icon size={10} />
-                          {def.name}
-                        </span>
-                      )
-                    })
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">None</span>
-                  )}
+          <div className="space-y-4">
+            {workflowTemplate.levelDefaults.map(ld => {
+              // Components that CAN attach at this depth AND are globally enabled
+              const attachable = workflowTemplate.enabledComponents.filter(type => {
+                const def = COMPONENT_REGISTRY[type]
+                return def ? def.attachableAt.includes(ld.depth) : false
+              })
+
+              return (
+                <div key={ld.depth}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {ld.label}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground">depth {ld.depth}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {attachable.length > 0 ? (
+                      attachable.map(type => {
+                        const def = defMap.get(type) ?? COMPONENT_REGISTRY[type]
+                        if (!def) return null
+                        const isActive = ld.enabledComponents.includes(type)
+                        const isRecommended = archetype.defaultComponents.includes(type)
+                        const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
+
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => handleToggleLevelComponent(ld.depth, type)}
+                            className={`
+                              inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-all
+                              ${isActive
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border text-muted-foreground hover:border-muted-foreground/60'
+                              }
+                            `}
+                          >
+                            <Icon size={10} />
+                            {def.name}
+                            {isRecommended && (
+                              <span className="ml-0.5 rounded bg-emerald-100 px-1 py-px text-[8px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                recommended
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">
+                        No compatible components at this level
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>

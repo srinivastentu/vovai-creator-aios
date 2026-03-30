@@ -205,7 +205,7 @@ export default function ConfigurePage({
 
   const handleNext = useCallback(() => {
     // Block advancement from workflow step if no components enabled
-    if (currentStep === 1 && (!effectiveWorkflow || effectiveWorkflow.enabledComponents.length === 0)) return
+    if (currentStep === 1 && !effectiveWorkflow) return
     setCurrentStep(prev => Math.min(prev + 1, wizardSteps.length - 1))
   }, [currentStep, effectiveWorkflow, wizardSteps.length])
 
@@ -474,6 +474,7 @@ export default function ConfigurePage({
                   costRange={costRange}
                   configuredTypes={configuredTypes}
                   onGoToStep={handleStepClick}
+                  onWorkflowChange={handleWorkflowChange}
                 />
               )}
             </div>

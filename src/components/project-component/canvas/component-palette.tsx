@@ -160,7 +160,7 @@ export function ComponentPalette({
       await addComp.mutate({
         nodeId: selectedNode.id,
         componentType: comp.id,
-        priority: def?.required ? 'core' : 'recommended',
+        priority: 'recommended',
       })
       // Flash effect
       setFlashId(comp.id)
