@@ -30,7 +30,14 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
   const optionsRef = useRef(options)
   optionsRef.current = options
 
+  const abortRef = useRef<AbortController | null>(null)
+
   const fetchData = useCallback(async () => {
+    // Abort any in-flight request before starting a new one
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setState(prev => ({ ...prev, loading: true, error: null }))
 
     try {
@@ -42,6 +49,7 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
           ...opts?.headers,
         },
         ...(opts?.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
+        signal: controller.signal,
       })
 
       const json = await res.json()
@@ -54,6 +62,7 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
 
       setState({ data: json as T, error: null, loading: false })
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return
       const message = err instanceof Error ? err.message : 'Network error'
       setState({ data: null, error: message, loading: false })
     }
@@ -62,6 +71,7 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
   useEffect(() => {
     if (optionsRef.current?.skip) return
     fetchData()
+    return () => { abortRef.current?.abort() }
   }, [fetchData])
 
   return { ...state, refetch: fetchData }
@@ -81,6 +91,11 @@ export function useApiMutation<TBody, TResponse>(
 ): UseApiMutationResult<TBody, TResponse> {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    return () => { mountedRef.current = false }
+  }, [])
 
   const mutate = useCallback(
     async (body: TBody): Promise<TResponse> => {
@@ -98,17 +113,17 @@ export function useApiMutation<TBody, TResponse>(
 
         if (!res.ok) {
           const message = (json as { error?: string }).error ?? `Request failed (${res.status})`
-          setError(message)
+          if (mountedRef.current) setError(message)
           throw new Error(message)
         }
 
         return json as TResponse
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Network error'
-        setError(message)
+        if (mountedRef.current) setError(message)
         throw err
       } finally {
-        setLoading(false)
+        if (mountedRef.current) setLoading(false)
       }
     },
     [url, method]

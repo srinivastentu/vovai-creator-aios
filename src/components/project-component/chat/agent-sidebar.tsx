@@ -42,6 +42,7 @@ export interface AgentSidebarProps {
   onFeedback?: (message: string) => void
   onRestructure?: () => void
   reviewLoading?: boolean
+  reviewError?: string | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -165,6 +166,7 @@ export function AgentSidebar({
   onFeedback,
   onRestructure,
   reviewLoading = false,
+  reviewError = null,
 }: AgentSidebarProps) {
   const [summaryOpen, setSummaryOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
@@ -376,6 +378,10 @@ export function AgentSidebar({
               Restructure
             </Button>
           </div>
+
+          {reviewError && (
+            <p className="mt-2 text-xs text-destructive">{reviewError}</p>
+          )}
 
           {/* Inline feedback textarea */}
           {feedbackOpen && (

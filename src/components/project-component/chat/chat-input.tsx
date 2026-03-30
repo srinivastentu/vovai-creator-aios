@@ -84,6 +84,7 @@ export function ChatInput({
           onClick={handleSend}
           disabled={!canSend}
           className="h-9 w-9 shrink-0 p-0"
+          aria-label="Send message"
         >
           <Send size={16} />
         </Button>

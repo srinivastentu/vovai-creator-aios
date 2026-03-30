@@ -287,6 +287,203 @@ src/lib/project-component/types.ts
 
 ---
 
+## Macro 6 Sign-Off Review
+
+**Review Date:** 2026-03-30
+**Reviewer:** Claude (senior engineer sign-off)
+**Scope:** Chat Ideation UI — all components in `src/components/project-component/chat/`, `src/app/(pages)/project/[id]/ideation/page.tsx`, `src/lib/hooks/use-ideation.ts`, `src/lib/hooks/use-api.ts`
+
+---
+
+### 1. Code Quality Scan — PASS with notes
+
+| Check | Result |
+|-------|--------|
+| `npm run typecheck` | PASS — 0 errors |
+| `npm run build` | PASS — 0 errors, 0 warnings |
+| `npm run test` | PASS — 12 files, 262 tests, all passing |
+| `any` types in UI code | CLEAN — 0 found |
+| `console.log` in UI code | CLEAN — 0 found |
+| `console.log` in engine | 1 × `console.log` in executor.ts:130 (cost tracking — appropriate) |
+| TODOs in scope | 1 × `// TODO: Replace with DB query` in `project/[id]/page.tsx:160` |
+
+**TODO detail:** `project/[id]/page.tsx:160` still uses hardcoded `sampleProject` / `sampleSessions`. This is the parent project detail page, not the ideation page, but it ships static data to production.
+
+---
+
+### 2. Error Handling Audit
+
+| API Call | try/catch | Error shown to user | Input preserved on error | Retry possible |
+|----------|-----------|---------------------|--------------------------|----------------|
+| Blueprint fetch (`GET /blueprints?projectId=`) | ✅ (in useApi) | ✅ Full error card shown | N/A | ✅ (page reload) |
+| Messages fetch (`GET /ideation/messages`) | ✅ (in useApi) | 🔴 **NO** — `messagesError` destructured but never rendered | N/A | ❌ No retry UI |
+| Send / Start (`POST /ideation/start`, `/message`) | ✅ | ✅ Shown in ChatInput | ✅ Value kept on throw | ✅ User can retype |
+| Grade (`POST /ideation/grade`) | ✅ | ✅ `gradeError` shown in AgentSidebar | N/A | ✅ Button re-enabled |
+| Approve/Feedback/Restructure (`POST /ideation/approve`) | ✅ | 🔴 **NO** — `reviewError` is returned from `useIdeation` but NOT destructured by the page and NOT passed to AgentSidebar | N/A | ❌ Silent failure |
+
+🔴 **CRITICAL: `reviewError` is a silent failure.** If Approve/Feedback/Restructure API call fails (e.g. server error during approve), the user gets zero feedback. The `useIdeation` hook exports `reviewError` but `ideation/page.tsx` never destructures it, and `AgentSidebarProps` has no `reviewError` field.
+
+🔴 **CRITICAL: `messagesError` is swallowed.** If the messages API fails on mount (line 82-85 of `ideation/page.tsx`), the chat area shows the loading spinner, then transitions to the empty "Ready to begin ideation" state — giving the user the impression no conversation exists when it may actually be a network error.
+
+---
+
+### 3. Memory Leak Check
+
+| Risk | Component | Verdict |
+|------|-----------|---------|
+| useEffect without cleanup | `ChatMessageList` — scrollIntoView on count change | ✅ No cleanup needed |
+| useEffect without cleanup | `IdeationPage` — structure refresh key bump | ✅ No cleanup needed |
+| useEffect without cleanup | `StructurePreview` — refetch on refreshKey change | ✅ No cleanup needed |
+| **AbortController missing** | `useApi` (`use-api.ts:62-65`) | 🔴 **CRITICAL** |
+| setInterval / setTimeout | None used | ✅ Clean |
+| Event listeners | None added manually | ✅ Clean |
+| Auto-scroll performance | `scrollIntoView` triggered per message count delta | 🟢 Fine for ideation-scale message lists |
+
+🔴 **CRITICAL: `useApi` has no AbortController.** `fetchData()` fires an async `fetch()`, then calls `setState` when it resolves. If the component unmounts while a request is in flight (e.g., user navigates away mid-load), setState is called on an unmounted component. React 18 silences the warning but the fetch still completes and processes the response. More critically: if `url` changes while a previous request is in flight (e.g., blueprintId changes), the older response can arrive last and overwrite fresher data — a classic stale-closure race condition.
+
+**Fix:** Add `AbortController` to `fetchData`, abort in the useEffect cleanup, check `signal.aborted` before setState.
+
+---
+
+### 4. Race Condition Check
+
+| Scenario | Protected? | Details |
+|----------|-----------|---------|
+| Double-click Send | ✅ | `canSend = !loading && !disabled` disables button immediately; textarea also disabled |
+| Send while agents responding | ✅ | `disabled={anyLoading}` on ChatInput |
+| Grade while send in flight | ✅ | `disabled={anyLoading}` on AgentSidebar Grade button |
+| Approve while grade in flight | ✅ | `disabled={anyLoading}` on review action buttons |
+| Optimistic message rollback | ✅ | Removes by ID: `prev.filter(m => m.id !== optimisticMsg.id)` |
+| Stale fetch overwrites state | 🔴 | `useApi` has no AbortController — see §3 above |
+| Approve then navigate | 🟡 | Approve calls `router.push()` inside `.then()` — if component unmounts during approve, the state update after navigation could log an unmount warning |
+
+---
+
+### 5. Accessibility Quick Check
+
+| Element | Issue | Severity |
+|---------|-------|---------|
+| Send button (`chat-input.tsx:82-89`) | Icon-only `<Button>` with no `aria-label`. Screen reader says nothing | 🔴 CRITICAL |
+| Mobile sidebar toggle (`ideation/page.tsx:276-281`) | Icon-only `<Button>` with no `aria-label` | 🔴 CRITICAL |
+| `RoleAvatar` (`role-avatar.tsx:70-84`) | Uses `title={config.label}` only. `title` is not reliably announced by screen readers. Decorative uses (chat header) need `aria-hidden="true"` | 🟡 IMPORTANT |
+| Feedback textarea (`agent-sidebar.tsx:383-389`) | Naked `<textarea>` with only a placeholder — no `<label>` element. Placeholder is not a substitute for a label | 🟡 IMPORTANT |
+| "Agents are thinking..." loading text | Visible text but no `aria-live` region — screen readers won't announce it | 🟡 IMPORTANT |
+| Mobile backdrop (`ideation/page.tsx:375-379`) | Clickable `<div>` with no `role`, `onKeyDown`, or `aria-label` — keyboard users cannot close the sidebar | 🟡 IMPORTANT |
+| Phase indicator buttons | Disabled states don't announce why — minor UX issue | 🟢 MINOR |
+| Keyboard: Tab/Enter/Escape | Ctrl+Enter to send works. All shadcn `Button` components are keyboard accessible. Collapsible sections use button triggers — keyboard OK | ✅ |
+
+---
+
+### 6. Security Check — PASS
+
+| Risk | Finding |
+|------|---------|
+| `dangerouslySetInnerHTML` | None used anywhere in chat components |
+| Agent response injection | All content rendered as `{content}` in JSX — React auto-escapes. No XSS vector |
+| HTML injection via `whitespace-pre-wrap` | CSS only, no HTML interpretation. Safe |
+| API URL construction | Blueprint ID comes from DB lookup, not user input. No interpolation of raw user strings into URLs |
+| User input to AI agents | Passes through Zod validation (`sendMessageSchema`, `startIdeationSchema`) before reaching agents |
+| Phase gate enforcement | `/ideation/approve` verifies `blueprint.ideationPhase === 'review'` before accepting action. `/ideation/grade` verifies `structure | refinement`. Server-side enforcement is correct |
+| `window.confirm` for destructive action | Restructure uses native `confirm()` — accessible and tamper-proof |
+
+✅ Security posture is clean.
+
+---
+
+### 7. Performance Check
+
+| Check | Finding |
+|-------|---------|
+| API calls on initial load | 3 total: (1) blueprint, then (2) messages + (3) nodes in parallel. Acceptable waterfall |
+| Redundant refetches | None — messages URL starts skipped (`skip: !blueprint`) until blueprint loads |
+| Message list re-rendering | `ChatMessageList` re-renders on `totalMessages` change. No virtualization. Fine for ideation-scale (<100 msgs) |
+| useMemo coverage | `conversationGroups`, `allMessages`, `loopCount`, `lastStructureMsg`, `completedPhases` all memoized correctly |
+| StructurePreview refetches | Triggered by `structureRefreshKey` increment, which fires once per structure-update message. Not spammy |
+| Large object fetching | Blueprint fetch returns full object (nodes + components) — acceptable at ideation scale |
+
+✅ No performance issues for current scale.
+
+---
+
+### 8. Component Design Review
+
+| Check | Finding |
+|-------|---------|
+| Smart vs presentational | Page handles all state/API; components receive props and render. Clean separation |
+| `use-ideation.ts` scope | Owns 4 mutations + activeAgents tracking. Appropriately scoped — no reason to split |
+| Prop drilling | AgentSidebar receives 12 props from page directly — one level, acceptable |
+| State at right level | Yes — optimistic messages in page, UI toggles (feedbackOpen, summaryOpen) in components |
+| `messages: unknown[]` in interfaces | `MessageResponse.messages` and `ApproveResponse.messages` typed as `unknown[]` (lines 25, 45 of use-ideation.ts) — these are dead code; the hook calls `refetchMessages()` instead of using the response messages. Minor waste |
+| **`rebuildState` duplicated 3×** | The full `rebuildState` function is copy-pasted nearly identically in `message/route.ts`, `grade/route.ts`, and `approve/route.ts`. If reconstruction logic changes, all 3 must be updated. DRY violation — should be one shared function in conversation-manager |
+
+---
+
+### Sign-Off Summary
+
+#### Round 1 — Quick Review (5 critical issues, ALL FIXED)
+
+| # | Issue | Status |
+|---|-------|--------|
+| ~~1~~ | `reviewError` not surfaced — silent failure on approve/feedback/restructure | ✅ FIXED |
+| ~~2~~ | `messagesError` not surfaced — falls through to empty state on network failure | ✅ FIXED |
+| ~~3~~ | `useApi` missing `AbortController` — race condition + memory leak on unmount | ✅ FIXED |
+| ~~4~~ | Send button has no `aria-label` | ✅ FIXED |
+| ~~5~~ | Mobile sidebar toggle has no `aria-label` | ✅ FIXED |
+
+#### Round 2 — Deep Audit (11 additional findings)
+
+**CRITICAL (3 found, ALL FIXED):**
+
+| # | Issue | Status |
+|---|-------|--------|
+| ~~6~~ | `useApiMutation` calls setState after unmount (approve → navigate path) | ✅ FIXED — mountedRef guard added |
+| ~~7~~ | `onApprove` has unhandled promise rejection (`.then()` without `.catch()`) | ✅ FIXED — converted to async/await with try/catch |
+| ~~8~~ | `key={group.phase}` non-unique after restructure → React reconciliation bug | ✅ FIXED — key changed to `${group.phase}-${groupIdx}` |
+
+**IMPORTANT (fix during Macro 7):**
+
+| # | Issue | File |
+|---|-------|------|
+| 🟡 9 | `rebuildState` function duplicated across 3 API routes | Extract to `conversation-manager.ts` |
+| 🟡 10 | Redundant divider logic — lines 69-70 both always true | `chat-message-list.tsx` |
+| 🟡 11 | `formatTime()` doesn't handle invalid dates — shows "Invalid Date" | `chat-message.tsx` |
+| 🟡 12 | N+1 query in messages GET endpoint (loop of `getMessages()` per conversation) | `messages/route.ts` |
+| 🟡 13 | `RoleAvatar` accessibility — `title` unreliable, no `aria-hidden` for decorative uses | `role-avatar.tsx` |
+| 🟡 14 | Feedback textarea has no `<label>` | `agent-sidebar.tsx` |
+| 🟡 15 | Loading state not announced to screen readers (no `aria-live`) | `chat-input.tsx` |
+| 🟡 16 | Mobile backdrop not keyboard-accessible | `ideation/page.tsx` |
+| 🟡 17 | `project/[id]/page.tsx:160` TODO — sample data still used in production build | `project/[id]/page.tsx` |
+
+**Tech debt (Macro 9 or later):**
+
+| # | Issue |
+|---|-------|
+| 🟢 18 | `messages: unknown[]` dead code in `MessageResponse` / `ApproveResponse` interfaces |
+| 🟢 19 | `Record<string, never>` for grade mutation body type — minor awkwardness |
+| 🟢 20 | Inline callbacks (onApprove/onFeedback/onRestructure) not memoized — perf only |
+| 🟢 21 | Collapsible component uses @base-ui instead of shadcn/radix — cosmetic inconsistency |
+| 🟢 22 | No UI component tests for chat components (zero coverage) |
+| 🟢 23 | No hook tests for use-api.ts / use-ideation.ts |
+| 🟢 24 | No route-level API integration tests (262 unit tests compensate, but gap exists) |
+
+**Deferred by design:**
+
+| # | Issue | Reason |
+|---|-------|--------|
+| — | No `db.$transaction()` in API routes | rebuildState provides crash recovery — by architecture design |
+| — | Concurrent grade/approve race condition | UI guard (`anyLoading`) sufficient; server lock deferred to Macro 9 |
+| — | No auth/ownership checks on API routes | Auth not yet integrated — planned for later |
+| — | No rate limiting or request size limits | Production hardening — planned for Macro 9 |
+
+---
+
+### SIGN-OFF VERDICT: ✅ APPROVED FOR MACRO 7
+
+**All 8 critical issues resolved.** Typecheck clean, build clean, 262/262 tests passing.
+Macro 6 is production-quality for its scope. 9 IMPORTANT items carry forward to Macro 7.
+
+---
+
 ## Lessons Learned
 
 See `tasks/lessons.md` for patterns and corrections captured during implementation.

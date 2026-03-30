@@ -81,6 +81,7 @@ export default function IdeationPage({
   const {
     data: messagesData,
     loading: messagesLoading,
+    error: messagesError,
     refetch: refetchMessages,
   } = useApi<MessagesResponse>(messagesUrl ?? '', { skip: !blueprint })
 
@@ -100,6 +101,7 @@ export default function IdeationPage({
     gradeError,
     submitReview,
     reviewLoading,
+    reviewError,
     anyLoading,
     activeAgents,
   } = useIdeation({
@@ -278,6 +280,7 @@ export default function IdeationPage({
           size="sm"
           className="ml-auto md:hidden"
           onClick={() => setSidebarOpen((v) => !v)}
+          aria-label="Toggle agent sidebar"
         >
           <PanelRight size={16} />
         </Button>
@@ -302,6 +305,17 @@ export default function IdeationPage({
           {messagesLoading ? (
             <div className="flex flex-1 items-center justify-center">
               <Loader2 className="animate-spin text-muted-foreground" size={20} />
+            </div>
+          ) : messagesError ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+              <p className="text-sm text-destructive">{messagesError}</p>
+              <button
+                type="button"
+                onClick={() => refetchMessages()}
+                className="text-xs underline hover:text-foreground"
+              >
+                Retry?
+              </button>
             </div>
           ) : !hasConversation && !readyToChat ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
@@ -347,14 +361,18 @@ export default function IdeationPage({
               onGrade={gradeStructure}
               gradeLoading={gradeLoading}
               gradeError={gradeError}
-              onApprove={() => {
-                submitReview('approve').then(() => {
+              onApprove={async () => {
+                try {
+                  await submitReview('approve')
                   router.push(`/project/${projectId}/structure`)
-                })
+                } catch {
+                  // Error already captured in reviewError and displayed by AgentSidebar
+                }
               }}
               onFeedback={(msg) => submitReview('feedback', msg)}
               onRestructure={() => submitReview('restructure')}
               reviewLoading={reviewLoading}
+              reviewError={reviewError}
               blueprint={blueprint ? {
                 archetype: blueprint.archetype,
                 ideationScore: blueprint.ideationScore,

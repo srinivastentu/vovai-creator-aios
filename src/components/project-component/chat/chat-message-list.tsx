@@ -65,7 +65,7 @@ export function ChatMessageList({ conversations }: ChatMessageListProps) {
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4">
       {conversations.map((group, groupIdx) => (
-        <div key={group.phase} data-phase={group.phase}>
+        <div key={`${group.phase}-${groupIdx}`} data-phase={group.phase}>
           {groupIdx > 0 && <PhaseDivider phase={group.phase} />}
           {groupIdx === 0 && <PhaseDivider phase={group.phase} />}
           <div className="flex flex-col gap-4">
