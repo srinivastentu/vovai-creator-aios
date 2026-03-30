@@ -13,13 +13,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -32,8 +25,6 @@ import {
 import { useApiMutation } from '@/lib/hooks/use-api'
 import {
   getArchetype,
-  getComponentsForLevel,
-  isComponentAvailable,
   getComponent,
 } from '@/lib/project-component'
 import type {
@@ -159,7 +150,6 @@ function NodeDetail({
 
   const [showDeleteNode, setShowDeleteNode] = useState(false)
   const [componentToDelete, setComponentToDelete] = useState<string | null>(null)
-  const [selectResetKey, setSelectResetKey] = useState(0)
 
   // ── Derived data ──────────────────────────────────────────────────────
   const archetypeDef = useMemo(() => getArchetype(archetype), [archetype])
@@ -182,15 +172,6 @@ function NodeDetail({
     [flatNodes, node.path],
   )
 
-  const availableComponents = useMemo(() => {
-    const depthComps = getComponentsForLevel(node.depth)
-    const compatible = depthComps.filter(c => isComponentAvailable(archetype, c.id))
-    const counts: Record<string, number> = {}
-    for (const c of node.components) {
-      counts[c.componentType] = (counts[c.componentType] ?? 0) + 1
-    }
-    return compatible.filter(c => (counts[c.id] ?? 0) < c.maxPerNode)
-  }, [node.depth, node.components, archetype])
 
   // ── Mutations ─────────────────────────────────────────────────────────
   const nodeUrl = `/api/blueprints/${blueprintId}/nodes/${node.id}`
@@ -198,9 +179,6 @@ function NodeDetail({
   const { mutate: deleteNodeMut } = useApiMutation<Record<string, never>, { deleted: number }>(nodeUrl, 'DELETE')
   const { mutate: createNode } = useApiMutation<Record<string, unknown>, ProjectNodeType>(
     `/api/blueprints/${blueprintId}/nodes`, 'POST',
-  )
-  const { mutate: addComp } = useApiMutation<Record<string, unknown>, unknown>(
-    `/api/blueprints/${blueprintId}/components`, 'POST',
   )
   const { mutate: reorderMut } = useApiMutation<
     Array<{ nodeId: string; parentId: string | null; sortOrder: number }>,
@@ -265,18 +243,6 @@ function NodeDetail({
     setOutcomes(updated)
   }, [])
 
-  const handleAddComponent = useCallback(async (componentType: string) => {
-    setSelectResetKey(k => k + 1)
-    const def = getComponent(componentType)
-    try {
-      await addComp({
-        nodeId: node.id,
-        componentType,
-        priority: def?.required ? 'core' : 'recommended',
-      })
-      await onMutated()
-    } catch { /* noop */ }
-  }, [node.id, addComp, onMutated])
 
   const handleRemoveComponent = useCallback(async () => {
     if (!componentToDelete) return
@@ -457,26 +423,7 @@ function NodeDetail({
           </div>
         )}
 
-        {availableComponents.length > 0 && (
-          <Select key={selectResetKey} onValueChange={(val) => { if (typeof val === 'string') handleAddComponent(val) }}>
-            <SelectTrigger size="sm" className="w-full">
-              <SelectValue placeholder="Add component..." />
-            </SelectTrigger>
-            <SelectContent>
-              {availableComponents.map(comp => {
-                const Icon = COMPONENT_ICONS[comp.id]
-                return (
-                  <SelectItem key={comp.id} value={comp.id}>
-                    <span className="flex items-center gap-2">
-                      {Icon && <Icon size={14} />}
-                      {comp.name}
-                    </span>
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-        )}
+        {/* Component adding moved to ComponentPalette panel */}
       </div>
 
       {/* ── Section 5: Node Actions ─────────────────────────────────────── */}

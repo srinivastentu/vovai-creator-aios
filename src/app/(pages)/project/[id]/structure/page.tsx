@@ -10,6 +10,7 @@ import { PcNav } from '@/components/project-component/shared/pc-nav'
 import { TreeView } from '@/components/project-component/canvas/tree-view'
 import { NodeCountBarExtended } from '@/components/project-component/canvas/node-count-bar'
 import { NodeDetailPanel } from '@/components/project-component/canvas/node-detail'
+import { ComponentPalette } from '@/components/project-component/canvas/component-palette'
 import { buildTree, findNode } from '@/lib/project-component'
 import type { IdeationPhase, ProjectNodeType, GradeRecommendation, DimensionGradeScore } from '@/lib/project-component'
 
@@ -223,10 +224,21 @@ export default function StructurePage({
       {/* PC Navigation */}
       <PcNav projectId={projectId} currentPhase={currentPhase} />
 
-      {/* Main layout: tree (65%) + detail panel (35%) */}
+      {/* Main layout: palette + tree + detail panel */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left panel — tree visualization */}
-        <div className="flex w-full flex-col border-r md:w-[65%]">
+        {/* Left panel — component palette */}
+        <div className="hidden w-[220px] shrink-0 flex-col md:flex">
+          <ComponentPalette
+            archetype={blueprint?.archetype ?? 'professional_training'}
+            selectedNode={selectedNode}
+            blueprintId={blueprint?.id ?? ''}
+            flatNodes={flatNodes ?? []}
+            onMutated={refetchNodes}
+          />
+        </div>
+
+        {/* Center panel — tree visualization */}
+        <div className="flex w-full flex-col md:flex-1">
           {loading ? (
             <div className="flex flex-1 items-center justify-center">
               <Loader2 className="animate-spin text-muted-foreground" size={20} />
