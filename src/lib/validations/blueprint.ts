@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { COMPONENT_REGISTRY } from '@/lib/project-component'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,42 @@ export const workflowTemplateSchema = z.object({
   enabledComponents: z.array(z.string()).min(1, 'At least one component must be enabled'),
   productionOrder: z.array(z.string()).min(1),
   levelDefaults: z.array(levelComponentDefaultsSchema),
+}).superRefine((data, ctx) => {
+  const enabledSet = new Set(data.enabledComponents)
+  const orderSet = new Set(data.productionOrder)
+
+  // productionOrder must be a permutation of enabledComponents
+  if (enabledSet.size !== orderSet.size || ![...enabledSet].every(c => orderSet.has(c))) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'productionOrder must contain exactly the same items as enabledComponents',
+      path: ['productionOrder'],
+    })
+  }
+
+  // All component types must exist in COMPONENT_REGISTRY
+  for (const type of data.enabledComponents) {
+    if (!COMPONENT_REGISTRY[type]) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Unknown component type: "${type}"`,
+        path: ['enabledComponents'],
+      })
+    }
+  }
+
+  // levelDefaults[].enabledComponents must be subsets of enabledComponents
+  for (let i = 0; i < data.levelDefaults.length; i++) {
+    for (const type of data.levelDefaults[i].enabledComponents) {
+      if (!enabledSet.has(type)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Level ${data.levelDefaults[i].depth} contains "${type}" which is not in enabledComponents`,
+          path: ['levelDefaults', i, 'enabledComponents'],
+        })
+      }
+    }
+  }
 })
 
 export const updateBlueprintSchema = z.object({

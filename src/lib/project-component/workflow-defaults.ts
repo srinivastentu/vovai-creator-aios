@@ -45,6 +45,40 @@ export function getRecommendedProductionOrder(
  * - productionOrder = enabledComponents sorted by pipeline phase
  * - levelDefaults = for each depth, components whose attachableAt includes that depth
  */
+/**
+ * Validate that production order respects component dependency constraints.
+ * Returns a record mapping component type → warning message.
+ * Empty record = no issues.
+ */
+export function validateDependencyOrder(
+  productionOrder: string[],
+  enabledComponents: string[],
+  registry: Record<string, ComponentDefinition>,
+): Record<string, string> {
+  const warnings: Record<string, string> = {}
+  for (const type of productionOrder) {
+    const def = registry[type]
+    if (!def) continue
+    for (const dep of def.dependsOn) {
+      const depIndex = productionOrder.indexOf(dep)
+      const typeIndex = productionOrder.indexOf(type)
+      if (!enabledComponents.includes(dep)) {
+        warnings[type] = `Depends on "${registry[dep]?.name ?? dep}" which is not enabled`
+      } else if (depIndex > typeIndex) {
+        warnings[type] = `Depends on "${registry[dep]?.name ?? dep}" which is ordered after it`
+      }
+    }
+  }
+  return warnings
+}
+
+/**
+ * Build a default WorkflowTemplate from an archetype definition.
+ *
+ * - enabledComponents = archetype's defaultComponents
+ * - productionOrder = enabledComponents sorted by pipeline phase
+ * - levelDefaults = for each depth, components whose attachableAt includes that depth
+ */
 export function buildDefaultWorkflowTemplate(
   archetype: ArchetypeDefinition,
   registry: Record<string, ComponentDefinition>,

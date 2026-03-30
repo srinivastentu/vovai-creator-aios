@@ -2,12 +2,9 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import {
-  Search, ChevronDown, ChevronRight, Package,
-  Video, Clapperboard, BookOpen, ClipboardList, Layers, HelpCircle,
-  ClipboardCheck, Award, Puzzle, Route, Trophy, MessageSquare,
-  BookA, Library, GraduationCap, ListChecks, Check, AlertCircle,
+  Search, ChevronDown, ChevronRight, Check, AlertCircle, Package,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,25 +22,6 @@ import type {
 } from '@/lib/project-component'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-
-const COMPONENT_ICONS: Record<string, LucideIcon> = {
-  video: Video,
-  video_short: Clapperboard,
-  study_material: BookOpen,
-  practice_worksheet: ClipboardList,
-  flashcards: Layers,
-  quiz: HelpCircle,
-  pre_assessment: ClipboardCheck,
-  post_assessment: Award,
-  activity: Puzzle,
-  scenario_exercise: Route,
-  capstone_project: Trophy,
-  discussion_prompt: MessageSquare,
-  glossary: BookA,
-  resource_library: Library,
-  certificate: GraduationCap,
-  mentor_checklist: ListChecks,
-}
 
 const CATEGORY_META: Record<ComponentCategory, { label: string; color: string }> = {
   content: { label: 'Content', color: 'text-blue-600 dark:text-blue-400' },
@@ -309,7 +287,7 @@ function PaletteItem({
   isFlashing: boolean
   onAdd: (comp: PaletteComponent) => void
 }) {
-  const Icon = COMPONENT_ICONS[comp.id] ?? Package
+  const Icon = COMPONENT_ICONS[comp.id] ?? COMPONENT_ICON_FALLBACK
   const disabled = !comp.depthValid || comp.maxedOut
   const costLabel = `$${comp.estimatedCost.min.toFixed(2)}–$${comp.estimatedCost.max.toFixed(2)}`
 

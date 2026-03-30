@@ -83,6 +83,7 @@ export {
   PIPELINE_PHASE_ORDER,
   buildDefaultWorkflowTemplate,
   getRecommendedProductionOrder,
+  validateDependencyOrder,
 } from './workflow-defaults'
 
 // ─── Rubric ─────────────────────────────────────────────────────────────────

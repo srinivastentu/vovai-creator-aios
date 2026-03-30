@@ -3,52 +3,15 @@
 import { useMemo } from 'react'
 import {
   Check,
-  ClipboardList,
   Settings,
-  Video,
-  Clapperboard,
-  BookOpen,
-  Layers,
-  HelpCircle,
-  ClipboardCheck,
-  Award,
-  Puzzle,
-  Route,
-  Trophy,
-  MessageSquare,
-  BookA,
-  Library,
-  GraduationCap,
-  ListChecks,
-  Package,
   ChevronRight,
   ChevronLeft,
   ListOrdered,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
 import type { ComponentDefinition, WorkflowTemplate } from '@/lib/project-component'
-
-// ─── Icon Map ────────────────────────────────────────────────────────────────
-
-const COMPONENT_ICONS: Record<string, LucideIcon> = {
-  video: Video,
-  video_short: Clapperboard,
-  study_material: BookOpen,
-  practice_worksheet: ClipboardList,
-  flashcards: Layers,
-  quiz: HelpCircle,
-  pre_assessment: ClipboardCheck,
-  post_assessment: Award,
-  activity: Puzzle,
-  scenario_exercise: Route,
-  capstone_project: Trophy,
-  discussion_prompt: MessageSquare,
-  glossary: BookA,
-  resource_library: Library,
-  certificate: GraduationCap,
-  mentor_checklist: ListChecks,
-}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -97,7 +60,7 @@ export function generateWizardSteps(
     if (!def) continue
     const count = componentCounts[compType] ?? 0
     if (count === 0) continue
-    const Icon = COMPONENT_ICONS[compType] ?? Package
+    const Icon = COMPONENT_ICONS[compType] ?? COMPONENT_ICON_FALLBACK
     steps.push({
       id: compType,
       label: def.name,

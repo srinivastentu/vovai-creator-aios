@@ -5,27 +5,10 @@ import {
   ChevronUp,
   ChevronDown,
   RotateCcw,
-  Video,
-  Clapperboard,
-  BookOpen,
-  ClipboardList,
-  Layers,
-  HelpCircle,
-  ClipboardCheck,
-  Award,
-  Puzzle,
-  Route,
-  Trophy,
-  MessageSquare,
-  BookA,
-  Library,
-  GraduationCap,
-  ListChecks,
-  Package,
   AlertTriangle,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type {
@@ -37,29 +20,8 @@ import {
   COMPONENT_REGISTRY,
   COMPONENT_COMPATIBILITY,
   getRecommendedProductionOrder,
+  validateDependencyOrder,
 } from '@/lib/project-component'
-import type { ProjectArchetype } from '@/lib/project-component'
-
-// ─── Icon Map ────────────────────────────────────────────────────────────────
-
-const COMPONENT_ICONS: Record<string, LucideIcon> = {
-  video: Video,
-  video_short: Clapperboard,
-  study_material: BookOpen,
-  practice_worksheet: ClipboardList,
-  flashcards: Layers,
-  quiz: HelpCircle,
-  pre_assessment: ClipboardCheck,
-  post_assessment: Award,
-  activity: Puzzle,
-  scenario_exercise: Route,
-  capstone_project: Trophy,
-  discussion_prompt: MessageSquare,
-  glossary: BookA,
-  resource_library: Library,
-  certificate: GraduationCap,
-  mentor_checklist: ListChecks,
-}
 
 const CATEGORY_COLORS: Record<string, string> = {
   content: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -95,7 +57,7 @@ export function WizardStepWorkflow({
   const { enabledComponents, productionOrder, levelDefaults } = workflowTemplate
 
   // Get compatibility for this archetype
-  const compatibility = COMPONENT_COMPATIBILITY[archetype.id as ProjectArchetype]
+  const compatibility = COMPONENT_COMPATIBILITY[archetype.id]
 
   // All available components for this archetype (recommended + optional)
   const availableTypes = useMemo(
@@ -103,26 +65,11 @@ export function WizardStepWorkflow({
     [compatibility],
   )
 
-  // Dependency warnings: check if any enabled component depends on something ordered after it
-  const dependencyWarnings = useMemo(() => {
-    const warnings: Record<string, string> = {}
-    for (const type of productionOrder) {
-      const def = COMPONENT_REGISTRY[type]
-      if (!def) continue
-      for (const dep of def.dependsOn) {
-        const depIndex = productionOrder.indexOf(dep)
-        const typeIndex = productionOrder.indexOf(type)
-        if (depIndex === -1 && enabledComponents.includes(dep)) continue
-        if (depIndex > typeIndex) {
-          warnings[type] = `Depends on "${COMPONENT_REGISTRY[dep]?.name ?? dep}" which is ordered after it`
-        }
-        if (depIndex === -1 && !enabledComponents.includes(dep)) {
-          warnings[type] = `Depends on "${COMPONENT_REGISTRY[dep]?.name ?? dep}" which is not enabled`
-        }
-      }
-    }
-    return warnings
-  }, [productionOrder, enabledComponents])
+  // Dependency warnings via extracted utility
+  const dependencyWarnings = useMemo(
+    () => validateDependencyOrder(productionOrder, enabledComponents, COMPONENT_REGISTRY),
+    [productionOrder, enabledComponents],
+  )
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -227,7 +174,7 @@ export function WizardStepWorkflow({
             if (!def) return null
             const isEnabled = enabledComponents.includes(type)
             const isRecommended = compatibility.recommended.includes(type)
-            const Icon = COMPONENT_ICONS[type] ?? Package
+            const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
             const categoryColor = CATEGORY_COLORS[def.category] ?? ''
 
             return (
@@ -303,7 +250,7 @@ export function WizardStepWorkflow({
             {productionOrder.map((type, index) => {
               const def = COMPONENT_REGISTRY[type]
               if (!def) return null
-              const Icon = COMPONENT_ICONS[type] ?? Package
+              const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
               const warning = dependencyWarnings[type]
 
               return (
@@ -404,7 +351,7 @@ export function WizardStepWorkflow({
                       const def = COMPONENT_REGISTRY[type] as ComponentDefinition | undefined
                       if (!def) return null
                       const isActive = ld.enabledComponents.includes(type)
-                      const Icon = COMPONENT_ICONS[type] ?? Package
+                      const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
 
                       return (
                         <button

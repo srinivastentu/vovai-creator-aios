@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { updateBlueprintSchema, formatZodError } from '@/lib/validations/blueprint'
 
+// TODO(PC-9.2): Add authentication + authorization check
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ blueprintId: string }> }
@@ -30,6 +31,7 @@ export async function GET(
   }
 }
 
+// TODO(PC-9.2): Add authentication + authorization check
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ blueprintId: string }> }

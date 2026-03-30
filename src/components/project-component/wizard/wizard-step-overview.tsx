@@ -1,31 +1,14 @@
 'use client'
 
 import {
-  Video,
-  Clapperboard,
-  BookOpen,
-  ClipboardList,
-  Layers,
-  HelpCircle,
-  ClipboardCheck,
-  Award,
-  Puzzle,
-  Route,
-  Trophy,
-  MessageSquare,
-  BookA,
-  Library,
-  GraduationCap,
-  ListChecks,
-  Package,
   Sparkles,
   DollarSign,
   FolderTree,
   Component,
   Info,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import type {
@@ -34,27 +17,6 @@ import type {
   ComponentDefinition,
   ComponentCategory,
 } from '@/lib/project-component'
-
-// ─── Icon Map ────────────────────────────────────────────────────────────────
-
-const COMPONENT_ICONS: Record<string, LucideIcon> = {
-  video: Video,
-  video_short: Clapperboard,
-  study_material: BookOpen,
-  practice_worksheet: ClipboardList,
-  flashcards: Layers,
-  quiz: HelpCircle,
-  pre_assessment: ClipboardCheck,
-  post_assessment: Award,
-  activity: Puzzle,
-  scenario_exercise: Route,
-  capstone_project: Trophy,
-  discussion_prompt: MessageSquare,
-  glossary: BookA,
-  resource_library: Library,
-  certificate: GraduationCap,
-  mentor_checklist: ListChecks,
-}
 
 const CATEGORY_COLORS: Record<ComponentCategory, string> = {
   content: 'text-blue-600 dark:text-blue-400',
@@ -106,7 +68,6 @@ export interface WizardStepOverviewProps {
   componentDefs: ComponentDefinition[]
   costRange: { min: number; max: number }
   onApplyDefaults: () => void
-  applyingDefaults: boolean
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -120,7 +81,6 @@ export function WizardStepOverview({
   componentDefs,
   costRange,
   onApplyDefaults,
-  applyingDefaults,
 }: WizardStepOverviewProps) {
   const defMap = new Map(componentDefs.map(d => [d.id, d]))
   const tips = ARCHETYPE_TIPS[archetype.id] ?? []
@@ -182,7 +142,7 @@ export function WizardStepOverview({
               .map(([type, count]) => {
                 const def = defMap.get(type)
                 if (!def) return null
-                const Icon = COMPONENT_ICONS[type] ?? Package
+                const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
                 const costMin = (def.estimatedCost.min * count).toFixed(2)
                 const costMax = (def.estimatedCost.max * count).toFixed(2)
                 return (
@@ -227,7 +187,6 @@ export function WizardStepOverview({
           variant="outline"
           size="sm"
           onClick={onApplyDefaults}
-          disabled={applyingDefaults}
           className="gap-2 self-start sm:self-center"
         >
           <Sparkles size={14} />

@@ -3,11 +3,8 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import {
   Network, Plus, X, Trash2, ChevronUp, ChevronDown, Pencil,
-  Video, Clapperboard, BookOpen, ClipboardList, Layers, HelpCircle,
-  ClipboardCheck, Award, Puzzle, Route, Trophy, MessageSquare,
-  BookA, Library, GraduationCap, ListChecks,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { COMPONENT_ICONS } from '@/components/project-component/shared/component-icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,25 +60,6 @@ const PRIORITY_STYLES: Record<ComponentPriority, string> = {
   core: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
   recommended: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
   optional: 'bg-muted text-muted-foreground',
-}
-
-const COMPONENT_ICONS: Record<string, LucideIcon> = {
-  video: Video,
-  video_short: Clapperboard,
-  study_material: BookOpen,
-  practice_worksheet: ClipboardList,
-  flashcards: Layers,
-  quiz: HelpCircle,
-  pre_assessment: ClipboardCheck,
-  post_assessment: Award,
-  activity: Puzzle,
-  scenario_exercise: Route,
-  capstone_project: Trophy,
-  discussion_prompt: MessageSquare,
-  glossary: BookA,
-  resource_library: Library,
-  certificate: GraduationCap,
-  mentor_checklist: ListChecks,
 }
 
 // ─── Props ──────────────────────────────────────────────────────────────────

@@ -50,7 +50,7 @@ export default function ConfigurePage({
 }) {
   const { id: projectId } = use(params)
   const [currentStep, setCurrentStep] = useState(0)
-  const [applyingDefaults, setApplyingDefaults] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Fetch blueprint
   const {
@@ -85,12 +85,14 @@ export default function ConfigurePage({
     return null
   }, [workflowTemplate, blueprint?.workflowTemplate, archetypeDef])
 
-  // Persist workflow template changes to API
+  // Persist workflow template changes to API (optimistic with rollback)
   const handleWorkflowChange = useCallback(async (template: WorkflowTemplate) => {
+    const previousTemplate = workflowTemplate
     setWorkflowTemplate(template)
+    setSaveError(null)
     if (!blueprint) return
     try {
-      await fetch(`/api/blueprints/${blueprint.id}`, {
+      const res = await fetch(`/api/blueprints/${blueprint.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -98,10 +100,17 @@ export default function ConfigurePage({
           enabledComponents: template.enabledComponents,
         }),
       })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `Save failed (${res.status})` }))
+        const message = (body as { error?: string }).error ?? `Save failed (${res.status})`
+        setWorkflowTemplate(previousTemplate)
+        setSaveError(message)
+      }
     } catch {
-      // Silently fail — local state is still updated
+      setWorkflowTemplate(previousTemplate)
+      setSaveError('Network error — changes were not saved')
     }
-  }, [blueprint])
+  }, [blueprint, workflowTemplate])
 
   // Compute component instance counts from actual nodes
   const componentCounts = useMemo(() => {
@@ -170,19 +179,21 @@ export default function ConfigurePage({
   }, [currentStep])
 
   const handleNext = useCallback(() => {
+    // Block advancement from workflow step if no components enabled
+    if (currentStep === 1 && (!effectiveWorkflow || effectiveWorkflow.enabledComponents.length === 0)) return
     setCurrentStep(prev => Math.min(prev + 1, wizardSteps.length - 1))
-  }, [wizardSteps.length])
+  }, [currentStep, effectiveWorkflow, wizardSteps.length])
 
   const handlePrevious = useCallback(() => {
     setCurrentStep(prev => Math.max(prev - 1, 0))
   }, [])
 
-  // Apply archetype defaults handler
+  // Apply archetype defaults — resets workflow to archetype defaults
   const handleApplyDefaults = useCallback(() => {
-    setApplyingDefaults(true)
-    // TODO (PC-8.2): Apply default configs from registry to all component instances
-    setTimeout(() => setApplyingDefaults(false), 500)
-  }, [])
+    if (!archetypeDef) return
+    const defaults = buildDefaultWorkflowTemplate(archetypeDef, COMPONENT_REGISTRY)
+    handleWorkflowChange(defaults)
+  }, [archetypeDef, handleWorkflowChange])
 
   const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
   const loading = blueprintLoading || nodesLoading
@@ -254,6 +265,20 @@ export default function ConfigurePage({
               onPrevious={handlePrevious}
             />
 
+            {/* Save error banner */}
+            {saveError && (
+              <div className="mt-3 flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
+                <span>{saveError}</span>
+                <button
+                  type="button"
+                  onClick={() => setSaveError(null)}
+                  className="ml-2 shrink-0 font-medium underline hover:no-underline"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
             {/* Step content */}
             <div className="mt-5 flex-1 overflow-y-auto pb-6">
               {/* Step 0: Overview */}
@@ -267,7 +292,6 @@ export default function ConfigurePage({
                   componentDefs={enabledComponentDefs}
                   costRange={costRange}
                   onApplyDefaults={handleApplyDefaults}
-                  applyingDefaults={applyingDefaults}
                 />
               )}
 
