@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { Checkbox } from '@/components/ui/checkbox'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 
@@ -179,7 +179,14 @@ export function WizardStepQuiz({
                     }
                   `}
                 >
-                  <Checkbox checked={isChecked} onCheckedChange={() => toggleArrayItem('questionTypes', qt.value)} />
+                  <span
+                    className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                      isChecked ? 'border-primary bg-primary text-primary-foreground' : 'border-input'
+                    }`}
+                    aria-hidden
+                  >
+                    {isChecked && <Check size={12} strokeWidth={3} />}
+                  </span>
                   <span className={`font-medium ${isChecked ? 'text-foreground' : 'text-muted-foreground'}`}>
                     {qt.label}
                   </span>

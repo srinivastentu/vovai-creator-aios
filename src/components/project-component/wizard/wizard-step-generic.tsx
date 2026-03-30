@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
-import { Checkbox } from '@/components/ui/checkbox'
+
 import { Button } from '@/components/ui/button'
 import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
 import type { ComponentDefinition } from '@/lib/project-component'
@@ -232,7 +232,14 @@ function ArrayField({
                 }
               `}
             >
-              <Checkbox checked={isChecked} onCheckedChange={() => toggle(item)} className="h-3 w-3" />
+              <span
+                className={`inline-flex h-3 w-3 shrink-0 items-center justify-center rounded border transition-colors ${
+                  isChecked ? 'border-primary bg-primary text-primary-foreground' : 'border-input'
+                }`}
+                aria-hidden
+              >
+                {isChecked && <Check size={8} strokeWidth={3} />}
+              </span>
               {humanizeKey(item)}
             </button>
           )
