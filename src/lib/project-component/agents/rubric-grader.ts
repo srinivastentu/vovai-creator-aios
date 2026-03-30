@@ -57,6 +57,7 @@ interface RawGradeOutput {
   strengths: string[]
   weaknesses: string[]
   specificImprovements: string[]
+  feedback?: string
 }
 
 // ─── System Prompt ────────────────────────────────────────────────────────
@@ -148,6 +149,7 @@ const OUTPUT_SCHEMA = {
     strengths: { type: 'array', items: { type: 'string' } },
     weaknesses: { type: 'array', items: { type: 'string' } },
     specificImprovements: { type: 'array', items: { type: 'string' } },
+    feedback: { type: 'string', description: 'Overall assessment summary of the structure quality' },
   },
 }
 
@@ -246,6 +248,7 @@ export async function runRubricGrader(
     weaknesses: raw.weaknesses,
     recommendation,
     specificImprovements: raw.specificImprovements,
+    feedback: raw.feedback ?? null,
   }
 
   return {

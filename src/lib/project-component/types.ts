@@ -296,6 +296,7 @@ export interface GradeReport {
   weaknesses: string[]
   recommendation: GradeRecommendation
   specificImprovements: string[]
+  feedback?: string | null
 }
 
 // ─── Outcomes Map (Stage 0.3 — Outcome Architect output) ───────────────────

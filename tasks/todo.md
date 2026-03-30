@@ -683,3 +683,118 @@ src/components/
 **NICE TO HAVE (can defer):**
 - [ ] Route-level API tests (business logic is tested; routes are thin wrappers)
 - [ ] Add more seed messages (currently only 3 — chat UI demo would benefit from 8-10)
+
+---
+
+## Macro 7 Sign-Off Review (2026-03-30)
+
+**Build & Tests:** typecheck, build, 262 tests — ALL PASS. Zero warnings.
+**Code Quality:** Zero `any`, zero `console.log`, zero TODO/FIXME/HACK/XXX.
+
+### Findings
+
+#### 🔴 CRITICAL — Must Fix Before Macro 8
+
+**C1. LearningOutcome `status` type mismatch between types.ts and Zod schema**
+- `src/lib/project-component/types.ts:115` defines: `status: 'draft' | 'validated' | 'mapped'`
+- `src/lib/validations/blueprint.ts:63` defines: `status: z.enum(['draft', 'approved', 'rejected'])`
+- `node-detail.tsx:229` creates outcomes with `status: 'draft'` (shared between both)
+- The Zod schema will reject `'validated'` and `'mapped'`; the TypeScript type will reject `'approved'` and `'rejected'`
+- TypeScript passes because the Zod schema is inferred separately, not cross-checked against the application type
+- **Impact:** If an agent produces outcomes with `status: 'validated'`, saving them via the API will fail with a 400 error
+- **Fix:** Align both to the same enum. Decide which set of statuses is canonical and update both files
+
+**C2. Mutation error handling — silent failures, no UI rollback**
+- `node-detail.tsx:201` — `saveTitle` catches errors with only `console.error`. Title input closes (line 202: `setEditingTitle(false)` runs unconditionally) but the old title is NOT restored in the tree. The user sees the edited title locally even though the save failed
+- `node-detail.tsx:212` — `saveDescription` same pattern: catches with console.error, no rollback of `descDraft` to `node.description`
+- `node-detail.tsx:220` — `saveOutcomes` same: catches, no rollback of local outcome state
+- `node-detail.tsx:298` — `handleMove` catches, no rollback. UI stays in pre-move state (harmless since refetch won't happen), but no error shown to user
+- **Impact:** User edits appear saved when they're not. Data loss when the user navigates away thinking edits persisted
+- **Fix:** On catch, roll back local state to `node.*` values AND show error via `setErrorMessage()`
+
+**C3. Race condition: editing node → clicking different node → save lost**
+- `handleNodesMutated` (structure page:112) calls `refetchNodes()` then checks if `selectedNodeId` still exists in the OLD `flatNodes` (stale closure — line 119 uses `flatNodes` captured at render time, not the newly-fetched data)
+- When the user edits a title on blur, then immediately clicks another node: `saveTitle` fires async, `setSelectedNodeId` changes, `NodeDetailPanel` unmounts (it has `key={selectedNodeId}` on line 229), the `onMutated()` callback's refetch may still be in flight
+- Because the component remounts with a new key, the old component's `await onMutated()` completes but the result is discarded
+- **Impact:** The save request itself fires (so the server does persist it), but the refetch response that would update the tree is wasted — the tree shows stale data until the next user interaction triggers another refetch
+- **Fix:** Move the `onBlur` save to fire-and-forget (don't await `onMutated` inside the blur handler) or ensure refetch is coordinated at the page level regardless of which component triggered it
+
+#### 🟡 IMPORTANT — Fix During Macro 8
+
+**I1. No debounce on description textarea blur**
+- Every blur on the description `Textarea` (line 375) fires `saveDescription`, which calls `patchNode` + `onMutated` (full refetch). Not debounced. If user clicks in/out repeatedly, rapid API calls fire
+- Outcome text inputs have the same pattern (line 573: `onBlur={onSave}`)
+- **Fix:** Add a 300ms debounce on the save handlers, or use a dirty flag + explicit save button
+
+**I2. No maxPerNode enforcement on the API side for component addition**
+- `addComponentSchema` validates `componentType` as `z.enum()` (good — PC-5.5 fix verified), but does NOT check the current count of that type on the node against `maxPerNode` from the registry
+- The palette UI prevents this (line 139: `maxedOut` check), but a direct API call can bypass it
+- **Fix:** Add a server-side count check in `POST /api/blueprints/[blueprintId]/components` before creating
+
+**I3. Agent chat drawer — no input length limit, no concurrent request guard**
+- `/api/blueprints/[blueprintId]/ideation/ask` does `body.message?.trim()` with no max length. A user could send a very large string, inflating API costs
+- The drawer's `handleSend` checks `if (!text || sending) return` (line 47), which prevents double-sends while one is in-flight — good. But there's no queuing. If the first request takes 30s (Claude timeout), the user just sees a spinner with no way to cancel
+- **Fix:** Add `z.string().max(2000)` validation on the API route. Consider adding a cancel button to the drawer
+
+**I4. Score bar — `structureChanged` flag uses stale closure for deletion check**
+- `handleNodesMutated` (page:117–121) checks `flatNodes?.some(n => n.id === prev)` but `flatNodes` is the pre-refetch state. After `refetchNodes()`, the new data is in `useApi` state, but the closure captured the old value
+- The node will correctly clear on the NEXT render (React re-renders with updated flatNodes), but there's a brief frame where selectedNodeId might point at a deleted node
+- **Impact:** Low — React's next render cycle fixes it. But if the user is very fast, they might see a flash of the detail panel for a deleted node
+- **Fix:** Pass the newly-fetched nodes into the callback, or defer the selection check to a `useEffect`
+
+**I5. Reorder API doesn't prevent sortOrder gaps/duplicates within the same parent**
+- The reorder endpoint (line 33–80) just applies the parentId + sortOrder from the client, then recalculates depth/path
+- If the client sends `sortOrder: [0, 5]` for two siblings, it works but leaves a gap (cosmetic, not breaking)
+- If two nodes under the same parent get `sortOrder: 0`, the ordering is non-deterministic on next fetch
+- **Fix:** After applying, normalize sortOrders to be sequential (0, 1, 2...) per parent
+
+**I6. Full tree refetch after every mutation — no targeted update**
+- Every mutation in `NodeDetailPanel` calls `onMutated()` which calls `refetchNodes()` — fetches ALL nodes for the entire blueprint
+- For a project with 200+ nodes, this means every title edit, description save, outcome change, or component add/remove fetches the full tree
+- **Fix:** For Macro 8 this is acceptable (correctness over performance). For Macro 9+, consider partial updates or SWR-style cache mutation
+
+#### 🟢 MINOR — Tech Debt for Macro 9
+
+**M1. Duplicated constants across canvas files**
+- `STATUS_STYLES` is duplicated in `node-detail.tsx:53` and `tree-view.tsx:54` (identical)
+- `COMPONENT_ICONS` is duplicated in `node-detail.tsx:68` and `component-palette.tsx:29`
+- **Fix:** Extract to a shared `canvas/constants.ts`
+
+**M2. Agent chat messages rendered as plain text — no markdown/XSS concern, but no formatting either**
+- `agent-chat-drawer.tsx:162` renders `msg.content` directly as text node
+- The agent response from Claude may contain markdown formatting that renders as raw text
+- No XSS risk since React auto-escapes, but the user experience is degraded
+- **Fix:** Add a lightweight markdown renderer for agent messages
+
+**M3. TreeView `memo` wrapping is correct but shallow**
+- `TreeNodeRow` is `memo`-wrapped (line 122) which helps prevent re-renders, but `onSelect` is a new function on every parent render
+- `handleSelect` (line 203) is not wrapped in `useCallback`, so every tree render creates a new reference
+- **Impact:** Marginal perf issue for small trees, but will matter at 200+ nodes
+- **Fix:** Wrap `handleSelect` in `useCallback`
+
+**M4. Structure page has 5 `useState` hooks — well within healthy range**
+- `selectedNodeId`, `structureChanged`, `reportOpen`, `gradeOverride` — clean separation
+- Tree state and selected node state are in the same component (appropriate for this layout)
+- No need for reducer refactoring at this scale
+
+**M5. No Safari-problematic CSS detected**
+- No `:has()`, container queries, or subgrid usage
+- All Tailwind classes used are broadly supported
+- `fixed` positioning for the chat drawer is fine in Safari
+
+**M6. API call count on initial load: 3 requests (acceptable)**
+1. `GET /api/blueprints?projectId=X` — blueprint
+2. `GET /api/blueprints/[id]/nodes` — all nodes
+3. `GET /api/blueprints/[id]/grades` — latest grade
+- After editing a node: 1 mutation (PATCH) + 1 refetch (GET nodes) = 2 calls. Correct
+- Component definitions are from the in-memory registry (no fetch). Correct
+
+### Summary
+
+| Severity | Count | Key Issues |
+|----------|-------|------------|
+| 🔴 CRITICAL | 3 | Type mismatch, silent save failures, stale closure on nav |
+| 🟡 IMPORTANT | 6 | No debounce, no server-side maxPerNode, chat input unbounded, stale closure, sortOrder gaps, full refetch |
+| 🟢 MINOR | 6 | Duplicated constants, plain text chat, memo shallow, state management OK, Safari OK, API calls OK |
+
+**Verdict:** Solid Macro 7 implementation. The 3 critical issues (type mismatch, silent failures, stale nav) must be fixed before Macro 8 starts — they affect data integrity. The important issues can be addressed alongside Macro 8 work.

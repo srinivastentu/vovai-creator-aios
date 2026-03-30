@@ -17,7 +17,7 @@ interface UseApiOptions {
 }
 
 interface UseApiResult<T> extends ApiState<T> {
-  refetch: () => Promise<void>
+  refetch: () => Promise<T | null>
 }
 
 export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T> {
@@ -32,7 +32,7 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
 
   const abortRef = useRef<AbortController | null>(null)
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<T | null> => {
     // Abort any in-flight request before starting a new one
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -57,14 +57,17 @@ export function useApi<T>(url: string, options?: UseApiOptions): UseApiResult<T>
       if (!res.ok) {
         const message = (json as { error?: string }).error ?? `Request failed (${res.status})`
         setState({ data: null, error: message, loading: false })
-        return
+        return null
       }
 
-      setState({ data: json as T, error: null, loading: false })
+      const data = json as T
+      setState({ data, error: null, loading: false })
+      return data
     } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return
+      if (err instanceof Error && err.name === 'AbortError') return null
       const message = err instanceof Error ? err.message : 'Network error'
       setState({ data: null, error: message, loading: false })
+      return null
     }
   }, [url])
 

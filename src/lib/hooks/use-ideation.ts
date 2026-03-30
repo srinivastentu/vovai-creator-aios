@@ -62,8 +62,8 @@ interface UseIdeationInput {
   blueprintId: string | null
   currentPhase: IdeationPhase
   hasConversation: boolean
-  refetchMessages: () => Promise<void>
-  refetchBlueprint: () => Promise<void>
+  refetchMessages: () => Promise<unknown>
+  refetchBlueprint: () => Promise<unknown>
 }
 
 export interface UseIdeationReturn {

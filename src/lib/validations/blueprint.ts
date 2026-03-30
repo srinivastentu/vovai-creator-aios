@@ -55,11 +55,19 @@ export const createNodeSchema = z.object({
 
 export type CreateNodeInput = z.infer<typeof createNodeSchema>
 
+const learningOutcomeSchema = z.object({
+  id: z.string().min(1),
+  text: z.string().max(1000),
+  bloomLevel: z.enum(['remember', 'understand', 'apply', 'analyze', 'evaluate', 'create']),
+  measurable: z.boolean(),
+  status: z.enum(['draft', 'validated', 'mapped']),
+})
+
 export const updateNodeSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().max(2000).nullable().optional(),
   notes: z.string().max(5000).nullable().optional(),
-  learningOutcomes: z.array(z.unknown()).optional(),
+  learningOutcomes: z.array(learningOutcomeSchema).optional(),
   status: z.enum(['draft', 'ideating', 'structured', 'approved', 'in_production', 'completed']).optional(),
 })
 

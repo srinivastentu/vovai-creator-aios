@@ -110,8 +110,15 @@ export default function StructurePage({
 
   // Mutation handler: refetch nodes + mark structure as changed
   const handleNodesMutated = useCallback(async () => {
-    await refetchNodes()
+    const updatedNodes = await refetchNodes()
     setStructureChanged(true)
+    setGradeOverride(null)
+    // Clear selection if the selected node was deleted — use refetched data, not stale closure
+    setSelectedNodeId(prev => {
+      if (!prev) return prev
+      const stillExists = updatedNodes?.some(n => n.id === prev)
+      return stillExists ? prev : null
+    })
   }, [refetchNodes])
 
   // Re-grade handler: update grade and clear changed indicator

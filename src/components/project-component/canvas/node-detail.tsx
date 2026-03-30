@@ -150,6 +150,7 @@ function NodeDetail({
 
   const [showDeleteNode, setShowDeleteNode] = useState(false)
   const [componentToDelete, setComponentToDelete] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // ── Derived data ──────────────────────────────────────────────────────
   const archetypeDef = useMemo(() => getArchetype(archetype), [archetype])
@@ -197,7 +198,10 @@ function NodeDetail({
     try {
       await patchNode({ title: trimmed })
       await onMutated()
-    } catch { /* mutation hook tracks error */ }
+    } catch {
+      setTitleDraft(node.title)
+      setErrorMessage('Failed to save title. Please try again.')
+    }
     setEditingTitle(false)
   }, [titleDraft, node.title, patchNode, onMutated])
 
@@ -207,16 +211,24 @@ function NodeDetail({
     try {
       await patchNode({ description: val })
       await onMutated()
-    } catch { /* noop */ }
+    } catch {
+      setDescDraft(node.description ?? '')
+      setErrorMessage('Failed to save description. Please try again.')
+    }
   }, [descDraft, node.description, patchNode, onMutated])
 
   const saveOutcomes = useCallback(async (updated: LearningOutcome[]) => {
+    const previous = outcomesRef.current
     outcomesRef.current = updated
     setOutcomes(updated)
     try {
       await patchNode({ learningOutcomes: updated })
       await onMutated()
-    } catch { /* noop */ }
+    } catch {
+      outcomesRef.current = previous
+      setOutcomes(previous)
+      setErrorMessage('Failed to save outcomes. Please try again.')
+    }
   }, [patchNode, onMutated])
 
   const addOutcome = useCallback(() => {
@@ -251,25 +263,36 @@ function NodeDetail({
         `/api/blueprints/${blueprintId}/components?componentId=${componentToDelete}`,
         { method: 'DELETE' },
       )
-      if (!res.ok) throw new Error('Failed to remove')
+      if (!res.ok) throw new Error('Failed to remove component')
       await onMutated()
-    } catch { /* noop */ }
-    setComponentToDelete(null)
+      setComponentToDelete(null)
+    } catch (err) {
+      console.error('Failed to remove component:', err)
+      setErrorMessage('Failed to remove component. Please try again.')
+      setComponentToDelete(null)
+    }
   }, [componentToDelete, blueprintId, onMutated])
 
   const handleAddChild = useCallback(async () => {
     try {
       await createNode({ title: 'New node', parentId: node.id })
       await onMutated()
-    } catch { /* noop */ }
+    } catch (err) {
+      console.error('Failed to add child node:', err)
+      setErrorMessage('Failed to add child node. Please try again.')
+    }
   }, [node.id, createNode, onMutated])
 
   const handleDeleteNode = useCallback(async () => {
     try {
       await deleteNodeMut({} as Record<string, never>)
       await onMutated()
-    } catch { /* noop */ }
-    setShowDeleteNode(false)
+      setShowDeleteNode(false)
+    } catch (err) {
+      console.error('Failed to delete node:', err)
+      setErrorMessage('Failed to delete node. Please try again.')
+      setShowDeleteNode(false)
+    }
   }, [deleteNodeMut, onMutated])
 
   const handleMove = useCallback(async (dir: 'up' | 'down') => {
@@ -283,13 +306,29 @@ function NodeDetail({
         { nodeId: b.id, parentId: b.parentId, sortOrder: a.sortOrder },
       ])
       await onMutated()
-    } catch { /* noop */ }
+    } catch {
+      setErrorMessage('Failed to reorder nodes. Please try again.')
+    }
   }, [siblingIndex, siblings, reorderMut, onMutated])
 
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
+      {/* ── Error Banner ──────────────────────────────────────────────── */}
+      {errorMessage && (
+        <div className="flex items-center justify-between gap-2 border-b border-destructive/20 bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          <span>{errorMessage}</span>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="shrink-0 rounded p-0.5 hover:bg-destructive/20"
+            aria-label="Dismiss error"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
       {/* ── Section 1: Header ──────────────────────────────────────────── */}
       <div className="border-b px-4 py-3">
         <div className="mb-1.5 flex items-center gap-2">

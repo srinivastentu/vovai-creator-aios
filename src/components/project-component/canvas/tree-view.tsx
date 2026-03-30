@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import {
   BookOpen,
   ChevronDown,
@@ -119,7 +119,7 @@ interface TreeNodeRowProps {
   defaultExpanded: boolean
 }
 
-function TreeNodeRow({ node, selectedId, onSelect, defaultExpanded }: TreeNodeRowProps) {
+const TreeNodeRow = memo(function TreeNodeRow({ node, selectedId, onSelect, defaultExpanded }: TreeNodeRowProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const hasChildren = node.children.length > 0
   const isSelected = selectedId === node.id
@@ -143,6 +143,8 @@ function TreeNodeRow({ node, selectedId, onSelect, defaultExpanded }: TreeNodeRo
               e.stopPropagation()
               setExpanded(!expanded)
             }}
+            aria-label={expanded ? `Collapse ${node.title}` : `Expand ${node.title}`}
+            aria-expanded={expanded}
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-muted"
           >
             {expanded ? (
@@ -184,7 +186,7 @@ function TreeNodeRow({ node, selectedId, onSelect, defaultExpanded }: TreeNodeRo
       )}
     </div>
   )
-}
+})
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
