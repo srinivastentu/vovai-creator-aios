@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useMemo, useState } from 'react'
+import { use, useCallback, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,9 @@ import { TreeView } from '@/components/project-component/canvas/tree-view'
 import { NodeCountBarExtended } from '@/components/project-component/canvas/node-count-bar'
 import { NodeDetailPanel } from '@/components/project-component/canvas/node-detail'
 import { ComponentPalette } from '@/components/project-component/canvas/component-palette'
+import { RubricScoreBar } from '@/components/project-component/canvas/rubric-score-bar'
+import { GradeReportModal } from '@/components/project-component/canvas/grade-report-modal'
+import { AgentChatDrawer } from '@/components/project-component/canvas/agent-chat-drawer'
 import { buildTree, findNode } from '@/lib/project-component'
 import type { IdeationPhase, ProjectNodeType, GradeRecommendation, DimensionGradeScore } from '@/lib/project-component'
 
@@ -41,78 +44,6 @@ interface GradeResponse {
   createdAt: string
 }
 
-// ─── Rubric Score Bar ──────────────────────────────────────────────────────
-
-const RECOMMENDATION_STYLES: Record<GradeRecommendation, { bg: string; text: string; label: string }> = {
-  approve: { bg: 'bg-green-500', text: 'text-green-700 dark:text-green-300', label: 'Approve' },
-  revise: { bg: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300', label: 'Revise' },
-  restructure: { bg: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300', label: 'Restructure' },
-  reject: { bg: 'bg-red-500', text: 'text-red-700 dark:text-red-300', label: 'Reject' },
-}
-
-function RubricScoreBar({ grade }: { grade: GradeResponse }) {
-  const pct = Math.min(grade.overallScore, 100)
-  const style = RECOMMENDATION_STYLES[grade.recommendation] ?? RECOMMENDATION_STYLES.revise
-
-  return (
-    <div className="border-t bg-muted/20 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-medium text-muted-foreground">Rubric Score</span>
-
-        {/* Progress bar */}
-        <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-          <div
-            className={`absolute inset-y-0 left-0 rounded-full transition-all ${style.bg}`}
-            style={{ width: `${pct}%` }}
-          />
-          {/* 75 threshold marker */}
-          <div
-            className="absolute inset-y-0 w-px bg-foreground/30"
-            style={{ left: '75%' }}
-            title="Pass threshold: 75"
-          />
-        </div>
-
-        {/* Score */}
-        <span className="text-sm font-semibold tabular-nums">
-          {grade.overallScore.toFixed(2)}
-          <span className="text-muted-foreground">/100</span>
-        </span>
-
-        {/* Recommendation badge */}
-        <Badge
-          variant="outline"
-          className={`text-xs ${style.text}`}
-        >
-          {style.label}
-        </Badge>
-      </div>
-
-      {/* Dimension scores (collapsed row) */}
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-        {grade.dimensionScores.map((dim) => {
-          const passing = dim.score >= dim.passThreshold
-          return (
-            <span
-              key={dim.id}
-              className={`text-[11px] ${passing ? 'text-muted-foreground' : 'text-destructive'}`}
-              title={dim.feedback}
-            >
-              {dim.name}: <span className="font-medium tabular-nums">{dim.score}</span>
-              {!passing && <span className="ml-0.5">!</span>}
-            </span>
-          )
-        })}
-      </div>
-
-      {/* Feedback */}
-      {grade.feedback && (
-        <p className="mt-2 text-xs text-muted-foreground">{grade.feedback}</p>
-      )}
-    </div>
-  )
-}
-
 // ─── Page Component ─────────────────────────────────────────────────────────
 
 export default function StructurePage({
@@ -122,6 +53,9 @@ export default function StructurePage({
 }) {
   const { id: projectId } = use(params)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [structureChanged, setStructureChanged] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [gradeOverride, setGradeOverride] = useState<GradeResponse | null>(null)
 
   // Fetch blueprint
   const {
@@ -170,6 +104,21 @@ export default function StructurePage({
     () => (selectedNodeId && tree.length > 0 ? findNode(tree, selectedNodeId) : null),
     [selectedNodeId, tree]
   )
+
+  // Effective grade — use override if available, else fetched
+  const effectiveGrade = gradeOverride ?? grade
+
+  // Mutation handler: refetch nodes + mark structure as changed
+  const handleNodesMutated = useCallback(async () => {
+    await refetchNodes()
+    setStructureChanged(true)
+  }, [refetchNodes])
+
+  // Re-grade handler: update grade and clear changed indicator
+  const handleReGraded = useCallback((newGrade: GradeResponse) => {
+    setGradeOverride(newGrade)
+    setStructureChanged(false)
+  }, [])
 
   const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
   const loading = blueprintLoading || nodesLoading
@@ -233,7 +182,7 @@ export default function StructurePage({
             selectedNode={selectedNode}
             blueprintId={blueprint?.id ?? ''}
             flatNodes={flatNodes ?? []}
-            onMutated={refetchNodes}
+            onMutated={handleNodesMutated}
           />
         </div>
 
@@ -275,13 +224,33 @@ export default function StructurePage({
             blueprintId={blueprint?.id ?? ''}
             archetype={blueprint?.archetype ?? 'professional_training'}
             flatNodes={flatNodes ?? []}
-            onMutated={refetchNodes}
+            onMutated={handleNodesMutated}
           />
         </div>
       </div>
 
       {/* Rubric score bar (bottom) */}
-      {!gradeLoading && grade && <RubricScoreBar grade={grade} />}
+      {!gradeLoading && effectiveGrade && (
+        <RubricScoreBar
+          grade={effectiveGrade}
+          blueprintId={blueprint?.id ?? ''}
+          structureChanged={structureChanged}
+          onReGraded={handleReGraded}
+          onViewReport={() => setReportOpen(true)}
+        />
+      )}
+
+      {/* Grade report modal */}
+      {effectiveGrade && (
+        <GradeReportModal
+          open={reportOpen}
+          onOpenChange={setReportOpen}
+          grade={effectiveGrade}
+        />
+      )}
+
+      {/* Agent chat drawer */}
+      {blueprint && <AgentChatDrawer blueprintId={blueprint.id} />}
     </main>
   )
 }
