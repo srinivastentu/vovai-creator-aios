@@ -61,6 +61,14 @@ export async function PATCH(
     if (fields.structureSummary !== undefined) data.structureSummary = fields.structureSummary
     if (fields.workflowTemplate !== undefined) data.workflowTemplate = fields.workflowTemplate
 
+    // Sync: when workflowTemplate is set, its enabledComponents is the source of truth
+    if (data.workflowTemplate && typeof data.workflowTemplate === 'object') {
+      const wt = data.workflowTemplate as { enabledComponents?: string[] }
+      if (Array.isArray(wt.enabledComponents)) {
+        data.enabledComponents = wt.enabledComponents
+      }
+    }
+
     const updated = await db.projectBlueprint.update({
       where: { id: blueprintId },
       data,

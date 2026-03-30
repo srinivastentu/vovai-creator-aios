@@ -798,3 +798,200 @@ src/components/
 | 🟢 MINOR | 6 | Duplicated constants, plain text chat, memo shallow, state management OK, Safari OK, API calls OK |
 
 **Verdict:** Solid Macro 7 implementation. The 3 critical issues (type mismatch, silent failures, stale nav) must be fixed before Macro 8 starts — they affect data integrity. The important issues can be addressed alongside Macro 8 work.
+
+---
+
+## PC-8.1 + Workflow Builder Sign-Off
+
+**Date:** 2026-03-30
+**Reviewer:** Claude (Senior Engineer Sign-Off)
+**Scope:** PC-8.1 (Wizard Stepper) + PC-8.1b (Production Workflow Builder)
+
+### 1. Build & Tests
+
+| Check | Result |
+|-------|--------|
+| `npm run typecheck` | PASS — zero errors |
+| `npm run build` | PASS — all 26 routes compiled, no warnings |
+| `npm run test` | PASS — 14 files, 295 tests, 0 failures (735ms) |
+
+No new warnings. Clean build.
+
+### 2. Code Quality
+
+| Check | Result |
+|-------|--------|
+| `any` type usage | NONE — zero instances in wizard/ |
+| `console.log` | NONE — zero instances in wizard/ |
+| `TODO/FIXME/HACK/XXX` | NONE — zero instances in wizard/ |
+
+API route has expected `TODO(PC-9.2)` for auth — not in wizard code.
+
+### 3. WorkflowTemplate Data Integrity
+
+**Q: Unknown componentType in workflowTemplate — validated?**
+YES. `workflowTemplateSchema.superRefine` at line 62-69 of `blueprint.ts` checks every `enabledComponents` entry against `COMPONENT_REGISTRY`. Returns 400 with `Unknown component type: "foo"`. PASS.
+
+**Q: enabledComponents divergence — blueprint top-level vs. workflowTemplate?**
+The client sends BOTH (`configure/page.tsx:98-100`): `{ workflowTemplate: template, enabledComponents: template.enabledComponents }`. So they stay in sync at the client level.
+- 🟡 **IMPORTANT:** No server-side validation that `blueprint.enabledComponents === workflowTemplate.enabledComponents`. A direct API caller could set them to different values. The wizard always sends both, but another client could diverge them. Source of truth should be `workflowTemplate.enabledComponents` once it exists; `blueprint.enabledComponents` is the legacy/pre-wizard fallback.
+
+**Q: productionOrder contains types not in enabledComponents?**
+PREVENTED. `workflowTemplateSchema.superRefine` at line 52-59 enforces that `productionOrder` is an exact permutation of `enabledComponents`. Server rejects mismatches with 400.
+- Not self-healing (doesn't auto-fix), but rejects invalid state. Client-side toggle handler (`wizard-step-workflow.tsx:76-111`) always keeps them in sync on every toggle.
+
+**Q: levelDefaults references depth exceeding maxDepth?**
+- 🟡 **IMPORTANT:** No validation. `levelComponentDefaultsSchema` only checks `depth >= 0` (line 39). A direct API call could set `depth: 99`. In practice, the wizard UI generates `levelDefaults` from `archetype.maxDepth` via `buildDefaultWorkflowTemplate`, so this can't happen via the UI. But the schema doesn't enforce it.
+
+**Q: workflowTemplate validated by Zod on PATCH?**
+YES. `updateBlueprintSchema` at line 94 includes `workflowTemplate: workflowTemplateSchema.nullable().optional()`. Full superRefine runs on PATCH.
+
+### 4. Wizard Step Ordering Logic
+
+**Q: productionOrder → generateWizardSteps() → rendered steps?**
+TRACED. Path is:
+1. `effectiveWorkflow.productionOrder` (state)
+2. → `generateWizardSteps()` reads `workflowTemplate.productionOrder` at line 54 of `wizard-stepper.tsx`
+3. → iterates in that order, creating one step per type with count > 0
+4. → `wizardSteps` is the `useMemo` result, re-derived on every workflow change
+5. → Rendered step content uses `wizardSteps[currentStep]` to determine which form
+
+Config steps DO follow the new order. PASS.
+
+**Q: Reorder → go forward 2 steps → go back → reorder again — step indices consistent?**
+SAFE. Workflow editing only happens at step 1 (Production Workflow). To go back, user clicks a completed step — `handleStepClick` sets `currentStep` to the clicked index. When at step 1 and reordering, `wizardSteps` is re-derived via `useMemo`. `currentStep` stays at 1. On "Next", step 2 now reflects the new order. No stale index issue.
+
+**Q: On step 4 (Video config) → go back to workflow → disable Video — missing step?**
+SAFE. User must first navigate back to step 1 (setting `currentStep = 1`). After disabling Video, `wizardSteps` re-derives without the Video step. `currentStep` is 1, which is always valid (Overview and Workflow are permanent). When advancing, the new step 2 is whatever follows in the updated order.
+
+### 5. Component Toggle Side Effects
+
+**Q: When toggled OFF — are NodeComponent records deleted from DB?**
+- 🟡 **IMPORTANT:** NO. Toggling OFF in the workflow step only updates the `workflowTemplate` JSON (removes from `enabledComponents`, `productionOrder`, and `levelDefaults`). Existing `NodeComponent` rows in the database are NOT deleted. They remain in the DB and will still appear in `componentCounts` (derived from actual nodes), potentially creating a ghost step in the wizard if the count > 0 for a disabled type.
+
+  **Analysis:** `generateWizardSteps` iterates `workflowTemplate.productionOrder` (line 58), not `componentCounts`. So disabled types won't get a wizard step even if DB records exist. But the Overview step's `componentCounts` includes them (derived from nodes). Cost estimate will include them.
+
+  **Fix needed:** Either (a) clean up NodeComponent records when disabling a type, or (b) filter `componentCounts` to only include `enabledComponents` in the Overview display. Option (b) is simpler and reversible.
+
+**Q: When toggled ON — are NodeComponent records created for applicable nodes?**
+NO. Toggling ON only updates the `workflowTemplate`. No new `NodeComponent` rows are created. The user would need to create them in the structure canvas or they would be auto-created during ideation.
+- This is acceptable behavior. The `levelDefaults` serve as the template for when nodes ARE created (during ideation or manual addition). But the current component count will be 0, so no wizard config step appears until nodes have that component. Acceptable design.
+
+### 6. Per-Level Defaults Enforcement
+
+**Q: Are per-level defaults applied to existing nodes?**
+NO. They are stored as configuration only. They are NOT retroactively applied.
+
+**Q: Changing defaults (e.g., remove quiz from topic) — retroactive?**
+NO. Existing `NodeComponent` records are untouched. Per-level defaults only guide:
+1. What `buildDefaultWorkflowTemplate` generates initially
+2. What ideation agents SHOULD use when auto-assigning components (not yet implemented)
+3. What the wizard displays as the default configuration
+
+- 🟢 **MINOR:** The UI doesn't clarify that per-level defaults are for NEW nodes only. A label like "Default for new nodes at this level" would prevent confusion.
+
+### 7. Production Order → Handoff Impact
+
+**Q: Will PC-8.4 handoff use workflowTemplate.productionOrder?**
+- 🟡 **IMPORTANT:** Not yet implemented (PC-8.4 is future work). Currently, there is no `executeHandoff` function. The wizard UI describes production order as determining "pipeline execution and job creation sequence" (line 235), which sets user expectations. When PC-8.4 is built, it MUST read `workflowTemplate.productionOrder` to honor the user's configured order, not the hardcoded `PIPELINE_PHASE_ORDER`.
+
+  **Contract to enforce:** `PIPELINE_PHASE_ORDER` is the DEFAULT; `workflowTemplate.productionOrder` is the USER OVERRIDE. Handoff should: `blueprint.workflowTemplate?.productionOrder ?? getRecommendedProductionOrder(...)`.
+
+### 8. Edge Cases
+
+**Empty project (archetype selected, zero nodes):**
+- Workflow step renders correctly — shows available components for the archetype
+- Production order list shows enabled components even with 0 instances
+- Overview shows "0" for all component counts
+- No wizard config steps generated (all counts are 0)
+- Wizard is: [Overview, Workflow, Review] — 3 steps. PASS.
+
+**All components disabled:**
+- `handleNext` at `configure/page.tsx:183` blocks advancement from step 1 when `enabledComponents.length === 0`
+- Production order section shows "No components enabled" message (line 305-307)
+- Zod schema rejects save with `min(1, 'At least one component must be enabled')`. PASS.
+- 🟢 **MINOR:** But the FIRST save attempt when disabling the last component will optimistically show it as disabled, then roll back after 400 from the server. Slightly jarring UX — could add client-side check before the PATCH.
+
+**Rapid toggling:**
+- 🟡 **IMPORTANT:** No debouncing or request queueing. Each toggle fires an immediate `handleWorkflowChange` → PATCH. Rapid on/off/on/off creates multiple in-flight requests. The optimistic state will bounce. Rollbacks may conflict with pending requests. Last-write-wins at the DB level, but the client's final state might not match the server.
+
+  **Mitigation:** The rollback uses `previousTemplate` captured at call time via closure. If call A captures state S0, fires PATCH, then call B captures state S1 (optimistic from A), fires PATCH — if A fails, it rolls back to S0, overwriting B's optimistic state. B then succeeds and its response is ignored (no state update on success). Final client state: S0. Final server state: S1 from B. **DIVERGENCE.**
+
+  **Fix:** Add a save queue or debounce (300ms) on `handleWorkflowChange`.
+
+**Browser back button:**
+- Browser back navigates away from `/project/[id]/configure` entirely (back to `/project/[id]`). Wizard state is lost (no persistence of `currentStep` to URL or sessionStorage).
+- 🟢 **MINOR:** If the user navigates back and returns, they start at step 0 again. But `workflowTemplate` is persisted to DB, so their workflow configuration is preserved. Only step position is lost. Acceptable for now.
+
+### 9. Accessibility
+
+**Q: Toggle cards keyboard accessible?**
+YES. Component toggle buttons are `<button type="button">` elements (`wizard-step-workflow.tsx:181`). They receive keyboard focus and activate on Enter/Space natively. PASS.
+
+**Q: Up/down reorder buttons have aria-labels?**
+- 🟡 **IMPORTANT:** NO. The `<button>` elements for ChevronUp/ChevronDown (lines 284-299) have no `aria-label`. Screen readers will announce them as empty buttons. Same for the dependency warning icon (line 277) — uses `title` attribute, not `aria-label`.
+
+  **Fix:** Add `aria-label={`Move ${def.name} up`}` and `aria-label={`Move ${def.name} down`}` to the reorder buttons. Add `aria-label={warning}` to the warning span.
+
+**Q: Per-level checkbox group properly labeled?**
+- 🟡 **IMPORTANT:** Partially. The per-level section header shows the level label and depth badge, but the group of toggle buttons is not wrapped in a `<fieldset>` with `<legend>`. Each toggle button lacks `aria-pressed` to communicate its checked state.
+
+  **Fix:** Wrap each level's button group in `<fieldset>` + `<legend>`, add `aria-pressed={isActive}` to each toggle button.
+
+**Q: "Reset to recommended" accessible feedback?**
+- 🟡 **IMPORTANT:** No announcement. Clicking "Reset to recommended" updates the production order visually, but no `aria-live` region announces the change. Screen reader users won't know the order changed.
+
+  **Fix:** Add `aria-live="polite"` to the production order list container, or use a toast/announcement on reset.
+
+### 10. Migration Safety
+
+**Q: workflowTemplate field nullable?**
+YES. Prisma schema: `workflowTemplate Json?` (line 172). Nullable. Existing blueprints with null work fine.
+
+**Q: Wizard handles null workflowTemplate on first load?**
+YES. `configure/page.tsx:81-86`:
+```ts
+const effectiveWorkflow = useMemo(() => {
+  if (workflowTemplate) return workflowTemplate          // local state
+  if (blueprint?.workflowTemplate) return blueprint.workflowTemplate // DB value
+  if (archetypeDef) return buildDefaultWorkflowTemplate(archetypeDef, COMPONENT_REGISTRY) // default
+  return null
+}, ...)
+```
+Cascade: local state → saved DB value → generated default from archetype. Seed data has `workflowTemplate: null`, which falls through to the default generator. PASS.
+
+---
+
+### Summary
+
+| Severity | Count | Issues |
+|----------|-------|--------|
+| 🔴 CRITICAL | 0 | — |
+| 🟡 IMPORTANT | 8 | Dual enabledComponents source of truth, no maxDepth validation on levelDefaults, orphaned NodeComponent records on disable, handoff contract unwritten, race condition on rapid toggle, 4 accessibility gaps (aria-labels, fieldset, aria-live) |
+| 🟢 MINOR | 3 | Per-level defaults labeling UX, last-component-disable UX flicker, browser back loses step position |
+
+### Action Items
+
+**Fix during Macro 8 (before PC-8.2):**
+
+- [x] 🟡 A8.1: Filter `componentCounts` in Overview to exclude types not in `enabledComponents` — prevents ghost counts for disabled-but-still-in-DB components
+- [x] 🟡 A8.2: Add debounce (500ms) to `handleWorkflowChange` — prevents race condition on rapid toggling. Rollback targets last confirmed server state via `lastSavedRef`.
+- [ ] 🟡 A8.3: Add `aria-label` to reorder up/down buttons and dependency warning icon (fix alongside PC-8.2)
+- [ ] 🟡 A8.4: Add `aria-pressed` to per-level toggle buttons, wrap groups in `<fieldset>`/`<legend>` (fix alongside PC-8.2)
+
+**Fix during Macro 8 (alongside PC-8.2 - PC-8.4):**
+
+- [ ] 🟡 A8.5: Document the handoff contract — `workflowTemplate.productionOrder` overrides `PIPELINE_PHASE_ORDER` when present
+- [ ] 🟡 A8.6: Add `maxDepth` validation to `levelComponentDefaultsSchema` (requires archetype context — may need a custom validator that accepts archetype as param)
+- [x] 🟡 A8.7: Server-side sync — PATCH handler auto-syncs `blueprint.enabledComponents` from `workflowTemplate.enabledComponents` when present
+- [ ] 🟡 A8.8: Add `aria-live="polite"` region for production order list to announce reorder/reset changes
+
+**Tech debt for Macro 9:**
+
+- [ ] 🟢 A9.1: Add "Defaults apply to new nodes only" clarification label to per-level section
+- [ ] 🟢 A9.2: Add client-side check before PATCH when disabling last component (avoid flicker)
+- [ ] 🟢 A9.3: Persist `currentStep` to URL search params so browser back/forward works within wizard
+
+### Verdict
+
+**PASS — approved for PC-8.2 with A8.1–A8.4 as prerequisites.** Zero critical issues. The 8 important issues are real but non-blocking for wizard progression. A8.1-A8.4 should be addressed before PC-8.2 lands because they affect data display accuracy (A8.1), save reliability (A8.2), and accessibility compliance (A8.3-A8.4). The remaining items (A8.5-A8.8) can be addressed alongside Macro 8 work. Architecture is sound — the Level 1/Level 2 separation is maintained, Zod validation at API boundary is thorough, and the optimistic update pattern with rollback is solid.

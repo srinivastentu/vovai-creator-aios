@@ -1,6 +1,6 @@
 'use client'
 
-import { use, useCallback, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -85,44 +85,63 @@ export default function ConfigurePage({
     return null
   }, [workflowTemplate, blueprint?.workflowTemplate, archetypeDef])
 
-  // Persist workflow template changes to API (optimistic with rollback)
-  const handleWorkflowChange = useCallback(async (template: WorkflowTemplate) => {
-    const previousTemplate = workflowTemplate
+  // Debounced save — prevents race conditions from rapid toggling
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSavedRef = useRef<WorkflowTemplate | null>(null)
+
+  useEffect(() => {
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
+  }, [])
+
+  // Persist workflow template changes to API (optimistic + debounced + rollback)
+  const handleWorkflowChange = useCallback((template: WorkflowTemplate) => {
     setWorkflowTemplate(template)
     setSaveError(null)
     if (!blueprint) return
-    try {
-      const res = await fetch(`/api/blueprints/${blueprint.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workflowTemplate: template,
-          enabledComponents: template.enabledComponents,
-        }),
-      })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: `Save failed (${res.status})` }))
-        const message = (body as { error?: string }).error ?? `Save failed (${res.status})`
-        setWorkflowTemplate(previousTemplate)
-        setSaveError(message)
-      }
-    } catch {
-      setWorkflowTemplate(previousTemplate)
-      setSaveError('Network error — changes were not saved')
-    }
-  }, [blueprint, workflowTemplate])
 
-  // Compute component instance counts from actual nodes
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/blueprints/${blueprint.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workflowTemplate: template,
+            enabledComponents: template.enabledComponents,
+          }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({ error: `Save failed (${res.status})` }))
+          const message = (body as { error?: string }).error ?? `Save failed (${res.status})`
+          setWorkflowTemplate(lastSavedRef.current)
+          setSaveError(message)
+        } else {
+          lastSavedRef.current = template
+        }
+      } catch {
+        setWorkflowTemplate(lastSavedRef.current)
+        setSaveError('Network error — changes were not saved')
+      }
+    }, 500)
+  }, [blueprint])
+
+  // Compute component instance counts from actual nodes (filtered to enabled types)
   const componentCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     if (!flatNodes) return counts
+    const enabledSet = effectiveWorkflow
+      ? new Set(effectiveWorkflow.enabledComponents)
+      : null
     for (const node of flatNodes) {
       for (const comp of node.components) {
-        counts[comp.componentType] = (counts[comp.componentType] ?? 0) + 1
+        if (!enabledSet || enabledSet.has(comp.componentType)) {
+          counts[comp.componentType] = (counts[comp.componentType] ?? 0) + 1
+        }
       }
     }
     return counts
-  }, [flatNodes])
+  }, [flatNodes, effectiveWorkflow?.enabledComponents])
 
   // Compute depth-level counts
   const depthCounts = useMemo(() => {
