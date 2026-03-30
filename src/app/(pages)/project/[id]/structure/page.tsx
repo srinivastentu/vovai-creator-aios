@@ -2,13 +2,14 @@
 
 import { use, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2, Network } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { useApi } from '@/lib/hooks/use-api'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
 import { TreeView } from '@/components/project-component/canvas/tree-view'
 import { NodeCountBarExtended } from '@/components/project-component/canvas/node-count-bar'
+import { NodeDetailPanel } from '@/components/project-component/canvas/node-detail'
 import { buildTree, findNode } from '@/lib/project-component'
 import type { IdeationPhase, ProjectNodeType, GradeRecommendation, DimensionGradeScore } from '@/lib/project-component'
 
@@ -111,84 +112,6 @@ function RubricScoreBar({ grade }: { grade: GradeResponse }) {
   )
 }
 
-// ─── Node Detail Panel (placeholder) ────────────────────────────────────────
-
-function NodeDetailPanel({ node }: { node: ProjectNodeType | null }) {
-  if (!node) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground">
-        <Network size={28} strokeWidth={1.5} />
-        <p className="text-sm">Select a node to view details</p>
-      </div>
-    )
-  }
-
-  const depthLabels = ['Module', 'Topic', 'Subtopic']
-  const depthLabel = depthLabels[node.depth] ?? `Depth ${node.depth}`
-
-  return (
-    <div className="flex flex-1 flex-col overflow-y-auto p-4">
-      <Badge variant="outline" className="mb-2 w-fit text-[10px]">
-        {depthLabel}
-      </Badge>
-      <h3 className="text-base font-semibold">{node.title}</h3>
-      {node.description && (
-        <p className="mt-1 text-sm text-muted-foreground">{node.description}</p>
-      )}
-
-      {/* Learning outcomes */}
-      {node.learningOutcomes.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Learning Outcomes
-          </h4>
-          <ul className="mt-1.5 space-y-1">
-            {node.learningOutcomes.map((lo) => (
-              <li key={lo.id} className="text-sm text-foreground/80">
-                {lo.text}
-                <Badge variant="outline" className="ml-1.5 text-[9px]">
-                  {lo.bloomLevel}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Attached components */}
-      {node.components.length > 0 && (
-        <div className="mt-4">
-          <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Components ({node.components.length})
-          </h4>
-          <div className="mt-1.5 space-y-1">
-            {node.components.map((comp) => (
-              <div
-                key={comp.id}
-                className="flex items-center justify-between rounded-md bg-muted/40 px-2.5 py-1.5 text-sm"
-              >
-                <span>{comp.componentType.replace(/_/g, ' ')}</span>
-                <Badge variant="outline" className="text-[9px] capitalize">
-                  {comp.priority}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Metadata */}
-      <div className="mt-4 space-y-1.5 text-xs text-muted-foreground">
-        <p>Path: <code className="rounded bg-muted px-1">{node.path}</code></p>
-        <p>Status: <span className="capitalize">{node.status.replace('_', ' ')}</span></p>
-        {node.agentConfidence !== null && (
-          <p>Agent confidence: {(node.agentConfidence * 100).toFixed(0)}%</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // ─── Page Component ─────────────────────────────────────────────────────────
 
 export default function StructurePage({
@@ -212,6 +135,7 @@ export default function StructurePage({
     data: flatNodes,
     loading: nodesLoading,
     error: nodesError,
+    refetch: refetchNodes,
   } = useApi<ProjectNodeType[]>(nodesUrl, { skip: !blueprint })
 
   // Fetch latest grade (depends on blueprint)
@@ -333,7 +257,14 @@ export default function StructurePage({
 
         {/* Right panel — node detail */}
         <div className="hidden flex-col md:flex md:w-[35%]">
-          <NodeDetailPanel node={selectedNode} />
+          <NodeDetailPanel
+            key={selectedNodeId}
+            node={selectedNode}
+            blueprintId={blueprint?.id ?? ''}
+            archetype={blueprint?.archetype ?? 'professional_training'}
+            flatNodes={flatNodes ?? []}
+            onMutated={refetchNodes}
+          />
         </div>
       </div>
 
