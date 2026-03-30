@@ -10,6 +10,12 @@ import { PcNav } from '@/components/project-component/shared/pc-nav'
 import { WizardStepper, generateWizardSteps } from '@/components/project-component/wizard/wizard-stepper'
 import { WizardStepOverview } from '@/components/project-component/wizard/wizard-step-overview'
 import { WizardStepWorkflow } from '@/components/project-component/wizard/wizard-step-workflow'
+import { WizardStepVideo } from '@/components/project-component/wizard/wizard-step-video'
+import { WizardStepQuiz } from '@/components/project-component/wizard/wizard-step-quiz'
+import { WizardStepStudyMaterial } from '@/components/project-component/wizard/wizard-step-study-material'
+import { WizardStepActivity } from '@/components/project-component/wizard/wizard-step-activity'
+import { WizardStepGeneric } from '@/components/project-component/wizard/wizard-step-generic'
+import { WizardStepReview } from '@/components/project-component/wizard/wizard-step-review'
 import {
   getArchetype,
   COMPONENT_REGISTRY,
@@ -214,6 +220,64 @@ export default function ConfigurePage({
     handleWorkflowChange(defaults)
   }, [archetypeDef, handleWorkflowChange])
 
+  // Track which component types have been explicitly configured
+  const [configuredTypes, setConfiguredTypes] = useState<Set<string>>(new Set())
+
+  // Module count (depth-1 nodes) — used by video form's "customize per module"
+  const moduleCount = useMemo(() => depthCounts[1] ?? 0, [depthCounts])
+
+  // Extract initial config for a component type from existing NodeComponent records
+  const getInitialConfig = useCallback((componentType: string): Record<string, unknown> => {
+    if (!flatNodes) return {}
+    // Find the first component of this type and use its config as the initial value
+    for (const node of flatNodes) {
+      for (const comp of node.components) {
+        if (comp.componentType === componentType && comp.config && Object.keys(comp.config).length > 0) {
+          return comp.config as Record<string, unknown>
+        }
+      }
+    }
+    return {}
+  }, [flatNodes])
+
+  // Save component config via PATCH /api/blueprints/[id]/components
+  const handleConfigSave = useCallback(async (
+    componentType: string,
+    config: Record<string, unknown>,
+    applyToAll: boolean,
+  ) => {
+    if (!blueprint) return
+    setSaveError(null)
+
+    try {
+      const res = await fetch(`/api/blueprints/${blueprint.id}/components`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: [{
+            componentType,
+            config,
+            applyToAll,
+          }],
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `Save failed (${res.status})` }))
+        const message = (body as { error?: string }).error ?? `Save failed (${res.status})`
+        setSaveError(message)
+        throw new Error(message)
+      }
+
+      setConfiguredTypes(prev => new Set([...prev, componentType]))
+    } catch (err) {
+      if (err instanceof Error && !err.message.startsWith('Save failed')) {
+        setSaveError('Network error — config was not saved')
+      }
+      throw err
+    }
+  }, [blueprint])
+
   const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
   const loading = blueprintLoading || nodesLoading
 
@@ -323,33 +387,94 @@ export default function ConfigurePage({
                 />
               )}
 
-              {/* Steps 2..N-2: Component config forms (PC-8.2) */}
-              {currentStep > 1 && currentStep < wizardSteps.length - 1 && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      {wizardSteps[currentStep].label} configuration form
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground/60">
-                      Coming in PC-8.2 &mdash; {wizardSteps[currentStep].instanceCount} instance
-                      {(wizardSteps[currentStep].instanceCount ?? 0) !== 1 ? 's' : ''} to configure
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Steps 2..N-2: Component config forms */}
+              {currentStep > 1 && currentStep < wizardSteps.length - 1 && blueprint && (() => {
+                const step = wizardSteps[currentStep]
+                const compType = step.componentType
+                if (!compType) return null
+                const compDef = COMPONENT_REGISTRY[compType]
+                if (!compDef) return null
+                const count = step.instanceCount ?? 0
+                const initialConfig = getInitialConfig(compType)
+
+                switch (compType) {
+                  case 'video':
+                  case 'video_short':
+                    return (
+                      <WizardStepVideo
+                        blueprintId={blueprint.id}
+                        instanceCount={count}
+                        moduleCount={moduleCount}
+                        initialConfig={initialConfig}
+                        onSave={async (config, applyToAll) => {
+                          await handleConfigSave(compType, { ...config }, applyToAll)
+                        }}
+                      />
+                    )
+                  case 'quiz':
+                  case 'pre_assessment':
+                  case 'post_assessment':
+                    return (
+                      <WizardStepQuiz
+                        blueprintId={blueprint.id}
+                        instanceCount={count}
+                        initialConfig={initialConfig}
+                        onSave={async (config, applyToAll) => {
+                          await handleConfigSave(compType, { ...config }, applyToAll)
+                        }}
+                      />
+                    )
+                  case 'study_material':
+                    return (
+                      <WizardStepStudyMaterial
+                        blueprintId={blueprint.id}
+                        instanceCount={count}
+                        initialConfig={initialConfig}
+                        onSave={async (config, applyToAll) => {
+                          await handleConfigSave(compType, { ...config }, applyToAll)
+                        }}
+                      />
+                    )
+                  case 'activity':
+                  case 'scenario_exercise':
+                    return (
+                      <WizardStepActivity
+                        blueprintId={blueprint.id}
+                        instanceCount={count}
+                        initialConfig={initialConfig}
+                        onSave={async (config, applyToAll) => {
+                          await handleConfigSave(compType, { ...config }, applyToAll)
+                        }}
+                      />
+                    )
+                  default:
+                    return (
+                      <WizardStepGeneric
+                        blueprintId={blueprint.id}
+                        componentDef={compDef}
+                        instanceCount={count}
+                        initialConfig={initialConfig}
+                        onSave={async (config, applyToAll) => {
+                          await handleConfigSave(compType, config, applyToAll)
+                        }}
+                      />
+                    )
+                }
+              })()}
 
               {/* Last step: Review & Confirm */}
-              {currentStep === wizardSteps.length - 1 && (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      Review &amp; Confirm — summary and launch
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground/60">
-                      Coming in PC-8.2
-                    </p>
-                  </CardContent>
-                </Card>
+              {currentStep === wizardSteps.length - 1 && archetypeDef && effectiveWorkflow && (
+                <WizardStepReview
+                  archetype={archetypeDef}
+                  workflowTemplate={effectiveWorkflow}
+                  componentDefs={enabledComponentDefs}
+                  componentCounts={componentCounts}
+                  totalNodes={totalNodes}
+                  totalComponents={totalComponents}
+                  costRange={costRange}
+                  configuredTypes={configuredTypes}
+                  onGoToStep={handleStepClick}
+                />
               )}
             </div>
           </div>

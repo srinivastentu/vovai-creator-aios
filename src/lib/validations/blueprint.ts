@@ -151,3 +151,20 @@ export const addComponentSchema = z.object({
 })
 
 export type AddComponentInput = z.infer<typeof addComponentSchema>
+
+// ─── Bulk Component Config Update ────────────────────────────────────────────
+
+export const bulkUpdateComponentConfigSchema = z.object({
+  updates: z.array(z.object({
+    componentType: z.string().min(1),
+    config: z.record(z.string(), z.unknown()),
+    /** If true, update ALL components of this type in the blueprint */
+    applyToAll: z.boolean().optional(),
+    /** If provided, only update components on nodes at this depth */
+    filterByDepth: z.number().int().min(0).optional(),
+    /** If provided, only update this specific component ID */
+    componentId: z.string().optional(),
+  })).min(1, 'At least one update is required'),
+})
+
+export type BulkUpdateComponentConfigInput = z.infer<typeof bulkUpdateComponentConfigSchema>
