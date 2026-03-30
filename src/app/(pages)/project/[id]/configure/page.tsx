@@ -465,14 +465,20 @@ export default function ConfigurePage({
               {/* Last step: Review & Confirm */}
               {currentStep === wizardSteps.length - 1 && archetypeDef && effectiveWorkflow && (
                 <WizardStepReview
+                  projectId={projectId}
+                  projectName={blueprint?.project?.name ?? 'Untitled Project'}
+                  targetAudience={blueprint?.project?.targetAudience ?? ''}
                   archetype={archetypeDef}
                   workflowTemplate={effectiveWorkflow}
                   componentDefs={enabledComponentDefs}
                   componentCounts={componentCounts}
                   totalNodes={totalNodes}
                   totalComponents={totalComponents}
+                  depthCounts={depthCounts}
                   costRange={costRange}
                   configuredTypes={configuredTypes}
+                  ideationScore={blueprint?.ideationScore ?? null}
+                  flatNodes={flatNodes ?? null}
                   onGoToStep={handleStepClick}
                   onWorkflowChange={handleWorkflowChange}
                 />

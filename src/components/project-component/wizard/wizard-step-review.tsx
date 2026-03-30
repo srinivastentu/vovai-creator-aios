@@ -1,17 +1,24 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
+  AlertTriangle,
+  ArrowRight,
+  Calendar,
   Check,
+  Clock,
+  Component,
   DollarSign,
   FolderTree,
-  Component,
-  ArrowRight,
+  Rocket,
   Settings,
+  Shield,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
 import { COMPONENT_REGISTRY } from '@/lib/project-component'
 import type {
@@ -19,22 +26,31 @@ import type {
   ComponentDefinition,
   WorkflowTemplate,
   ComponentCategory,
+  ProjectNodeType,
 } from '@/lib/project-component'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface WizardStepReviewProps {
+  projectId: string
+  projectName: string
+  targetAudience: string
   archetype: ArchetypeDefinition
   workflowTemplate: WorkflowTemplate
   componentDefs: ComponentDefinition[]
   componentCounts: Record<string, number>
   totalNodes: number
   totalComponents: number
+  depthCounts: Record<number, number>
   costRange: { min: number; max: number }
   configuredTypes: Set<string>
+  ideationScore: number | null
+  flatNodes: ProjectNodeType[] | null
   onGoToStep: (stepIndex: number) => void
   onWorkflowChange?: (template: WorkflowTemplate) => void
 }
+
+// ─── Constants ───────────────────────────────────────────────────────────────
 
 const CATEGORY_BG: Record<ComponentCategory, string> = {
   content: 'bg-blue-50 dark:bg-blue-950/30',
@@ -59,58 +75,215 @@ const PIPELINE_LABELS: Record<string, string> = {
   meta: 'Meta',
 }
 
+/** Avg production days per item for each pipeline phase */
+const PIPELINE_DAYS_PER_ITEM: Record<string, number> = {
+  document: 0.1,
+  assessment: 0.15,
+  video: 0.5,
+  activity: 0.2,
+  capstone: 0.3,
+  meta: 0.05,
+}
+
+function getScoreRecommendation(score: number | null): { label: string; color: string } {
+  if (score === null) return { label: 'Not graded', color: 'text-muted-foreground' }
+  if (score >= 85) return { label: 'Approve', color: 'text-green-600 dark:text-green-400' }
+  if (score >= 75) return { label: 'Revise', color: 'text-amber-600 dark:text-amber-400' }
+  if (score >= 60) return { label: 'Restructure', color: 'text-orange-600 dark:text-orange-400' }
+  return { label: 'Reject', color: 'text-red-600 dark:text-red-400' }
+}
+
+function formatCost(value: number): string {
+  return `$${value.toFixed(2)}`
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function WizardStepReview({
+  projectId,
+  projectName,
+  targetAudience,
   archetype,
   workflowTemplate,
   componentDefs,
   componentCounts,
   totalNodes,
   totalComponents,
+  depthCounts,
   costRange,
   configuredTypes,
+  ideationScore,
+  flatNodes,
   onGoToStep,
-  onWorkflowChange,
 }: WizardStepReviewProps) {
+  const router = useRouter()
   const defMap = new Map(componentDefs.map(d => [d.id, d]))
+  const [confirmed, setConfirmed] = useState(false)
 
-  const handleToggleLevelComponent = useCallback((depth: number, type: string) => {
-    if (!onWorkflowChange) return
-    const newLevelDefaults = workflowTemplate.levelDefaults.map(ld => {
-      if (ld.depth !== depth) return ld
-      const has = ld.enabledComponents.includes(type)
-      return {
-        ...ld,
-        enabledComponents: has
-          ? ld.enabledComponents.filter(t => t !== type)
-          : [...ld.enabledComponents, type],
+  // ─── Derived data ────────────────────────────────────────────────────────
+
+  // Structure summary string: "X modules, Y topics, Z subtopics"
+  const structureSummary = useMemo(() => {
+    const parts: string[] = []
+    for (const [depth, count] of Object.entries(depthCounts)) {
+      const d = Number(depth)
+      const label = archetype.hierarchy[d] ?? `Level ${d}`
+      parts.push(`${count} ${label}${count !== 1 ? 's' : ''}`)
+    }
+    return parts.join(', ')
+  }, [depthCounts, archetype.hierarchy])
+
+  // Rubric score recommendation
+  const recommendation = useMemo(() => getScoreRecommendation(ideationScore), [ideationScore])
+
+  // Component breakdown rows grouped by pipeline phase
+  const breakdownRows = useMemo(() => {
+    const rows: {
+      type: string
+      def: ComponentDefinition
+      count: number
+      costMin: number
+      costMax: number
+      configSummary: string
+    }[] = []
+
+    for (const type of workflowTemplate.productionOrder) {
+      const count = componentCounts[type] ?? 0
+      if (count === 0) continue
+      const def = defMap.get(type) ?? COMPONENT_REGISTRY[type]
+      if (!def) continue
+
+      const costMin = def.estimatedCost.min * count
+      const costMax = def.estimatedCost.max * count
+
+      // Build a short config summary from defaults
+      const defaults = (def.configSchema as { defaults?: Record<string, unknown> })?.defaults
+      const configParts: string[] = []
+      if (defaults) {
+        if ('duration' in defaults) configParts.push(String(defaults.duration))
+        if ('questionCount' in defaults) configParts.push(`${defaults.questionCount} Qs`)
+        if ('questionTypes' in defaults && Array.isArray(defaults.questionTypes)) {
+          configParts.push(defaults.questionTypes.length <= 2 ? (defaults.questionTypes as string[]).join(', ') : 'mixed')
+        }
+        if ('readingLevel' in defaults) configParts.push(String(defaults.readingLevel))
+        if ('activityType' in defaults) configParts.push(String(defaults.activityType).replace('_', ' '))
+        if ('groupSize' in defaults) configParts.push(String(defaults.groupSize))
+        if ('scenarioType' in defaults) configParts.push(String(defaults.scenarioType).replace('_', ' '))
+        if ('cardCount' in defaults) configParts.push(`${defaults.cardCount} cards`)
+        if ('promptCount' in defaults) configParts.push(`${defaults.promptCount} prompts`)
+        if ('checkpointCount' in defaults) configParts.push(`${defaults.checkpointCount} checkpoints`)
       }
-    })
-    onWorkflowChange({ ...workflowTemplate, levelDefaults: newLevelDefaults })
-  }, [workflowTemplate, onWorkflowChange])
 
-  // Group production order by pipeline phase
-  const phaseGroups: { phase: string; label: string; components: string[] }[] = []
-  const seen = new Set<string>()
-  for (const type of workflowTemplate.productionOrder) {
-    const def = defMap.get(type)
-    if (!def) continue
-    const phase = def.pipelineType
-    if (!seen.has(phase)) {
-      seen.add(phase)
-      phaseGroups.push({
-        phase,
-        label: PIPELINE_LABELS[phase] ?? phase,
-        components: [],
+      rows.push({
+        type,
+        def,
+        count,
+        costMin,
+        costMax,
+        configSummary: configParts.slice(0, 3).join(', ') || 'default',
       })
     }
-    phaseGroups.find(g => g.phase === phase)?.components.push(type)
-  }
+    return rows
+  }, [workflowTemplate.productionOrder, componentCounts, defMap])
 
-  const unconfiguredTypes = workflowTemplate.enabledComponents.filter(
-    t => !configuredTypes.has(t) && (componentCounts[t] ?? 0) > 0,
-  )
+  // Production timeline estimate grouped by phase
+  const timelineEstimate = useMemo(() => {
+    const phases: { phase: string; label: string; itemCount: number; days: number }[] = []
+    const phaseItems: Record<string, number> = {}
+
+    for (const type of workflowTemplate.productionOrder) {
+      const count = componentCounts[type] ?? 0
+      if (count === 0) continue
+      const def = defMap.get(type) ?? COMPONENT_REGISTRY[type]
+      if (!def) continue
+      phaseItems[def.pipelineType] = (phaseItems[def.pipelineType] ?? 0) + count
+    }
+
+    for (const [phase, count] of Object.entries(phaseItems)) {
+      const daysPerItem = PIPELINE_DAYS_PER_ITEM[phase] ?? 0.2
+      let days = count * daysPerItem
+      // Videos batched in groups of 10
+      if (phase === 'video') {
+        days = Math.ceil(count / 10) * 10 * daysPerItem
+      }
+      phases.push({
+        phase,
+        label: PIPELINE_LABELS[phase] ?? phase,
+        itemCount: count,
+        days: Math.max(Math.round(days * 10) / 10, 0.5),
+      })
+    }
+
+    const totalDays = phases.reduce((sum, p) => sum + p.days, 0)
+    return { phases, totalDays: Math.round(totalDays * 10) / 10 }
+  }, [workflowTemplate.productionOrder, componentCounts, defMap])
+
+  // Configuration warnings
+  const warnings = useMemo(() => {
+    const items: { message: string; severity: 'warning' | 'info' }[] = []
+
+    // Nodes with no components
+    if (flatNodes) {
+      const emptyNodes = flatNodes.filter(
+        n => n.components.length === 0 && n.depth > 0,
+      )
+      if (emptyNodes.length > 0) {
+        items.push({
+          message: `${emptyNodes.length} node${emptyNodes.length !== 1 ? 's have' : ' has'} no components attached.`,
+          severity: 'warning',
+        })
+      }
+    }
+
+    // Learning outcomes without assessment coverage
+    if (flatNodes) {
+      const assessmentTypes = new Set(['quiz', 'pre_assessment', 'post_assessment'])
+      const enabledSet = new Set(workflowTemplate.enabledComponents)
+      const hasAssessments = [...assessmentTypes].some(t => enabledSet.has(t))
+
+      if (!hasAssessments) {
+        const nodesWithOutcomes = flatNodes.filter(n => n.learningOutcomes.length > 0)
+        if (nodesWithOutcomes.length > 0) {
+          items.push({
+            message: `${nodesWithOutcomes.length} node${nodesWithOutcomes.length !== 1 ? 's have' : ' has'} learning outcomes but no assessment components are enabled.`,
+            severity: 'warning',
+          })
+        }
+      }
+    }
+
+    // Recommended components that were skipped
+    const skippedRecommended = archetype.defaultComponents.filter(
+      t => !workflowTemplate.enabledComponents.includes(t),
+    )
+    if (skippedRecommended.length > 0) {
+      const names = skippedRecommended
+        .map(t => COMPONENT_REGISTRY[t]?.name ?? t)
+        .join(', ')
+      items.push({
+        message: `Skipped recommended components: ${names}.`,
+        severity: 'info',
+      })
+    }
+
+    // Unconfigured components
+    const unconfigured = workflowTemplate.enabledComponents.filter(
+      t => !configuredTypes.has(t) && (componentCounts[t] ?? 0) > 0,
+    )
+    if (unconfigured.length > 0) {
+      items.push({
+        message: `${unconfigured.length} component type${unconfigured.length !== 1 ? 's' : ''} using default settings (not explicitly configured).`,
+        severity: 'info',
+      })
+    }
+
+    return items
+  }, [flatNodes, workflowTemplate, archetype.defaultComponents, configuredTypes, componentCounts])
+
+  // Launch handler
+  const handleLaunch = useCallback(() => {
+    router.push(`/project/${projectId}/launch`)
+  }, [router, projectId])
 
   return (
     <div className="space-y-6">
@@ -125,7 +298,7 @@ export function WizardStepReview({
         </p>
       </div>
 
-      {/* Project summary */}
+      {/* ─── SECTION 1: Project Summary ─────────────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm">Project Summary</CardTitle>
@@ -133,196 +306,214 @@ export function WizardStepReview({
             {archetype.name} &middot; {archetype.productionMode.replace('_', ' ')} production
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-3 pt-0 text-xs">
-          <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5">
-            <FolderTree size={13} className="text-muted-foreground" />
-            <span className="font-medium">{totalNodes}</span>
-            <span className="text-muted-foreground">nodes</span>
+        <CardContent className="space-y-3 pt-0">
+          {/* Project name & audience */}
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">{projectName}</p>
+            <p className="text-xs text-muted-foreground">{targetAudience}</p>
           </div>
-          <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5">
-            <Component size={13} className="text-muted-foreground" />
-            <span className="font-medium">{totalComponents}</span>
-            <span className="text-muted-foreground">components</span>
+
+          {/* Stats row */}
+          <div className="flex flex-wrap gap-3 text-xs">
+            <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5">
+              <FolderTree size={13} className="text-muted-foreground" />
+              <span className="text-muted-foreground">{structureSummary}</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5">
+              <Component size={13} className="text-muted-foreground" />
+              <span className="font-medium">{totalComponents}</span>
+              <span className="text-muted-foreground">components</span>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5">
+              <Settings size={13} className="text-muted-foreground" />
+              <span className="font-medium">{configuredTypes.size}</span>
+              <span className="text-muted-foreground">
+                of {workflowTemplate.enabledComponents.length} configured
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1.5">
-            <Settings size={13} className="text-muted-foreground" />
-            <span className="font-medium">{configuredTypes.size}</span>
-            <span className="text-muted-foreground">of {workflowTemplate.enabledComponents.length} types configured</span>
-          </div>
+
+          {/* Rubric score */}
+          {ideationScore !== null && (
+            <div className="flex items-center gap-2 text-xs">
+              <Shield size={13} className="text-muted-foreground" />
+              <span className="text-muted-foreground">Rubric score:</span>
+              <span className="font-semibold">{ideationScore}</span>
+              <Badge
+                variant="outline"
+                className={`text-[10px] ${recommendation.color}`}
+              >
+                {recommendation.label}
+              </Badge>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Production pipeline order */}
+      {/* ─── SECTION 2: Component Breakdown Table ────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Production Pipeline</CardTitle>
+          <CardTitle className="text-sm">Component Breakdown</CardTitle>
           <CardDescription className="text-xs">
-            Components will be produced in this order
+            Cost estimates based on AI provider pricing
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="space-y-4">
-            {phaseGroups.map((group, gi) => (
-              <div key={group.phase}>
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  {group.label}
-                </p>
-                <div className="space-y-1.5">
-                  {group.components.map(type => {
-                    const def = defMap.get(type)
-                    if (!def) return null
-                    const count = componentCounts[type] ?? 0
-                    const isConfigured = configuredTypes.has(type)
-                    const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2 pr-3 font-medium">Component Type</th>
+                  <th className="pb-2 pr-3 text-right font-medium">Count</th>
+                  <th className="pb-2 pr-3 font-medium">Config Summary</th>
+                  <th className="pb-2 text-right font-medium">Est. Cost</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {breakdownRows.map(row => {
+                  const Icon = COMPONENT_ICONS[row.type] ?? COMPONENT_ICON_FALLBACK
+                  return (
+                    <tr key={row.type}>
+                      <td className="py-2 pr-3">
+                        <div className={`flex items-center gap-2 ${CATEGORY_COLORS[row.def.category]}`}>
+                          <Icon size={13} className="shrink-0" />
+                          <span className="font-medium">{row.def.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 pr-3 text-right tabular-nums">{row.count}</td>
+                      <td className="py-2 pr-3 text-muted-foreground">{row.configSummary}</td>
+                      <td className="py-2 text-right tabular-nums">
+                        {formatCost(row.costMin)}&ndash;{formatCost(row.costMax)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t font-semibold">
+                  <td className="pt-2 pr-3">Total</td>
+                  <td className="pt-2 pr-3 text-right tabular-nums">{totalComponents}</td>
+                  <td className="pt-2 pr-3"></td>
+                  <td className="pt-2 text-right tabular-nums">
+                    {formatCost(costRange.min)}&ndash;{formatCost(costRange.max)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
-                    return (
-                      <div
-                        key={type}
-                        className={`flex items-center gap-2.5 rounded-lg px-3 py-2 ${CATEGORY_BG[def.category]}`}
-                      >
-                        <Icon size={14} className={`shrink-0 ${CATEGORY_COLORS[def.category]}`} />
-                        <span className="flex-1 text-xs font-medium">{def.name}</span>
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {count}
-                        </Badge>
-                        {isConfigured ? (
-                          <Badge variant="outline" className="gap-1 text-[10px] text-green-600 border-green-200 dark:border-green-800 dark:text-green-400">
-                            <Check size={10} />
-                            Configured
-                          </Badge>
-                        ) : count > 0 ? (
-                          <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-200 dark:border-amber-800 dark:text-amber-400">
-                            Defaults
-                          </Badge>
-                        ) : null}
-                      </div>
-                    )
-                  })}
+      {/* ─── SECTION 3: Production Timeline Estimate ─────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Calendar size={14} />
+            Production Timeline Estimate
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 pt-0">
+          <div className="space-y-2">
+            {timelineEstimate.phases.map(phase => (
+              <div key={phase.phase} className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">{phase.label}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground">
+                    {phase.itemCount} item{phase.itemCount !== 1 ? 's' : ''}
+                    {phase.phase === 'video' ? ' (batched ×10)' : ''}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    ~{phase.days} day{phase.days !== 1 ? 's' : ''}
+                  </span>
                 </div>
-                {gi < phaseGroups.length - 1 && (
-                  <div className="mt-3 flex justify-center">
-                    <ArrowRight size={14} className="text-muted-foreground/40" />
-                  </div>
-                )}
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Cost estimate */}
-      <Card>
-        <CardContent className="flex items-center gap-3 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/50">
-            <DollarSign size={16} className="text-green-600 dark:text-green-400" />
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Estimated total cost</p>
-            <p className="text-sm font-semibold">
-              ${costRange.min.toFixed(2)} &ndash; ${costRange.max.toFixed(2)}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Unconfigured warning */}
-      {unconfiguredTypes.length > 0 && (
-        <Card className="border-amber-200 dark:border-amber-800">
-          <CardContent className="py-4">
-            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
-              {unconfiguredTypes.length} component type{unconfiguredTypes.length !== 1 ? 's' : ''} using
-              default settings:
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {unconfiguredTypes.map(type => {
-                const def = defMap.get(type)
-                if (!def) return null
-                const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
-                return (
-                  <span
-                    key={type}
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:text-amber-400"
-                  >
-                    <Icon size={10} />
-                    {def.name}
-                  </span>
-                )
-              })}
+          <div className="flex items-center justify-between border-t pt-2 text-xs">
+            <div className="flex items-center gap-1.5 font-semibold">
+              <Clock size={13} />
+              Total estimated
             </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">
-              You can go back and customize these, or proceed with archetype defaults.
+            <span className="font-semibold tabular-nums">
+              ~{timelineEstimate.totalDays} day{timelineEstimate.totalDays !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <p className="text-[10px] leading-relaxed text-muted-foreground">
+            Estimates assume sequential production. Actual time depends on
+            review cycles and revision rounds.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* ─── SECTION 4: Configuration Warnings ───────────────────────────────── */}
+      {warnings.length > 0 && (
+        <Card className="border-amber-200 dark:border-amber-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+              <AlertTriangle size={14} />
+              Configuration Notes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            {warnings.map((w, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-2 rounded-md px-3 py-2 text-xs ${
+                  w.severity === 'warning'
+                    ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+              >
+                <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+                <span>{w.message}</span>
+              </div>
+            ))}
+            <p className="text-[10px] text-muted-foreground">
+              These are informational — they won&apos;t block production launch.
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Per-level defaults — interactive */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Level Defaults</CardTitle>
-          <CardDescription className="text-xs">
-            Toggle which components attach at each hierarchy level. All choices are optional.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-4">
-            {workflowTemplate.levelDefaults.map(ld => {
-              // Components that CAN attach at this depth AND are globally enabled
-              const attachable = workflowTemplate.enabledComponents.filter(type => {
-                const def = COMPONENT_REGISTRY[type]
-                return def ? def.attachableAt.includes(ld.depth) : false
-              })
-
-              return (
-                <div key={ld.depth}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px]">
-                      {ld.label}
-                    </Badge>
-                    <span className="text-[10px] text-muted-foreground">depth {ld.depth}</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {attachable.length > 0 ? (
-                      attachable.map(type => {
-                        const def = defMap.get(type) ?? COMPONENT_REGISTRY[type]
-                        if (!def) return null
-                        const isActive = ld.enabledComponents.includes(type)
-                        const isRecommended = archetype.defaultComponents.includes(type)
-                        const Icon = COMPONENT_ICONS[type] ?? COMPONENT_ICON_FALLBACK
-
-                        return (
-                          <button
-                            key={type}
-                            type="button"
-                            onClick={() => handleToggleLevelComponent(ld.depth, type)}
-                            className={`
-                              inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium transition-all
-                              ${isActive
-                                ? 'border-primary bg-primary/10 text-primary'
-                                : 'border-border text-muted-foreground hover:border-muted-foreground/60'
-                              }
-                            `}
-                          >
-                            <Icon size={10} />
-                            {def.name}
-                            {isRecommended && (
-                              <span className="ml-0.5 rounded bg-emerald-100 px-1 py-px text-[8px] font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                recommended
-                              </span>
-                            )}
-                          </button>
-                        )
-                      })
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">
-                        No compatible components at this level
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+      {/* ─── SECTION 5: Launch Button ────────────────────────────────────────── */}
+      <Card className="border-green-200 dark:border-green-800">
+        <CardContent className="space-y-4 py-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/50">
+              <DollarSign size={18} className="text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Estimated total cost</p>
+              <p className="text-base font-semibold">
+                {formatCost(costRange.min)} &ndash; {formatCost(costRange.max)}
+              </p>
+            </div>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5">
+            <Checkbox
+              checked={confirmed}
+              onCheckedChange={setConfirmed}
+              className="mt-0.5"
+            />
+            <span className="text-xs leading-relaxed">
+              I&apos;ve reviewed the project structure, component configuration,
+              and production settings.
+            </span>
+          </label>
+
+          <Button
+            size="lg"
+            className="w-full gap-2"
+            disabled={!confirmed}
+            onClick={handleLaunch}
+          >
+            <Rocket size={16} />
+            Launch to Production
+            <ArrowRight size={14} />
+          </Button>
         </CardContent>
       </Card>
     </div>
