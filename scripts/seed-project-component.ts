@@ -99,7 +99,7 @@ async function main() {
         'Apply the ADDIE framework to course creation',
         'Evaluate and select appropriate digital tools',
       ],
-      enabledComponents: ['video', 'study_material', 'quiz', 'activity', 'capstone'],
+      enabledComponents: ['video', 'study_material', 'quiz', 'activity', 'capstone_project'],
       ideationPhase: 'brainstorm',
     },
   })
@@ -123,7 +123,7 @@ async function main() {
         { type: 'video', priority: 'core' },         // Module overview video
         { type: 'quiz', priority: 'core' },           // Module assessment
         { type: 'activity', priority: 'recommended' }, // Module exercise
-        { type: 'capstone', priority: 'core' },        // Module capstone
+        { type: 'capstone_project', priority: 'core' },  // Module capstone
       ],
       children: [
         {
@@ -415,7 +415,7 @@ async function main() {
         totalModules: 3,
         totalTopics: 5,
         totalSubtopics: 4,
-        componentBreakdown: { video: 10, quiz: 10, study_material: 5, activity: 4, capstone: 2 },
+        componentBreakdown: { video: 10, quiz: 10, study_material: 5, activity: 4, capstone_project: 2 },
         estimatedHours: 40,
         overallScore,
         recommendation: 'revise',

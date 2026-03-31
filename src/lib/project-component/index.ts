@@ -135,6 +135,25 @@ export {
   deserializeBlueprint,
 } from './tree/tree-serializer'
 
+// ─── Production (handoff + cost estimator) ─────────────────────────────────
+
+export type {
+  CostRange,
+  PhaseCostEstimate,
+  TypeCostEstimate,
+  CostEstimate,
+} from './production/cost-estimator'
+
+export { estimateProjectCost } from './production/cost-estimator'
+
+export type {
+  HandoffResult,
+  VideoBatch,
+  HandoffErrorCode,
+} from './production/handoff'
+
+export { executeHandoff, HandoffError } from './production/handoff'
+
 // ─── Ideation (phase manager + loop engine) ─────────────────────────────────
 
 export type {
