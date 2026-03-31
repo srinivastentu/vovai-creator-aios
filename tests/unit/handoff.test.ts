@@ -71,7 +71,7 @@ function makeBlueprint(
     targetAudience: {},
     learningOutcomes: [],
     enabledComponents: [],
-    workflowTemplate: null,
+    workflowTemplate: null as Record<string, unknown> | null,
     ideationPhase,
     ideationScore: 85,
     structureSummary: null,
@@ -288,7 +288,7 @@ describe('executeHandoff', () => {
     expect(result.videoBatches[2].componentIds).toHaveLength(3)
   })
 
-  it('stores batch metadata on video session bestGrade', async () => {
+  it('stores batch metadata on video session metadata field', async () => {
     mockDb.projectBlueprint.findUnique.mockResolvedValue(makeBlueprint('approved', [
       makeComponent('v1', 'video'),
       makeComponent('v2', 'video'),
@@ -299,7 +299,7 @@ describe('executeHandoff', () => {
     const calls = mockDb._tx.stageSession.create.mock.calls
     // Both are videos — check batch metadata
     for (const call of calls) {
-      expect(call[0].data.bestGrade).toMatchObject({
+      expect(call[0].data.metadata).toMatchObject({
         batchIndex: 0,
         batchSize: 2,
         componentType: 'video',
@@ -390,5 +390,41 @@ describe('executeHandoff', () => {
 
     const result = await executeHandoff('bp-1')
     expect(result.totalJobs).toBe(2)
+  })
+
+  it('respects workflowTemplate.productionOrder when present', async () => {
+    // User configured: quiz before study_material (reverse of default pipeline order)
+    const bp = makeBlueprint('approved', [
+      makeComponent('c-doc', 'study_material'),
+      makeComponent('c-quiz', 'quiz'),
+    ])
+    bp.workflowTemplate = {
+      enabledComponents: ['quiz', 'study_material'],
+      productionOrder: ['quiz', 'study_material'],
+      levelDefaults: [],
+    }
+    mockDb.projectBlueprint.findUnique.mockResolvedValue(bp)
+
+    await executeHandoff('bp-1')
+
+    const calls = mockDb._tx.stageSession.create.mock.calls
+    // quiz (assessment → 200) should be created FIRST per user's order
+    expect(calls[0][0].data.stageId).toBe(200) // assessment stage
+    expect(calls[1][0].data.stageId).toBe(100) // document stage
+  })
+
+  it('falls back to pipeline phase order when workflowTemplate is null', async () => {
+    // No workflowTemplate — default ordering: documents (0) before assessments (1)
+    mockDb.projectBlueprint.findUnique.mockResolvedValue(makeBlueprint('approved', [
+      makeComponent('c-quiz', 'quiz'),
+      makeComponent('c-doc', 'study_material'),
+    ]))
+
+    await executeHandoff('bp-1')
+
+    const calls = mockDb._tx.stageSession.create.mock.calls
+    // document (100) should come first by default pipeline order
+    expect(calls[0][0].data.stageId).toBe(100) // document stage
+    expect(calls[1][0].data.stageId).toBe(200) // assessment stage
   })
 })

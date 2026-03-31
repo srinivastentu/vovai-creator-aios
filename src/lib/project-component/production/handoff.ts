@@ -92,7 +92,20 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
     )
   }
 
-  // 3. Collect all components with their pipeline type
+  // 3. Build production order from user's workflowTemplate (Principle #8)
+  //    Falls back to PIPELINE_PHASE_ORDER if no template is set.
+  const wt = blueprint.workflowTemplate as { productionOrder?: string[] } | null
+  const userProductionOrder = wt?.productionOrder ?? null
+
+  // Build a sort index: component type → position in production order
+  const productionOrderIndex = new Map<string, number>()
+  if (userProductionOrder) {
+    for (let i = 0; i < userProductionOrder.length; i++) {
+      productionOrderIndex.set(userProductionOrder[i], i)
+    }
+  }
+
+  // 4. Collect all components with their pipeline type
   const allComponents: ComponentForHandoff[] = []
   for (const node of blueprint.nodes) {
     for (const comp of node.components) {
@@ -102,13 +115,18 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
       const def = COMPONENT_REGISTRY[comp.componentType]
       if (!def) continue
 
+      // Use user's production order if available, else pipeline phase order
+      const sortOrder = userProductionOrder
+        ? (productionOrderIndex.get(comp.componentType) ?? 99)
+        : (PIPELINE_PHASE_ORDER[def.pipelineType] ?? 99)
+
       allComponents.push({
         id: comp.id,
         nodeId: comp.nodeId,
         componentType: comp.componentType,
         pipelineType: def.pipelineType,
         phaseKey: PIPELINE_TYPE_TO_PHASE[def.pipelineType] ?? 'meta',
-        phaseOrder: PIPELINE_PHASE_ORDER[def.pipelineType] ?? 99,
+        sortOrder,
       })
     }
   }
@@ -117,14 +135,14 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
     throw new HandoffError('NO_COMPONENTS', 'No eligible components found for production')
   }
 
-  // 4. Sort by production order
-  allComponents.sort((a, b) => a.phaseOrder - b.phaseOrder)
+  // 5. Sort by production order (user-configured or pipeline default)
+  allComponents.sort((a, b) => a.sortOrder - b.sortOrder)
 
-  // 5. Compute cost estimate
+  // 6. Compute cost estimate
   const componentTypes = allComponents.map(c => c.componentType)
   const estimatedCost = estimateProjectCost(componentTypes)
 
-  // 6. Execute all-or-nothing in a transaction
+  // 7. Execute all-or-nothing in a transaction
   const result = await db.$transaction(async (tx) => {
     const jobsByPhase: HandoffResult['jobsByPhase'] = {
       documents: 0,
@@ -141,7 +159,7 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
     const videoComponents = allComponents.filter(c => c.pipelineType === 'video')
     const nonVideoComponents = allComponents.filter(c => c.pipelineType !== 'video')
 
-    // 6a. Create sessions for non-video components (one per component)
+    // 7a. Create sessions for non-video components (one per component)
     for (const comp of nonVideoComponents) {
       const stageId = FIRST_STAGE_BY_PIPELINE[comp.pipelineType] ?? 600
       const session = await tx.stageSession.create({
@@ -164,7 +182,7 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
       jobsByPhase[comp.phaseKey]++
     }
 
-    // 6b. Batch videos in groups of VIDEO_BATCH_SIZE
+    // 7b. Batch videos in groups of VIDEO_BATCH_SIZE
     for (let i = 0; i < videoComponents.length; i += VIDEO_BATCH_SIZE) {
       const batch = videoComponents.slice(i, i + VIDEO_BATCH_SIZE)
       const batchIndex = Math.floor(i / VIDEO_BATCH_SIZE)
@@ -177,7 +195,7 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
             projectId: blueprint.projectId,
             stageId,
             status: 'idle',
-            bestGrade: {
+            metadata: {
               batchIndex,
               batchSize: batch.length,
               componentType: comp.componentType,
@@ -205,7 +223,7 @@ export async function executeHandoff(blueprintId: string): Promise<HandoffResult
       })
     }
 
-    // 6c. Update project status to in_progress
+    // 7c. Update project status to in_progress
     await tx.project.update({
       where: { id: blueprint.projectId },
       data: { status: 'in_progress' },
@@ -232,7 +250,7 @@ interface ComponentForHandoff {
   componentType: string
   pipelineType: string
   phaseKey: PhaseKey
-  phaseOrder: number
+  sortOrder: number
 }
 
 // ─── Error class ────────────────────────────────────────────────────────────

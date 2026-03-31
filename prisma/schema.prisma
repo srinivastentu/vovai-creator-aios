@@ -62,6 +62,7 @@ model StageSession {
   currentArtifactId String?
   bestArtifactId    String?
   bestGrade         Json?            // Grade struct stored as JSON
+  metadata          Json?            // Orchestration context (batch info, pipeline hints)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 

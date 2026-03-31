@@ -995,3 +995,224 @@ Cascade: local state → saved DB value → generated default from archetype. Se
 ### Verdict
 
 **PASS — approved for PC-8.2 with A8.1–A8.4 as prerequisites.** Zero critical issues. The 8 important issues are real but non-blocking for wizard progression. A8.1-A8.4 should be addressed before PC-8.2 lands because they affect data display accuracy (A8.1), save reliability (A8.2), and accessibility compliance (A8.3-A8.4). The remaining items (A8.5-A8.8) can be addressed alongside Macro 8 work. Architecture is sound — the Level 1/Level 2 separation is maintained, Zod validation at API boundary is thorough, and the optimistic update pattern with rollback is solid.
+
+---
+
+## Macro 8 Sign-Off Review
+
+**Scope:** PC-8.1 (wizard stepper), PC-8.1b (workflow template builder), PC-8.2 (config forms), PC-8.3 (review + cost estimator), PC-8.4 (production handoff)
+**Reviewer:** Senior Engineer sign-off
+**Date:** 2026-03-31
+
+### 1. Build & Tests
+
+| Check | Result |
+|-------|--------|
+| `npm run typecheck` | PASS — zero errors |
+| `npm run build` | FAIL — see R1.1 below |
+| `npm run test` | PASS — 323 tests, 0 failures, 0 skipped |
+
+- [x] 🔴 **R1.1: Build fails — server module imported into client component chain.**
+  `configure/page.tsx` (client) → `@/lib/project-component` (barrel) → `production/handoff.ts` → `@/lib/db` (Prisma/pg) → `fs`, `dns`, `net`, `tls` Node-only modules. The barrel export re-exports `executeHandoff` and `HandoffError`, which import `db`. Even though configure/page.tsx doesn't call `executeHandoff`, webpack tree-shaking doesn't remove it because the barrel includes it.
+  **Fix:** Split the barrel into `@/lib/project-component` (client-safe) and `@/lib/project-component/server` (server-only, exports handoff). Or remove handoff re-exports from the barrel since the API route imports directly from `production/handoff.ts` already.
+
+### 2. Code Quality
+
+| Check | Result |
+|-------|--------|
+| `any` type usage | CLEAN — zero matches (15 files scanned) |
+| `console.log` | CLEAN in wizard/production. 1 instance in API route (`route.ts:34`) — acceptable for error logging |
+| TODO/FIXME/HACK/XXX | CLEAN — zero matches |
+
+No code quality issues.
+
+### 3. Handoff Data Integrity (MOST CRITICAL)
+
+**Q: Does every "configured"/"planned" component get a StageSession?**
+YES. `handoff.ts:97-113` iterates ALL nodes, ALL components, filters `planned`/`configured` only, creates a session for each. No silent skipping beyond the status filter.
+
+**Q: Is pipelineJobId set on EVERY component that got a session?**
+YES. `handoff.ts:155-160` (non-video) and `handoff.ts:188-193` (video) both call `tx.nodeComponent.update({ data: { pipelineJobId: session.id, status: 'queued' } })` after each session creation.
+
+**Q: Orphaned StageSession records?**
+NO — within the transaction, every created session is immediately linked to a NodeComponent. If the transaction fails, all sessions are rolled back.
+
+**Q: Double-execution guard?**
+PARTIAL. After the first handoff, all components have `status: 'queued'`, so a second call filters them all out and throws `HandoffError('NO_COMPONENTS')`. This prevents duplicate sessions. However:
+- [ ] 🟡 **R3.1: Misleading error on double-execution.** The error message "No eligible components found for production" doesn't tell the user "this blueprint was already handed off." Should check for existing queued/in_production components and return a specific error code like `ALREADY_HANDED_OFF`.
+- [ ] 🟡 **R3.2: Race condition on concurrent requests.** Two simultaneous POST requests before either commits could both see components as `planned`/`configured` and create duplicate sessions. Prisma's default transaction isolation level (`READ COMMITTED`) doesn't prevent this. Fix: add a unique constraint or use `SERIALIZABLE` isolation, or add a `handedOff` boolean on blueprint checked inside the transaction.
+
+**Q: Mixed statuses (queued + configured)?**
+YES — handled correctly. The filter at line 100 only picks `planned` or `configured`. Previously queued components are skipped. A partial re-run after failure would process only the remaining components.
+
+**Q: Transaction rollback on partial failure?**
+YES. `db.$transaction(async (tx) => { ... })` at line 128 is all-or-nothing. If the 15th component fails, all 14 prior sessions are rolled back. Prisma guarantees this.
+
+### 4. Cost Estimator Accuracy
+
+**Q: Does `estimateProjectCost` match the Review step numbers?**
+YES — both use `COMPONENT_REGISTRY[type].estimatedCost.min/max × count`. The Review step (`wizard-step-review.tsx:156-157`) computes inline: `def.estimatedCost.min * count`. The cost estimator (`cost-estimator.ts:78-79`) computes identically. Total in the Review step's footer uses `costRange` from `configure/page.tsx:178-188` which sums the same way. Numbers match.
+
+**Q: Phase groupings correct?**
+MOSTLY. But there's a subtle inconsistency:
+- [ ] 🟡 **R4.1: `discussion_prompt` and `mentor_checklist` are `category: 'meta'` but `pipelineType: 'document'`.** In the cost estimator they're grouped under "Documents" (Phase 1). In the UI category colors they appear as purple (meta). This is architecturally correct (they go through the Document Pipeline), but visually confusing — the review step table colors them as meta while the cost breakdown groups them under Documents. Document this or unify the visual treatment.
+
+**Certificate, glossary, mentor_checklist phase grouping:**
+| Component | category | pipelineType | Cost Phase | Handoff Phase |
+|-----------|----------|-------------|------------|---------------|
+| certificate | meta | meta | Meta | meta |
+| glossary | meta | meta | Meta | meta |
+| mentor_checklist | meta | document | Documents | documents |
+| discussion_prompt | meta | document | Documents | documents |
+
+Estimator, review step, and handoff all use `pipelineType` consistently — they agree.
+
+**Q: Zero components — does estimator crash?**
+NO. `estimateProjectCost([])` returns `{ byPhase: [], byType: [], total: { min: 0, max: 0, currency: 'USD' }, totalComponents: 0 }`. In the launch page, zero-component case returns `null` from the useMemo (line 152), and the UI handles it gracefully.
+
+### 5. Video Batching Logic
+
+**Q: 23 videos → 3 batches (10+10+3)?**
+YES. `handoff.ts:168` — `for (let i = 0; i < videoComponents.length; i += VIDEO_BATCH_SIZE)` where `VIDEO_BATCH_SIZE = 10`. Slices: `[0..9]`, `[10..19]`, `[20..22]`. Three batches: sizes 10, 10, 3. Correct.
+
+**Q: 10 videos → 1 batch?** YES.
+**Q: 1 video → 1 batch?** YES.
+**Q: 0 videos → skip batching?** YES — `videoComponents` array is empty, loop body never executes.
+
+**Q: Batch metadata storage?**
+- [ ] 🔴 **R5.1: Batch metadata stored in `StageSession.bestGrade` — type contract violation.** `handoff.ts:180-184` writes `{ batchIndex, batchSize, componentType }` into `bestGrade`. But `StageSession.bestGrade` is typed as `Grade | null` in `types.ts:76` (expects `{ dimensions, compositeScore, overallAssessment, improvementPriorities }`). The Prisma schema accepts any JSON (`Json?`), so it works at runtime, but:
+  1. When the production pipeline later reads `bestGrade`, it'll find batch metadata instead of a Grade. This will cause runtime errors or silent corruption.
+  2. Any code that type-casts `bestGrade as Grade` will get wrong data.
+  **Fix:** Add a `metadata: Json?` field to StageSession, or store batch info in a separate `VideoBatch` table, or use the existing `nodeComponents` relation to derive batches at query time.
+
+**Q: Can the pipeline read batch metadata later?**
+Currently no clean path. The pipeline would need to query `StageSession.bestGrade` and parse it as batch metadata (not a Grade). This is fragile and undocumented.
+
+### 6. Wizard State Management
+
+**Q: useState count in configure/page.tsx?**
+4 useState hooks: `currentStep`, `saveError`, `workflowTemplate`, `configuredTypes`. Plus 2 useApi hooks (blueprint, nodes). Total: 6 hooks. Well within reasonable limits — no need for useReducer.
+
+**Q: Downstream updates when workflow template changes?**
+YES. `effectiveWorkflow` is a useMemo that derives from `workflowTemplate` state (line 87-92). `componentCounts`, `enabledComponentDefs`, `costRange`, and `wizardSteps` all depend on `effectiveWorkflow` via useMemo. When the user toggles components in the Workflow step, the chain recomputes: `workflowTemplate` → `effectiveWorkflow` → `componentCounts` → `wizardSteps` → step count updates. Config form steps appear/disappear dynamically.
+
+**Q: Disable Video → re-enable — are settings preserved?**
+- [ ] 🟡 **R6.1: Config settings lost on component disable/re-enable cycle.** When a component type is disabled in the Workflow step, its config form step disappears. When re-enabled, `getInitialConfig` (line 230-241) reads from the database — so settings ARE preserved IF they were saved. But if the user configured video (in-memory only, didn't click Save), disabled it, then re-enabled — the unsaved in-memory config is lost. This is acceptable behavior (Save is explicit), but could surprise users.
+
+**Q: Wizard state persisted to DB?**
+PARTIALLY. `workflowTemplate` is debounce-saved to DB via PATCH (line 110-133). Component configs are saved on explicit "Save" button click. But `currentStep` is React-only state — page refresh resets to step 0. `configuredTypes` tracking is also in-memory only.
+- [ ] 🟡 **R6.2: `configuredTypes` resets on refresh.** After saving configs and refreshing, the review step won't know which types were explicitly configured. It will show "X component types using default settings" for all types, even those that were configured. Fix: derive `configuredTypes` from DB (check if component config differs from registry defaults) or store it in the blueprint.
+
+### 7. Config Form Save Reliability
+
+**Q: Does Save wait for API response?**
+YES. `handleConfigSave` (line 244-279) is async. The individual config forms call `await handleConfigSave(...)` inside their `handleSave` handlers. The form shows a loading spinner (`saving` state) until the promise resolves, then shows the success badge (`saved` state).
+
+**Q: Error on save failure shown?**
+YES. `handleConfigSave` sets `setSaveError(message)` on failure (line 265-268). The error banner appears at the top of the wizard (line 352-363). The form state is preserved because the `throw` in `handleConfigSave` prevents `setSaved(true)` in the child component's catch path.
+
+**Q: "Apply to all" updates ALL component records?**
+YES — the parent passes `applyToAll: boolean` to the API (`PATCH /api/blueprints/[id]/components`). The server-side handler is responsible for bulk-updating all NodeComponent records of that type. The client correctly passes the flag.
+
+**Q: Config changes reflected in Review step costs?**
+- [ ] 🟢 **R7.1: Config changes DON'T affect cost estimates.** Costs are computed from `COMPONENT_REGISTRY[type].estimatedCost` which is static per component type. Changing video duration from 2min to 5min doesn't change the cost range ($3–$12). This is by design (estimates are per-type, not per-config), but worth documenting. A 2-min video and a 10-min video show the same estimated cost.
+
+### 8. Production Order Consistency
+
+- [ ] 🔴 **R8.1: Handoff ignores user's production order.** The user can reorder production order in the Workflow step (drag-to-reorder). This is stored in `workflowTemplate.productionOrder`. But `executeHandoff` at line 121 sorts by `PIPELINE_PHASE_ORDER[def.pipelineType]`, which is the fixed pipeline dependency order (documents=0, assessments=1, videos=2...). The user's custom order is completely ignored.
+
+  This means if a user explicitly sets "videos before documents" in the workflow, the handoff still creates document sessions first. The StageSession records are created in pipeline order regardless.
+
+  **Two options:**
+  1. Accept this and make it clear in the UI that production order is fixed by pipeline dependencies (remove drag-to-reorder or make it informational only).
+  2. Honor the user's order where dependencies allow (sort by user order within the same phase, but enforce cross-phase dependencies).
+
+  This was noted in the previous audit as A8.5 but labeled as documentation — it's actually a functional inconsistency between UI and behavior.
+
+### 9. Security Check
+
+**Q: Handoff endpoint validated with Zod?**
+- [ ] 🟡 **R9.1: No Zod validation on handoff endpoint.** `route.ts:9` does manual `if (!blueprintId || typeof blueprintId !== 'string')` check. This violates the API conventions rule ("Use Zod for request validation at API boundary"). Should use `z.object({ blueprintId: z.string().uuid() }).parse(body)`.
+
+**Q: Blueprint ownership check?**
+- [ ] 🟢 **R9.2: No ownership check.** Any client can POST any `blueprintId` and trigger handoff on someone else's blueprint. No auth yet so this is expected, but when auth is added, the handoff must verify `blueprint.project.userId === currentUser.id`.
+
+**Q: Cost limit check before handoff?**
+NO — no upper limit on component count or estimated cost. A project with 1000 components would create 1000 StageSession records in one transaction. This is acceptable for now (projects are user-created, not adversarial), but worth adding a sanity check later.
+
+**Q: Unbounded loops?**
+NO — the loop over `allComponents` is bounded by the number of NodeComponent records in the database. No recursion, no unbounded generation.
+
+### 10. Launch Page UX
+
+**Q: Double-click protection on Execute?**
+YES — `handoffLoading` disables the button during execution (line 298). While the request is in flight, the button shows a spinner and is disabled.
+
+**Q: Success state persists across refresh?**
+- [ ] 🟡 **R10.1: Success state lost on refresh.** `handoffResult` is React state. After refresh, the Execute button reappears. Clicking it again triggers the API, which returns `NO_COMPONENTS` error (all components are now `queued`). The user sees "Handoff failed: No eligible components found" — confusing.
+  **Fix:** After the page loads, check if components are already `queued`/`in_production` and show the success state immediately. Or persist handoff completion status on the blueprint/project.
+
+**Q: Error state actionable?**
+YES — error is shown with a clear message (line 315-322). The Execute button remains enabled after error, so the user can retry. No explicit retry button, but the Execute button serves that purpose.
+
+**Q: Dashboard link works?**
+YES — `Link href={/project/${projectId}}` at line 375 routes to the project detail page.
+
+### 11. Principle #8 Compliance (User Sovereignty)
+
+**Q: Can user launch with zero components?**
+NO — the Execute button is disabled when `componentCount === 0` (line 298). The handoff also throws `NO_COMPONENTS`. This is the ONE valid place to enforce a minimum — you can't produce nothing.
+
+**Q: Hidden defaults during handoff?**
+- [ ] 🟢 **R11.1: `bestGrade` silently populated with batch metadata.** For video components, the handoff injects `{ batchIndex, batchSize, componentType }` into `bestGrade` without user awareness. This is an internal implementation detail, not a user-facing default. Acceptable, but should be stored elsewhere (see R5.1).
+
+**Q: Does handoff respect user's production order?**
+NO — see R8.1. The handoff overrides the user's order with fixed pipeline phase ordering.
+
+### 12. Cross-Macro Integration
+
+**Q: Dashboard shows new StageSession records after handoff?**
+- [ ] 🟡 **R12.1: Dashboard uses mock data.** `src/app/(pages)/project/[id]/page.tsx` generates mock StageSession arrays (not DB queries). After handoff creates real sessions, the dashboard won't display them. This is expected (dashboard wiring is a future macro), but worth noting.
+
+**Q: Pipeline stage IDs align?**
+PARTIALLY:
+- Video handoff uses `stageId: 1` → pipeline.ts `STAGES[0].id = 1` (Discovery). MATCH.
+- Document handoff uses `stageId: 100` → No stage 100 in pipeline.ts (only stages 1-16 exist). This is intentional — document/assessment/activity/capstone pipelines don't exist in pipeline.ts yet. They use placeholder IDs (100, 200, 400, 500, 600) that will be defined when those pipelines are built.
+- [ ] 🟢 **R12.2: Non-video stage IDs (100, 200, 400, 500, 600) are placeholders.** They don't conflict with existing stages (1-16), so no immediate issue. But when document/assessment pipelines are built, these IDs must be formalized in a shared constant.
+
+**Q: Type mismatches between Project Component and src/lib/types.ts?**
+- `SessionStatus` enum (Prisma) matches `StageSession.status` union type (types.ts:72). MATCH.
+- `ProjectStatus` enum (Prisma) matches `Project.status` union type (types.ts:86). MATCH.
+- `StageSession.bestGrade` typed as `Grade | null` in types.ts, but handoff writes non-Grade JSON for video batches. MISMATCH — see R5.1.
+
+---
+
+### Summary
+
+| ID | Severity | Description | Action |
+|----|----------|-------------|--------|
+| R1.1 | 🔴 CRITICAL | Build fails — server module in client import chain | Fix before Macro 9 |
+| R5.1 | 🔴 CRITICAL | Batch metadata stored in `bestGrade` violates type contract | Fix before Macro 9 |
+| R8.1 | 🔴 CRITICAL | Handoff ignores user's production order | Fix before Macro 9 |
+| R3.1 | 🟡 IMPORTANT | Misleading error on double-execution | Fix during Macro 9 |
+| R3.2 | 🟡 IMPORTANT | Race condition on concurrent handoff requests | Fix during Macro 9 |
+| R4.1 | 🟡 IMPORTANT | `discussion_prompt`/`mentor_checklist` phase grouping inconsistency | Fix during Macro 9 |
+| R6.1 | 🟡 IMPORTANT | Config settings lost on disable/re-enable (if unsaved) | Fix during Macro 9 |
+| R6.2 | 🟡 IMPORTANT | `configuredTypes` resets on page refresh | Fix during Macro 9 |
+| R9.1 | 🟡 IMPORTANT | No Zod validation on handoff endpoint | Fix during Macro 9 |
+| R10.1 | 🟡 IMPORTANT | Success state lost on launch page refresh | Fix during Macro 9 |
+| R7.1 | 🟢 MINOR | Config changes don't affect cost estimates (by design) | Document |
+| R9.2 | 🟢 MINOR | No blueprint ownership check (no auth yet) | Add with auth |
+| R11.1 | 🟢 MINOR | `bestGrade` silently populated (covered by R5.1) | See R5.1 |
+| R12.1 | 🟢 MINOR | Dashboard uses mock data (future macro) | Future work |
+| R12.2 | 🟢 MINOR | Non-video stage IDs are placeholders | Formalize later |
+
+### Verdict
+
+**CONDITIONAL PASS — 3 critical issues must be fixed before starting Macro 9 feature work.**
+
+R1.1 (build failure) is a blocker — the app cannot be deployed. R5.1 (bestGrade type violation) will cause runtime errors when the production pipeline reads video sessions. R8.1 (production order ignored) is a user-visible broken promise — the workflow step lets users reorder, but the handoff discards their choice.
+
+The 7 important issues are real but non-blocking. They can be addressed during early Macro 9 work. The 5 minor issues are tech debt to track.
+
+Code quality is excellent: zero `any` types, zero console.log in production code, zero TODO markers. TypeScript strict passes cleanly. All 323 tests pass. The transaction-based handoff is architecturally sound. The wizard UX is well-crafted with proper error handling, loading states, and debounced saves.

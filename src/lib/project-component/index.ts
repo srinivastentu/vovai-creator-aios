@@ -135,7 +135,7 @@ export {
   deserializeBlueprint,
 } from './tree/tree-serializer'
 
-// ─── Production (handoff + cost estimator) ─────────────────────────────────
+// ─── Production (cost estimator only — client-safe) ─────────────────────────
 
 export type {
   CostRange,
@@ -146,15 +146,7 @@ export type {
 
 export { estimateProjectCost } from './production/cost-estimator'
 
-export type {
-  HandoffResult,
-  VideoBatch,
-  HandoffErrorCode,
-} from './production/handoff'
-
-export { executeHandoff, HandoffError } from './production/handoff'
-
-// ─── Ideation (phase manager + loop engine) ─────────────────────────────────
+// ─── Ideation (phase manager only — client-safe, no db imports) ─────────────
 
 export type {
   HumanFeedbackEntry,
@@ -169,14 +161,6 @@ export {
   createInitialState,
 } from './ideation/phase-manager'
 
-export type {
-  IdeationStepResult,
-  HumanFeedback,
-} from './ideation/loop-engine'
-
-// ─── Conversation Manager ───────────────────────────────────────────────────
-
-export type {
-  CreateConversationInput,
-  AddMessageInput,
-} from './ideation/conversation-manager'
+// ─── Server-only exports live in ./server.ts ────────────────────────────────
+// executeHandoff, HandoffError, conversation-manager, loop-engine
+// Import from '@/lib/project-component/server' in API routes.

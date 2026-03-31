@@ -96,6 +96,7 @@ const sampleSessions: StageSession[] = STAGES.map((stage) => {
       currentArtifact: makeMockArtifact("discovery", 3),
       bestArtifact: makeMockArtifact("discovery", 3),
       bestGrade: makeMockGrade(8.4),
+      metadata: null,
     }
   }
   if (stage.id === 2) {
@@ -111,6 +112,7 @@ const sampleSessions: StageSession[] = STAGES.map((stage) => {
       currentArtifact: makeMockArtifact("script", 2),
       bestArtifact: makeMockArtifact("script", 2),
       bestGrade: makeMockGrade(8.2),
+      metadata: null,
     }
   }
   if (stage.id === 3) {
@@ -123,6 +125,7 @@ const sampleSessions: StageSession[] = STAGES.map((stage) => {
       currentArtifact: null,
       bestArtifact: null,
       bestGrade: null,
+      metadata: null,
     }
   }
   return {
@@ -134,6 +137,7 @@ const sampleSessions: StageSession[] = STAGES.map((stage) => {
     currentArtifact: null,
     bestArtifact: null,
     bestGrade: null,
+    metadata: null,
   }
 })
 

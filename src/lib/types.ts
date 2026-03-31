@@ -74,6 +74,7 @@ export interface StageSession {
   currentArtifact: Artifact | null
   bestArtifact: Artifact | null
   bestGrade: Grade | null
+  metadata: Record<string, unknown> | null
 }
 
 // --- Project ---

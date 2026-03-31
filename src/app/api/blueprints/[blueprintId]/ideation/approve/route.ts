@@ -11,6 +11,7 @@ import {
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { processHumanFeedback, runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
+import { materializeStructure } from '@/lib/project-component/ideation/materializer'
 import type {
   IdeationPhase,
   ProjectArchetype,
@@ -122,6 +123,17 @@ export async function POST(
       data: { ideationPhase: updatedState.currentPhase },
     })
 
+    // On approval, materialize the proposed structure into ProjectNode + NodeComponent records
+    let materializeResult = null
+    if (parsed.data.action === 'approve' && updatedState.proposedStructure) {
+      materializeResult = await materializeStructure(
+        blueprintId,
+        updatedState.proposedStructure,
+        updatedState.componentPlan ?? null,
+        updatedState.archetype ?? null,
+      )
+    }
+
     // If feedback or restructure, auto-run the next step
     let nextStepResult = null
     if (parsed.data.action !== 'approve') {
@@ -170,6 +182,7 @@ export async function POST(
       message: responseMessage,
       nextStep: nextStepResult,
       costUSD: nextStepResult?.costUSD ?? 0,
+      materializeResult,
       messages,
       state: updatedState,
     })

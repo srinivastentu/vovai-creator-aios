@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:watch": "vitest watch",
-    "db:seed:pc": "npx tsx scripts/seed-project-component.ts"
+    "db:seed:pc": "npx tsx scripts/seed-project-component.ts",
+    "test:e2e": "npx tsx scripts/test-e2e-project-component.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
