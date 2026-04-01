@@ -1875,3 +1875,295 @@ All multi-step DB writes use `$transaction()`. Failures roll back automatically.
 **All 12 areas audited.** 3 critical/high issues fixed during audit. 6 known gaps explicitly deferred to Ring-5 with TODO markers on every affected route. Zero vulnerabilities in dependencies. Zero type errors. Zero `as any`. All 382 tests passing. Build clean.
 
 **Ready to tag `v1.0.0-project-component`.**
+
+---
+
+## Enterprise Grade Assessment
+
+Assessment of the Project Component layer against 5 enterprise qualities.
+Context: pre-auth, single developer, local PostgreSQL, no deployment yet.
+
+---
+
+### 1. SCALABILITY — Can the system handle growth?
+
+**a) Relevant now?**
+Partially. With seed data (~12 nodes, ~25 components), nothing will break.
+But a real K-12 project (220 videos, 50+ topics) will hit the edges of
+current patterns during the FIRST real production run. Pagination and
+connection pooling are near-term, not distant concerns.
+
+**b) What we already have:**
+- Tree engine handles multi-level hierarchies (Course → Module → Topic → Subtopic)
+  with pure functions: `buildTree()`, `flattenTree()`, `moveNode()` in
+  [tree-utils.ts](src/lib/project-component/tree/tree-utils.ts)
+- Eager loading with Prisma `include` prevents N+1 queries on node/component loads
+- Batch processing in handoff: videos grouped by 10, transaction-wrapped
+  [handoff.ts:146](src/lib/project-component/production/handoff.ts#L146)
+- Loop caps: `maxIterations: 5` per stage, `maxLoops: 5` for ideation
+- Cost guard caps spending at $5/session
+  [cost-guard.ts:16](src/lib/project-component/ideation/cost-guard.ts#L16)
+- Subtopics get zero default components — reduces cardinality at leaf level
+
+**c) Genuinely missing (track for later):**
+- [ ] **Pagination on list endpoints** — `findMany()` calls have no `skip`/`take`.
+  A 1000-node project will load everything into memory. Affects: blueprints list,
+  nodes list, conversation messages (loads ALL messages in one query)
+- [ ] **Connection pool configuration** — `src/lib/db.ts` uses default PrismaPg
+  adapter with no `maxConnections`. 10+ concurrent users will exhaust connections
+- [ ] **Incremental tree loading** — entire tree loaded into memory for every
+  operation. Large projects need subtree loading or virtual scrolling
+- [ ] **Materialization parallelism** — nested `for` loops create nodes
+  sequentially inside a transaction. 100+ nodes = slow materialization
+- [ ] **Caching layer** — tree rebuilds from conversation on every request.
+  No Redis or in-process memoization. 20+ messages = 20+ full rebuilds
+
+**d) Waste of time now:**
+- Redis caching — no concurrent users yet
+- Horizontal scaling / load balancing — single developer, single machine
+- Dynamic batch sizing — fixed batch of 10 is fine until we have real data
+- Sharding or read replicas — PostgreSQL on localhost handles current scale
+- Queue system (Bull/BullMQ) — no background workers needed yet
+
+---
+
+### 2. RESILIENCY — Does the system recover from failures?
+
+**a) Relevant now?**
+Yes — even a single developer hits API timeouts, model rate limits, and
+database hiccups. The agent executor's retry/fallback pattern already saved
+us during development. The question is whether partial failures leave state
+corrupted. Current answer: mostly no, thanks to transactions.
+
+**b) What we already have:**
+- **Transactions on all critical writes:**
+  - Handoff: all-or-nothing session creation
+    [handoff.ts:146](src/lib/project-component/production/handoff.ts#L146)
+  - Materialization: atomic node+component creation
+    [materializer.ts:59](src/lib/project-component/ideation/materializer.ts#L59)
+  - Version restore: full blueprint rebuild in transaction
+  - Node reorder: atomic depth/path recalculation
+- **Agent executor with retry + fallback model:**
+  [executor.ts:58-67](src/lib/project-component/agents/framework/executor.ts#L58-L67)
+  tries primary model, falls back to secondary, configurable `maxRetries`
+  with exponential backoff. Returns `AgentResult<T>` — never throws
+- **State reconstruction:** loop state rebuilt from conversation messages on
+  every request. If a request fails mid-execution, next request picks up
+  from last good state
+- **Version snapshots:** immutable `BlueprintVersion` records capture full
+  state at each refinement cycle. Can restore any prior version atomically
+- **JSON parsing robustness:** strips markdown fences, enforces output size
+  limit (512KB). Invalid JSON = recorded failure, not crash
+- **Tree validation:** 7 independent checks (orphans, cycles, depth,
+  component levels, dependencies, duplicates, path consistency)
+- **Custom error codes:** `HandoffError` with typed codes, safe messages
+  to client, internal details logged only
+
+**c) Genuinely missing (track for later):**
+- [ ] **Mid-execution checkpoints in loop engine** — if `runAudienceAnalyst()`
+  succeeds but `runCurriculumStrategist()` fails, audience profile is lost.
+  Need per-agent checkpoint saves, not just per-loop-cycle
+- [ ] **Partial failure handling in Promise.all** — `runRefinementPhase()`
+  runs 3 agents in `Promise.all()`. One failure = all work discarded.
+  Should use `Promise.allSettled()` and salvage successful results
+- [ ] **Request idempotency** — double-submit creates duplicate conversations.
+  Need idempotent keys on POST endpoints (especially `/ideation/start`)
+- [ ] **Database retry logic** — Prisma transactions fail immediately on
+  transient errors. No retry with backoff for network blips
+- [ ] **Wall-clock timeout on refinement** — `runRefinementPhase()` has no
+  overall timeout. If AI provider is slow, request hangs indefinitely
+- [ ] **Circuit breaker for external APIs** — no fast-fail when Anthropic
+  is rate-limiting. Requests queue up instead of failing early
+
+**d) Waste of time now:**
+- Dead letter queue / task replay — no background job system yet
+- Graceful shutdown handlers — dev server restarts are instant
+- Multi-region failover — localhost
+- Health check dependencies (check Anthropic/FFmpeg/S3) — none connected yet
+- Chaos engineering / fault injection — premature for single-user system
+
+---
+
+### 3. SECURITY — Any gaps beyond PC-9.2?
+
+**a) Relevant now?**
+Mostly no for auth/authz (pre-deployment). But input validation and
+cost guards ARE relevant now — they prevent runaway costs during
+development and protect against malformed data corrupting the database.
+PC-9.2 covered the critical items. Remaining gaps are deployment concerns.
+
+**b) What we already have (from PC-9.2 audit):**
+- **Input validation:** Zod schemas on ALL API inputs
+  [validations/blueprint.ts](src/lib/validations/blueprint.ts),
+  [validations/ideation.ts](src/lib/validations/ideation.ts) —
+  string length limits, bounded records (max 50 keys), `slugify()` sanitization
+- **Cost guard:** $5/session limit, checked before every agent call
+- **SQL injection prevention:** Prisma ORM exclusively — no raw SQL anywhere
+- **XSS prevention:** no `dangerouslySetInnerHTML`, no raw `.innerHTML`,
+  all content stored as structured JSON
+- **Error sanitization:** generic messages to client, internal details logged only.
+  Custom `HandoffError` with safe message mapping
+- **Secret management:** API keys from `process.env`, not hardcoded.
+  `.env` excluded from git
+- **Agent output size cap:** 512KB limit prevents memory bombs
+
+**c) Genuinely missing (track for later):**
+- [ ] **Authentication + authorization** — every API route has
+  `// TODO(Ring-5)`. Zero permission checks. Any request can access any
+  project. Needed before ANY multi-user or deployment scenario
+- [ ] **Rate limiting** — expensive LLM endpoints (`/ideation/start`,
+  `/ideation/grade`) have no throttle. One bad actor = entire API quota gone
+- [ ] **Request size limits middleware** — no global cap on request body size
+- [ ] **CORS configuration** — no policy set for API routes
+- [ ] **API key rotation strategy** — keys in `.env` with no rotation mechanism
+- [ ] **Content Security Policy headers** — not configured
+
+**d) Waste of time now:**
+- Implementing Clerk auth — no deployment target yet
+- RBAC / role-based access — single developer
+- API key management UI — no external consumers
+- Secrets vault (AWS Secrets Manager, etc.) — `.env` is fine for local dev
+- HTTPS/TLS configuration — localhost
+- WAF / DDoS protection — no public endpoint
+- Penetration testing — nothing to attack yet
+
+---
+
+### 4. EXPLAINABILITY — Can users understand WHY?
+
+**a) Relevant now?**
+Yes — this is actually one of the strongest areas. The rubric grading
+system, agent conversation traces, and version snapshots already make
+the system highly transparent. Users can see WHY a structure scored
+what it did, WHICH dimensions need improvement, and HOW the blueprint
+evolved. This is core to the product, not an afterthought.
+
+**b) What we already have:**
+- **7-dimension rubric grading:** each dimension stores score + feedback text +
+  criteria bands (excellent/good/adequate/poor)
+  [structure-rubric.ts](src/lib/project-component/rubrics/structure-rubric.ts)
+- **StructureGrade model:** persists `dimensionScores` (JSON with per-dimension
+  feedback), `strengths[]`, `weaknesses[]`, `specificImprovements[]`,
+  and deterministic `recommendation` (approve/revise/restructure/reject)
+- **Grade API:** `GET /api/blueprints/[blueprintId]/grades` returns full grade
+  with all dimension data
+- **Component recommendation rationale:** `ComponentPlan.nodeRecommendations`
+  includes per-component `rationale` text explaining WHY each was suggested
+- **Blueprint versioning:** `BlueprintVersion` model captures full state +
+  `rubricScore` at each refinement cycle. Users can compare versions
+- **Conversation traces:** every agent output stored in `IdeationMessage`
+  with `structuredData` capturing `phase`, `archetype`, `audienceProfile`,
+  `proposedStructure`, `outcomesMap`, `componentPlan`, `gradeReport`
+- **Agent role attribution:** messages tagged with `role` (researcher,
+  pedagogy_expert, audience_analyst, critic, etc.) so users know which
+  agent contributed what
+- **Budget tiers:** 3 tiers (essential/recommended/comprehensive) with
+  descriptions explaining component tradeoffs
+
+**c) Genuinely missing (track for later):**
+- [ ] **Version diff/changelog** — snapshots exist but no computed delta.
+  Users can't see "what changed between v1 → v2" without manual comparison
+- [ ] **Intermediate agent reasoning** — final outputs stored but not
+  "alternatives considered and rejected" or "why option A over option B"
+- [ ] **Outcome → Component mapping display** — data exists in separate
+  structures but no explicit bidirectional link showing "Outcome X is
+  addressed by Components Y, Z"
+- [ ] **Devil's Advocate challenges as first-class entity** — stored in
+  `IdeationMessage.structuredData` but not in a dedicated DB table.
+  Can't query "all challenges ever raised for this blueprint"
+- [ ] **User-facing fix guidance** — grade feedback exists but no
+  component that explains HOW to fix failing dimensions or WHICH nodes
+  caused failures
+
+**d) Waste of time now:**
+- AI explanation generation (GPT-generated "here's why") — rubric feedback
+  already serves this purpose
+- Decision audit trail UI — no users to show it to yet
+- Explanation export (PDF reports) — premature
+- A/B testing of recommendations — single developer workflow
+- Explanation localization/translation — English only for now
+
+---
+
+### 5. OBSERVABILITY — Can developers see what's happening?
+
+**a) Relevant now?**
+Partially. Cost tracking is critical now (prevents surprise bills during
+development). Console logging is adequate for a single developer. But as
+soon as we enter production pipeline (Phases 1-5), we'll need structured
+logging and agent execution traces to debug multi-stage loops.
+
+**b) What we already have:**
+- **Per-call cost tracking:** every agent call returns `tokensIn`,
+  `tokensOut`, `costUSD`, `modelUsed`, `durationMs`
+  [executor.ts:130](src/lib/project-component/agents/framework/executor.ts#L130)
+- **Cost estimation:** `estimateProjectCost()` provides per-phase and
+  per-component-type estimates before production starts
+  [cost-estimator.ts](src/lib/project-component/production/cost-estimator.ts)
+- **Cost accumulation in DB:** `IterationRecord` model tracks cost per
+  iteration. `Project.totalCostUSD` tracks cumulative project spend
+- **Error sanitization:** all API routes follow consistent pattern —
+  `console.error()` internally, generic messages to client
+- **Pipeline status tracking:** `StageSession.status`, `NodeComponent.status`,
+  `ProjectBlueprint.ideationPhase` — status fields on all key models
+- **Database audit timestamps:** `createdAt`/`updatedAt` on all 13 models
+- **Health check endpoint:** `GET /api/project-component/health` returns
+  entity counts
+- **Agent execution logging:** `[agent:${id}] model= tokens_in= tokens_out=
+  cost= duration=` logged per call
+
+**c) Genuinely missing (track for later):**
+- [ ] **Structured logging** — all logs are `console.log/error` strings.
+  No JSON format, no log levels, no searchability. Need a logger utility
+  (Pino or similar) with `{ timestamp, level, agentId, costUSD }` format
+- [ ] **Request/correlation IDs** — no way to trace a request through
+  agent calls → DB writes → response. Need middleware that generates
+  `requestId` and attaches to all operations
+- [ ] **Event system** — `LoopEvent` type defined in `types.ts` but no
+  EventEmitter, no pub/sub, no SSE streaming. State changes go to DB
+  but aren't emitted as events
+- [ ] **Agent execution timeline** — data exists in `IdeationMessage` but
+  no trace context. Can't easily answer "which agents ran, in what order,
+  how long each took" without manual joins
+- [ ] **Pipeline completion metrics** — status fields exist but no single
+  query for "what % of this project is complete?"
+- [ ] **Cost burn rate alerting** — tracks accumulated cost but no warning
+  at 80% of limit, no burn rate calculation, no forecast
+- [ ] **Performance profiling** — only `durationMs` per agent call. No DB
+  query timing, no API endpoint latency, no p50/p95/p99
+
+**d) Waste of time now:**
+- OpenTelemetry / distributed tracing — single process, no microservices
+- Prometheus / Grafana dashboards — no production to monitor
+- APM tools (DataDog, New Relic) — no deployment
+- Log aggregation (ELK stack) — console is fine for local dev
+- Alerting / PagerDuty — single developer
+- Custom metrics SDK — no traffic to measure
+- Database query profiling — no performance issues at current scale
+
+---
+
+### Summary Matrix
+
+| Quality | Exists | Missing (Track) | Waste Now | Priority |
+|---------|--------|-----------------|-----------|----------|
+| **Scalability** | Tree engine, batching, loop caps, cost guard | Pagination, connection pool, caching, incremental loading | Redis, sharding, load balancing | Ring 3-4 |
+| **Resiliency** | Transactions, agent retry/fallback, state reconstruction, version snapshots | Mid-exec checkpoints, Promise.allSettled, idempotency, circuit breaker | DLQ, chaos engineering, multi-region | Ring 2-3 |
+| **Security** | Zod validation, cost guard, Prisma (no SQL injection), error sanitization, XSS-safe | Auth/authz (Ring 5), rate limiting, CORS, CSP headers | Clerk, RBAC, WAF, pen testing | Ring 5 |
+| **Explainability** | 7-dim rubric with feedback, agent traces, version snapshots, component rationale | Version diffs, intermediate reasoning, outcome→component mapping | Explanation AI, audit UI, PDF reports | Ring 3 |
+| **Observability** | Cost tracking (per-call + per-project), error sanitization, status fields, timestamps | Structured logging, correlation IDs, event system, agent timeline | OTEL, Prometheus, APM, log aggregation | Ring 2-3 |
+
+### Verdict
+
+**Strongest area: Explainability.** The rubric grading + agent traces + version
+snapshots make this unusually transparent for a pre-v1 system.
+
+**Most critical gap: Resiliency.** The `Promise.all()` without `allSettled()` and
+missing mid-execution checkpoints will bite us first — during real ideation
+sessions with flaky API connections.
+
+**First things to address when entering Ring 2:**
+1. `Promise.allSettled()` in refinement phase (10-minute fix, high impact)
+2. Request idempotency on `/ideation/start` (prevents duplicate sessions)
+3. Structured logging utility (foundation for everything else)
+4. Pagination on list endpoints (before real project data arrives)

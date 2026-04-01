@@ -427,6 +427,57 @@ describe('runIdeationStep — refinement phase', () => {
     expect(result.humanMessage).toContain('Rubric grading failed')
   })
 
+  it('salvages optimizer and devil results when only one agent throws', async () => {
+    const state = stateInRefinement()
+    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    // Optimizer throws (rejected promise) — should NOT block grading
+    vi.mocked(runStructureOptimizer).mockRejectedValue(new Error('Optimizer crashed'))
+    vi.mocked(runRubricGrader).mockResolvedValue(makeAgentResult(makeGradeReport(82)))
+    vi.mocked(runDevilsAdvocate).mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
+
+    const result = await runIdeationStep(state)
+
+    // Grader succeeded → should advance to review despite optimizer crash
+    expect(result.updatedState.currentPhase).toBe('review')
+    expect(result.updatedState.gradeReport?.overallScore).toBe(82)
+    expect(result.humanMessage).toContain('optimizer encountered an error')
+    // Devil's advocate result still applied
+    expect(result.updatedState.challenges).toEqual(MOCK_DEVILS_ADVOCATE.challenges)
+  })
+
+  it('salvages grader result when devil advocate throws', async () => {
+    const state = stateInRefinement()
+    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    vi.mocked(runStructureOptimizer).mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
+    vi.mocked(runRubricGrader).mockResolvedValue(makeAgentResult(makeGradeReport(78)))
+    vi.mocked(runDevilsAdvocate).mockRejectedValue(new Error('Network timeout'))
+
+    const result = await runIdeationStep(state)
+
+    expect(result.updatedState.currentPhase).toBe('review')
+    expect(result.humanMessage).toContain("Devil's advocate encountered an error")
+    // Challenges should remain whatever was on state before (null for fresh refinement)
+    expect(result.updatedState.challenges).toBeNull()
+  })
+
+  it('fails when grader throws (rejected promise)', async () => {
+    const state = stateInRefinement()
+    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    vi.mocked(runStructureOptimizer).mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
+    vi.mocked(runRubricGrader).mockRejectedValue(new Error('API key expired'))
+    vi.mocked(runDevilsAdvocate).mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
+
+    const result = await runIdeationStep(state)
+
+    expect(result.awaitingHuman).toBe(true)
+    expect(result.humanMessage).toContain('Rubric grading failed')
+    // Advisory agents still ran — devil's advocate result salvaged into state
+    expect(result.updatedState.challenges).toEqual(MOCK_DEVILS_ADVOCATE.challenges)
+  })
+
   it('returns error when prerequisites are missing', async () => {
     const state = {
       ...createInitialState('bp-001', 'Build a course'),

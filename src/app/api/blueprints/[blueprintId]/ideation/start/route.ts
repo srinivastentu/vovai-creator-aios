@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { startIdeationSchema } from '@/lib/validations/ideation'
 import { formatZodError } from '@/lib/validations/blueprint'
-import { createConversation, addMessage } from '@/lib/project-component/ideation/conversation-manager'
+import { createConversation, addMessage, getLatestConversation } from '@/lib/project-component/ideation/conversation-manager'
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
 import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
@@ -35,6 +35,23 @@ export async function POST(
     })
     if (!blueprint) {
       return NextResponse.json({ error: 'Blueprint not found' }, { status: 404 })
+    }
+
+    // Idempotency: if an active conversation already exists, return it
+    // instead of creating a duplicate (prevents double-submit issues)
+    const existing = await getLatestConversation(blueprintId)
+    if (existing && existing.messages.length > 0) {
+      const lastMsg = existing.messages[existing.messages.length - 1]
+      const structuredData = lastMsg.structuredData as Record<string, unknown> | null
+      return NextResponse.json({
+        conversationId: existing.id,
+        phase: structuredData?.phase ?? blueprint.ideationPhase,
+        archetype: structuredData?.archetype ?? null,
+        awaitingHuman: true,
+        message: lastMsg.content,
+        costUSD: 0,
+        duplicate: true,
+      }, { status: 200 })
     }
 
     // Check cost limit before running agents

@@ -284,29 +284,42 @@ async function runRefinementPhase(
   const outcomesMap = next.outcomesMap!
   const componentPlan = next.componentPlan!
 
-  const [optimizerResult, graderResult, devilResult] = await Promise.all([
+  // Use allSettled so one agent failure doesn't discard the others' work.
+  // Only the grader is a hard gate — optimizer and devil's advocate are advisory.
+  const [optimizerSettled, graderSettled, devilSettled] = await Promise.allSettled([
     runStructureOptimizer(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
     runRubricGrader(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
     runDevilsAdvocate(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
   ])
 
-  totalCost += optimizerResult.costUSD + graderResult.costUSD + devilResult.costUSD
+  const optimizerResult = optimizerSettled.status === 'fulfilled' ? optimizerSettled.value : null
+  const graderResult = graderSettled.status === 'fulfilled' ? graderSettled.value : null
+  const devilResult = devilSettled.status === 'fulfilled' ? devilSettled.value : null
 
-  if (optimizerResult.success && optimizerResult.output) {
+  totalCost += (optimizerResult?.costUSD ?? 0) + (graderResult?.costUSD ?? 0) + (devilResult?.costUSD ?? 0)
+
+  if (optimizerResult?.success && optimizerResult.output) {
     messages.push(`Structure health score: ${optimizerResult.output.healthScore}/100.`)
+  } else if (optimizerSettled.status === 'rejected') {
+    messages.push('Structure optimizer encountered an error — skipping (advisory only).')
   }
 
-  if (devilResult.success && devilResult.output) {
+  if (devilResult?.success && devilResult.output) {
     next.challenges = devilResult.output.challenges
     messages.push(`Devil's advocate raised ${devilResult.output.challenges.length} challenges (risk level: ${devilResult.output.overallRiskLevel}).`)
+  } else if (devilSettled.status === 'rejected') {
+    messages.push("Devil's advocate encountered an error — skipping (advisory only).")
   }
 
-  // Grading is the gate
-  if (!graderResult.success || !graderResult.output) {
+  // Grading is the gate — must succeed for the loop to continue
+  if (!graderResult || !graderResult.success || !graderResult.output) {
+    const reason = graderSettled.status === 'rejected'
+      ? String(graderSettled.reason)
+      : (graderResult?.error ?? 'unknown error')
     return {
       state: next,
       awaitingHuman: true,
-      message: `Rubric grading failed: ${graderResult.error ?? 'unknown error'}`,
+      message: `Rubric grading failed: ${reason}`,
       cost: totalCost,
     }
   }
