@@ -5,6 +5,10 @@ import { formatZodError } from '@/lib/validations/blueprint'
 import { createConversation, addMessage } from '@/lib/project-component/ideation/conversation-manager'
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
+import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+
+// TODO(Ring-5): Add authentication + authorization middleware
+// TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/start
@@ -31,6 +35,15 @@ export async function POST(
     })
     if (!blueprint) {
       return NextResponse.json({ error: 'Blueprint not found' }, { status: 404 })
+    }
+
+    // Check cost limit before running agents
+    const costCheck = await checkCostLimit(blueprintId)
+    if (!costCheck.ok) {
+      return NextResponse.json(
+        { error: 'Ideation cost limit reached. Please start a new session or contact support.' },
+        { status: 400 }
+      )
     }
 
     // Create conversation

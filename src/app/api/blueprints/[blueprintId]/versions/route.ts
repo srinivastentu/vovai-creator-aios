@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 /**
  * POST /api/blueprints/[blueprintId]/versions
  * Create a version snapshot of the current blueprint state.

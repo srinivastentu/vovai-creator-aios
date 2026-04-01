@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { updateNodeSchema, formatZodError, slugify } from '@/lib/validations/blueprint'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 type RouteParams = { params: Promise<{ blueprintId: string; nodeId: string }> }
 
 export async function GET(_request: Request, { params }: RouteParams) {

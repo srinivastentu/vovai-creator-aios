@@ -4,6 +4,8 @@ import { Prisma } from '@/generated/prisma/client'
 import { createBlueprintSchema, formatZodError } from '@/lib/validations/blueprint'
 import { getArchetype } from '@/lib/project-component/archetypes'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 /**
  * GET /api/blueprints?projectId=xxx
  *

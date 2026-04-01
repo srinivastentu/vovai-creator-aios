@@ -5,6 +5,9 @@ import {
   getLatestConversation,
   getMessages,
 } from '@/lib/project-component/ideation/conversation-manager'
+import { IDEATION_PHASE_VALUES } from '@/lib/validations/blueprint'
+
+// TODO(Ring-5): Add authentication + authorization middleware
 
 /**
  * GET /api/blueprints/[blueprintId]/ideation/messages
@@ -36,6 +39,14 @@ export async function GET(
     const phaseFilter = url.searchParams.get('phase')
 
     if (phaseFilter) {
+      // Validate phase is a known enum value
+      if (!(IDEATION_PHASE_VALUES as readonly string[]).includes(phaseFilter)) {
+        return NextResponse.json(
+          { error: `Invalid phase "${phaseFilter}". Must be one of: ${IDEATION_PHASE_VALUES.join(', ')}` },
+          { status: 400 }
+        )
+      }
+
       // Get conversation for a specific phase
       const conversation = await db.ideationConversation.findFirst({
         where: { blueprintId, phase: phaseFilter as IdeationPhaseEnum },

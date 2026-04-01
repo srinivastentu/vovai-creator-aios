@@ -11,6 +11,11 @@ import {
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
+import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+
+// TODO(Ring-5): Add authentication + authorization middleware
+// TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
+
 import type {
   IdeationPhase,
   ProjectArchetype,
@@ -53,6 +58,15 @@ export async function POST(
     if (!conversation) {
       return NextResponse.json(
         { error: 'No active conversation. Call /ideation/start first.' },
+        { status: 400 }
+      )
+    }
+
+    // Check cost limit before running agents
+    const costCheck = await checkCostLimit(blueprintId)
+    if (!costCheck.ok) {
+      return NextResponse.json(
+        { error: 'Ideation cost limit reached. Please start a new session or contact support.' },
         { status: 400 }
       )
     }

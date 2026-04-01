@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 /**
  * GET /api/blueprints/[blueprintId]/grades
  *

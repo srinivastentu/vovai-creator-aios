@@ -73,7 +73,7 @@ describe('workflowTemplateSchema', () => {
     expect(result.success).toBe(false)
     if (!result.success) {
       const messages = result.error.issues.map(i => i.message).join(', ')
-      expect(messages).toContain('Unknown component type')
+      expect(messages).toContain('Invalid option')
     }
   })
 

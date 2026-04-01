@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { createProjectSchema } from '@/lib/validations/project'
 import { formatZodError } from '@/lib/validations/blueprint'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 export async function GET() {
   try {
     const projects = await db.project.findMany({

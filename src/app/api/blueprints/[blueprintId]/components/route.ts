@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import { addComponentSchema, bulkUpdateComponentConfigSchema, formatZodError } from '@/lib/validations/blueprint'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ blueprintId: string }> }

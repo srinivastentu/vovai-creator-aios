@@ -9,6 +9,8 @@ import {
   type ComponentStatus,
 } from '@/generated/prisma/client'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 interface SnapshotNode {
   id: string
   blueprintId: string

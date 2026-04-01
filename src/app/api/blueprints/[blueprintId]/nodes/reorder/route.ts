@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { reorderNodesSchema, formatZodError } from '@/lib/validations/blueprint'
 
+// TODO(Ring-5): Add authentication + authorization middleware
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ blueprintId: string }> }

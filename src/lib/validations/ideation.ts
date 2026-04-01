@@ -16,6 +16,14 @@ export const sendMessageSchema = z.object({
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>
 
+// ─── Ideation Ask (Q&A) ────────────────────────────────────────────────────
+
+export const askMessageSchema = z.object({
+  message: z.string().min(1, 'Message is required').max(5000, 'Message cannot exceed 5,000 characters'),
+})
+
+export type AskMessageInput = z.infer<typeof askMessageSchema>
+
 // ─── Ideation Grade ──────────────────────────────────────────────────────────
 
 export const triggerGradeSchema = z.object({
@@ -29,7 +37,15 @@ export type TriggerGradeInput = z.infer<typeof triggerGradeSchema>
 
 export const approveSchema = z.object({
   action: z.enum(['approve', 'feedback', 'restructure']),
-  message: z.string().optional().default(''),
+  message: z.string().max(5000, 'Message cannot exceed 5,000 characters').optional().default(''),
 })
 
 export type ApproveInput = z.infer<typeof approveSchema>
+
+// ─── Handoff ─────────────────────────────────────────────────────────────────
+
+export const handoffSchema = z.object({
+  blueprintId: z.string().min(1, 'blueprintId is required').max(100),
+})
+
+export type HandoffInput = z.infer<typeof handoffSchema>

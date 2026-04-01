@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { executeIdeationAgent } from '@/lib/project-component/agents/framework/executor'
+import { askMessageSchema } from '@/lib/validations/ideation'
+import { formatZodError } from '@/lib/validations/blueprint'
+import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+
+// TODO(Ring-5): Add authentication + authorization middleware
+// TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/ask
@@ -16,10 +22,20 @@ export async function POST(
   try {
     const { blueprintId } = await params
     const body = await request.json()
-    const question = body.message?.trim()
 
-    if (!question) {
-      return NextResponse.json({ error: 'Message is required' }, { status: 400 })
+    const parsed = askMessageSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({ error: formatZodError(parsed.error) }, { status: 400 })
+    }
+    const question = parsed.data.message.trim()
+
+    // Check cost limit before running agent
+    const costCheck = await checkCostLimit(blueprintId)
+    if (!costCheck.ok) {
+      return NextResponse.json(
+        { error: 'Ideation cost limit reached. Please start a new session or contact support.' },
+        { status: 400 }
+      )
     }
 
     // Load blueprint with nodes

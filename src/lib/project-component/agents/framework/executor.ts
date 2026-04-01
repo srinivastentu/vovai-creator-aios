@@ -150,7 +150,15 @@ async function tryModel<T>(
   return makeErrorResult(config, start, lastError, model)
 }
 
+/** Maximum allowed size for agent output text (500KB) */
+const MAX_OUTPUT_SIZE = 512_000
+
 function parseOutput<T>(text: string, outputSchema?: Record<string, unknown>): T {
+  // Guard: reject excessively large outputs
+  if (text.length > MAX_OUTPUT_SIZE) {
+    throw new Error(`Agent output exceeds maximum size (${text.length} > ${MAX_OUTPUT_SIZE} bytes)`)
+  }
+
   if (!outputSchema) {
     return text as unknown as T
   }
@@ -161,7 +169,17 @@ function parseOutput<T>(text: string, outputSchema?: Record<string, unknown>): T
     cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
   }
 
-  return JSON.parse(cleaned) as T
+  const parsed = JSON.parse(cleaned)
+
+  // Validate: when a schema was requested, output must be a non-null object or array
+  if (parsed === null || parsed === undefined) {
+    throw new Error('Agent returned null/undefined when structured output was expected')
+  }
+  if (typeof parsed !== 'object') {
+    throw new Error(`Agent returned ${typeof parsed} when structured output was expected`)
+  }
+
+  return parsed as T
 }
 
 function makeErrorResult<T>(

@@ -12,6 +12,11 @@ import { createInitialState } from '@/lib/project-component/ideation/phase-manag
 import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { processHumanFeedback, runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
 import { materializeStructure } from '@/lib/project-component/ideation/materializer'
+import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+
+// TODO(Ring-5): Add authentication + authorization middleware
+// TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
+
 import type {
   IdeationPhase,
   ProjectArchetype,
@@ -134,9 +139,17 @@ export async function POST(
       )
     }
 
-    // If feedback or restructure, auto-run the next step
+    // If feedback or restructure, auto-run the next step (with cost check)
     let nextStepResult = null
     if (parsed.data.action !== 'approve') {
+      const costCheck = await checkCostLimit(blueprintId)
+      if (!costCheck.ok) {
+        return NextResponse.json(
+          { error: 'Ideation cost limit reached. Please start a new session or contact support.' },
+          { status: 400 }
+        )
+      }
+
       const stepResult = await runIdeationStep(updatedState, parsed.data.message)
 
       await addMessage({
