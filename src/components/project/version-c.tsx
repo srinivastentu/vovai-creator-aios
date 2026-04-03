@@ -114,7 +114,7 @@ function DetailCard({ config, session }: { config: StageConfig; session: StageSe
             <span />
           )}
           {session.status === "awaiting_review" && (
-            <Button size="sm" render={<Link href={`/review/${session.id}`} />}>
+            <Button size="sm" nativeButton={false} render={<Link href={`/review/${session.id}`} />}>
               Review
             </Button>
           )}

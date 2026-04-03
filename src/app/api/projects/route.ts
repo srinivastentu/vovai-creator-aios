@@ -15,12 +15,27 @@ export async function GET() {
             id: true,
             ideationPhase: true,
             archetype: true,
+            nodes: {
+              where: { depth: 1 },
+              select: { id: true },
+            },
           },
         },
       },
     })
 
-    return NextResponse.json(projects)
+    // Flatten node count into response
+    const mapped = projects.map(({ blueprint, ...rest }) => ({
+      ...rest,
+      blueprint: blueprint ? {
+        id: blueprint.id,
+        ideationPhase: blueprint.ideationPhase,
+        archetype: blueprint.archetype,
+        moduleCount: blueprint.nodes.length,
+      } : null,
+    }))
+
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('GET /api/projects error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

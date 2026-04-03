@@ -8,3 +8,9 @@ export const createProjectSchema = z.object({
 })
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>
+
+export const quickCreateSchema = z.object({
+  intent: z.string().min(10, "Please describe your learning intent in at least 10 characters").max(10000),
+})
+
+export type QuickCreateInput = z.infer<typeof quickCreateSchema>

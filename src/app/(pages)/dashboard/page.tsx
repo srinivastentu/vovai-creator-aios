@@ -51,7 +51,7 @@ export default function DashboardPage() {
               Your eLearning video productions
             </p>
           </div>
-          <Button size="lg" render={<Link href="/project/new" />}>
+          <Button size="lg" nativeButton={false} render={<Link href="/project/new" />}>
             <Plus className="size-4" />
             New Project
           </Button>
