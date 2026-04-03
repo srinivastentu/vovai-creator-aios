@@ -17,7 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useApi } from '@/lib/hooks/use-api'
 import { EmptyState } from '@/components/project-component/shared/empty-state'
-import { StructurePreview } from '@/components/project-component/chat/structure-preview'
+import { StructureEditor } from './structure-editor'
 import type { ProposedStructure, AudienceProfile, DimensionGradeScore, GradeRecommendation } from '@/lib/project-component'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -286,6 +286,12 @@ interface ArtifactPanelProps {
   proposedStructure: ProposedStructure | null
   audienceProfile: AudienceProfile | null
   structureRefreshKey: number
+  // Materialize
+  isMaterialized: boolean
+  onMaterialize: () => Promise<void>
+  materializeLoading: boolean
+  archetype: string | null
+  projectName: string
   children?: React.ReactNode
 }
 
@@ -298,6 +304,11 @@ export function ArtifactPanel({
   proposedStructure,
   audienceProfile,
   structureRefreshKey,
+  isMaterialized,
+  onMaterialize,
+  materializeLoading,
+  archetype,
+  projectName,
   children,
 }: ArtifactPanelProps) {
   const tabs = TAB_CONFIG.filter(t => visibleTabs.has(t.id))
@@ -324,11 +335,14 @@ export function ArtifactPanel({
       case 'structure':
         if (blueprintId) {
           return (
-            <StructurePreview
+            <StructureEditor
               blueprintId={blueprintId}
-              projectId={projectId}
-              refreshKey={structureRefreshKey}
+              projectName={projectName}
+              archetype={archetype}
+              isMaterialized={isMaterialized}
               proposedStructure={proposedStructure}
+              onMaterialize={onMaterialize}
+              materializeLoading={materializeLoading}
             />
           )
         }

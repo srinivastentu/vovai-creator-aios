@@ -86,6 +86,11 @@ export interface UseProjectPageReturn {
   activeTab: ArtifactTab
   setActiveTab: (tab: ArtifactTab) => void
   visibleTabs: Set<ArtifactTab>
+
+  // Materialize
+  isMaterialized: boolean
+  materializeStructure: () => Promise<void>
+  materializeLoading: boolean
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -96,6 +101,8 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
   const [panelOpen, setPanelOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<ArtifactTab>('structure')
   const [visibleTabs, setVisibleTabs] = useState<Set<ArtifactTab>>(() => new Set())
+  const [isMaterialized, setIsMaterialized] = useState(false)
+  const [materializeLoading, setMaterializeLoading] = useState(false)
 
   // ── Data Fetching ─────────────────────────────────────────────────────────
 
@@ -339,6 +346,21 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
     }
   }, [lastStructureMsg])
 
+  const materializeStructure = useCallback(async () => {
+    if (!blueprint?.id) return
+    setMaterializeLoading(true)
+    try {
+      const res = await fetch(`/api/blueprints/${blueprint.id}/materialize`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error('Materialize failed')
+      setIsMaterialized(true)
+      setStructureRefreshKey(k => k + 1)
+    } finally {
+      setMaterializeLoading(false)
+    }
+  }, [blueprint?.id])
+
   // ── Artifact Panel Visibility ─────────────────────────────────────────────
 
   const prevVisibleCountRef = useRef(0)
@@ -351,6 +373,7 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
     if (currentPhase === 'approved') {
       next.add('configure')
       next.add('launch')
+      setIsMaterialized(true)
     }
 
     setVisibleTabs(next)
@@ -398,5 +421,8 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
     activeTab,
     setActiveTab,
     visibleTabs,
+    isMaterialized,
+    materializeStructure,
+    materializeLoading,
   }
 }

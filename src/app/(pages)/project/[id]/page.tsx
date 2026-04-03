@@ -116,6 +116,11 @@ export default function ProjectPage({
           proposedStructure={state.proposedStructure}
           audienceProfile={state.audienceProfile}
           structureRefreshKey={state.structureRefreshKey}
+          isMaterialized={state.isMaterialized}
+          onMaterialize={state.materializeStructure}
+          materializeLoading={state.materializeLoading}
+          archetype={state.blueprint?.archetype ?? null}
+          projectName={state.blueprint?.project.name ?? 'Untitled Project'}
         />
       }
     />
