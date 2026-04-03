@@ -115,12 +115,10 @@ async function runBrainstormPhase(
 }
 
 /**
- * Run the structure phase agents.
- *
- * Runs audience-analyst and curriculum-strategist in parallel,
- * then auto-advances to refinement.
+ * Structure phase step 1: Run audience analyst only.
+ * Returns awaitingHuman: true so user can confirm the profile.
  */
-async function runStructurePhase(
+async function runStructurePhaseAudience(
   state: IdeationLoopState
 ): Promise<{ state: IdeationLoopState; awaitingHuman: boolean; message: string; cost: number }> {
   if (!state.archetype) {
@@ -132,61 +130,67 @@ async function runStructurePhase(
     }
   }
 
-  // Run audience analyst and curriculum strategist in parallel
-  const [audienceResult, curriculumResult] = await Promise.all([
-    runAudienceAnalyst(state.brief, state.archetype),
-    runCurriculumStrategist(
-      state.brief,
-      state.archetype,
-      state.audienceProfile ?? {
-        primaryAudience: {
-          description: 'To be determined',
-          educationLevel: 'unknown',
-          experienceLevel: 'unknown',
-          learningContext: 'unknown',
-          motivations: [],
-          painPoints: [],
-          technologyComfort: 'intermediate',
-        },
-        prerequisiteKnowledge: [],
-        learningPreferences: {
-          preferredModalities: [],
-          attentionSpan: 'medium',
-          practicePreference: 'guided',
-        },
-      }
-    ),
-  ])
-
-  const cost = audienceResult.costUSD + curriculumResult.costUSD
+  const audienceResult = await runAudienceAnalyst(state.brief, state.archetype)
   const next = { ...state }
-  const messages: string[] = []
 
   if (audienceResult.success && audienceResult.output) {
     next.audienceProfile = audienceResult.output
-    messages.push('Audience profile completed.')
-  } else {
-    messages.push(`Audience analysis failed: ${audienceResult.error ?? 'unknown error'}`)
-  }
-
-  if (curriculumResult.success && curriculumResult.output) {
-    next.proposedStructure = curriculumResult.output
-    messages.push(`Course structure proposed: "${curriculumResult.output.courseTitle}" with ${curriculumResult.output.modules.length} modules.`)
-  } else {
-    messages.push(`Curriculum design failed: ${curriculumResult.error ?? 'unknown error'}`)
-  }
-
-  // Both must succeed to advance
-  if (audienceResult.success && curriculumResult.success) {
-    next.currentPhase = getNextPhase('structure')
-    messages.push('Advancing to refinement — agents will now map outcomes, recommend components, and evaluate the structure.')
+    next.awaitingAudienceConfirmation = true
+    return {
+      state: next,
+      awaitingHuman: true,
+      message: 'Audience profile ready. Please review and confirm before I design the course structure.',
+      cost: audienceResult.costUSD,
+    }
   }
 
   return {
     state: next,
-    awaitingHuman: !audienceResult.success || !curriculumResult.success,
-    message: messages.join('\n\n'),
-    cost,
+    awaitingHuman: true,
+    message: `Audience analysis failed: ${audienceResult.error ?? 'unknown error'}`,
+    cost: audienceResult.costUSD,
+  }
+}
+
+/**
+ * Structure phase step 2: Run curriculum strategist with confirmed audience.
+ * Called after user confirms the audience profile.
+ */
+async function runStructurePhaseStructure(
+  state: IdeationLoopState
+): Promise<{ state: IdeationLoopState; awaitingHuman: boolean; message: string; cost: number }> {
+  if (!state.archetype || !state.audienceProfile) {
+    return {
+      state,
+      awaitingHuman: true,
+      message: 'Cannot design structure without archetype and confirmed audience profile.',
+      cost: 0,
+    }
+  }
+
+  const curriculumResult = await runCurriculumStrategist(
+    state.brief,
+    state.archetype,
+    state.audienceProfile
+  )
+
+  const next = { ...state, awaitingAudienceConfirmation: false }
+  if (curriculumResult.success && curriculumResult.output) {
+    next.proposedStructure = curriculumResult.output
+    next.currentPhase = getNextPhase('structure')
+    return {
+      state: next,
+      awaitingHuman: false,
+      message: `Course structure proposed: "${curriculumResult.output.courseTitle}" with ${curriculumResult.output.modules.length} modules. Advancing to refinement.`,
+      cost: curriculumResult.costUSD,
+    }
+  }
+
+  return {
+    state: next,
+    awaitingHuman: true,
+    message: `Curriculum design failed: ${curriculumResult.error ?? 'unknown error'}`,
+    cost: curriculumResult.costUSD,
   }
 }
 
@@ -404,12 +408,32 @@ export async function runIdeationStep(
     }
 
     case 'structure': {
-      const result = await runStructurePhase(state)
+      // Step 1: audience analysis (if no audience yet)
+      if (!state.audienceProfile) {
+        const result = await runStructurePhaseAudience(state)
+        return {
+          updatedState: result.state,
+          awaitingHuman: result.awaitingHuman,
+          humanMessage: result.message,
+          stepCostUSD: result.cost,
+        }
+      }
+      // Step 2: curriculum design (audience confirmed)
+      if (!state.awaitingAudienceConfirmation) {
+        const result = await runStructurePhaseStructure(state)
+        return {
+          updatedState: result.state,
+          awaitingHuman: result.awaitingHuman,
+          humanMessage: result.message,
+          stepCostUSD: result.cost,
+        }
+      }
+      // Awaiting confirmation — should not reach here normally
       return {
-        updatedState: result.state,
-        awaitingHuman: result.awaitingHuman,
-        humanMessage: result.message,
-        stepCostUSD: result.cost,
+        updatedState: state,
+        awaitingHuman: true,
+        humanMessage: 'Please review and confirm the audience profile to proceed.',
+        stepCostUSD: 0,
       }
     }
 

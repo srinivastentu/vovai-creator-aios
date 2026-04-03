@@ -26,13 +26,31 @@ export async function POST(request: Request) {
     const { intent } = result.data
 
     // Extract a meaningful project name from the intent.
-    // Strategy: use first sentence, strip common conversational prefixes
-    // ("I want to", "Create a", "Build me a", etc.) to get to the subject.
+    // Strategy: find content after topic/subject markers first, then fall back
+    // to stripping conversational prefixes.
     const firstSentence = (intent.match(/^[^.!?\n]+/)?.[0] ?? intent).trim()
-    const stripped = firstSentence
-      .replace(/^(I('d| would| want to| need to| am looking to)|please|can you|help me|let'?s|we need to|create|build|make|design|develop|produce|generate)\s+/i, '')
-      .replace(/^(a |an |the |me |some |my )/i, '')
-    const raw = stripped.charAt(0).toUpperCase() + stripped.slice(1)
+
+    // Try to extract the subject after markers like "on the topic:", "about:", "on:", "titled:", "called:"
+    const topicMatch = firstSentence.match(
+      /(?:on the topic(?:\s+of)?|about|on|titled|called|regarding|covering)\s*[:]\s*(.+)/i
+    ) ?? firstSentence.match(
+      /(?:course|program|training|video|series|channel|curriculum|module)\s+(?:on|about|for|covering)\s+(.+)/i
+    )
+
+    let raw: string
+    if (topicMatch) {
+      raw = topicMatch[1].trim()
+    } else {
+      // Fall back: strip conversational prefixes
+      const stripped = firstSentence
+        .replace(/^(I('d| would| want(?: you)? to| need(?: you)? to| am looking to)|please|can you|help me|let'?s|we need to|create|build|make|design|develop|produce|generate)\s+/i, '')
+        .replace(/^(an?\s+)?(?:elearning |e-learning |online |interactive )?(?:course|program|training|video|series|channel|curriculum|module)\s+(?:on|about|for|covering)\s+/i, '')
+        .replace(/^(a |an |the |me |some |my )/i, '')
+      raw = stripped
+    }
+
+    raw = raw.replace(/^(a |an |the )/i, '')
+    raw = raw.charAt(0).toUpperCase() + raw.slice(1)
     const name = raw.length > 80 ? raw.slice(0, 77) + '...' : raw
 
     const archetype = 'professional_training' as const

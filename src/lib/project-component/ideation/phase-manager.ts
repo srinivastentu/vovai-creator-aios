@@ -111,6 +111,8 @@ export interface IdeationLoopState {
 
   // Accumulated context (built up across phases)
   audienceProfile: AudienceProfile | null
+  /** True when audience profile is ready but awaiting human confirmation */
+  awaitingAudienceConfirmation: boolean
   proposedStructure: ProposedStructure | null
   outcomesMap: OutcomesMap | null
   componentPlan: ComponentPlan | null
@@ -138,6 +140,7 @@ export function createInitialState(
     brief,
     archetype: null,
     audienceProfile: null,
+    awaitingAudienceConfirmation: false,
     proposedStructure: null,
     outcomesMap: null,
     componentPlan: null,
