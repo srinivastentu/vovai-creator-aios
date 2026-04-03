@@ -4,6 +4,7 @@ import { ChevronDown, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { RoleAvatar, getRoleConfig } from './role-avatar'
 import type { BrainstormRole, IdeationPhase, AudienceProfile } from '@/lib/project-component'
+import type { ArtifactTab } from '@/components/project-component/layout/artifact-panel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ interface ActivityCardProps {
   entry: ActivityEntry
   expanded: boolean
   onToggleExpand: () => void
+  onNavigateToTab?: (tab: ArtifactTab) => void
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -78,35 +80,31 @@ const ROLE_BORDER_COLORS: Record<BrainstormRole, string> = {
 
 // ─── Expanded Content Renderers ──────────────────────────────────────────────
 
-function AudienceProfileExpanded({ data }: { data: unknown }) {
+function AudienceProfileCompact({
+  data,
+  onNavigateToTab,
+}: {
+  data: unknown
+  onNavigateToTab?: (tab: ArtifactTab) => void
+}) {
   const profile = data as AudienceProfile | null
   if (!profile?.primaryAudience) return null
   const pa = profile.primaryAudience
   return (
-    <div className="flex flex-col gap-2 text-xs">
-      <p className="text-foreground">{pa.description}</p>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
-        {pa.educationLevel && <DetailRow label="Education" value={pa.educationLevel} />}
-        {pa.experienceLevel && <DetailRow label="Experience" value={pa.experienceLevel} />}
-        {pa.technologyComfort && <DetailRow label="Tech comfort" value={pa.technologyComfort} />}
-        {pa.ageRange && <DetailRow label="Age range" value={pa.ageRange} />}
-        {pa.learningContext && <DetailRow label="Context" value={pa.learningContext} />}
-      </div>
-      {pa.motivations?.length > 0 && (
-        <div>
-          <p className="mb-0.5 font-medium text-muted-foreground">Motivations</p>
-          <ul className="flex flex-col gap-0.5 text-muted-foreground">
-            {pa.motivations.map((m, i) => <li key={i}>&bull; {m}</li>)}
-          </ul>
-        </div>
+    <div className="flex flex-col gap-1.5 text-xs">
+      <p className="line-clamp-2 text-foreground">{pa.description}</p>
+      {pa.educationLevel && (
+        <p className="text-muted-foreground">
+          {pa.educationLevel}{pa.experienceLevel ? ` · ${pa.experienceLevel}` : ''}
+        </p>
       )}
-      {pa.painPoints?.length > 0 && (
-        <div>
-          <p className="mb-0.5 font-medium text-muted-foreground">Pain Points</p>
-          <ul className="flex flex-col gap-0.5 text-muted-foreground">
-            {pa.painPoints.map((p, i) => <li key={i}>&bull; {p}</li>)}
-          </ul>
-        </div>
+      {onNavigateToTab && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNavigateToTab('audience') }}
+          className="self-start text-xs font-medium text-primary hover:underline"
+        >
+          View full profile →
+        </button>
       )}
     </div>
   )
@@ -120,13 +118,18 @@ interface GradeReportData {
   totalComponents?: number
 }
 
-function GradeReportExpanded({ data }: { data: unknown }) {
+function GradeReportCompact({
+  data,
+  onNavigateToTab,
+}: {
+  data: unknown
+  onNavigateToTab?: (tab: ArtifactTab) => void
+}) {
   const report = data as GradeReportData | null
   if (!report) return null
   return (
-    <div className="flex flex-col gap-2 text-xs">
-      <div className="flex items-center justify-between">
-        <span className="text-muted-foreground">Overall Score</span>
+    <div className="flex flex-col gap-1.5 text-xs">
+      <div className="flex items-center gap-2">
         <Badge
           variant="outline"
           className={`text-[10px] ${
@@ -135,39 +138,17 @@ function GradeReportExpanded({ data }: { data: unknown }) {
               : 'border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300'
           }`}
         >
-          {report.overallScore.toFixed(1)}/100 ({report.recommendation})
+          {report.overallScore.toFixed(1)}/100
         </Badge>
+        <span className="text-muted-foreground capitalize">{report.recommendation}</span>
       </div>
-      {report.totalOutcomes != null && report.totalOutcomes > 0 && (
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span>Outcomes</span>
-          <span className="font-medium text-foreground">{report.totalOutcomes}</span>
-        </div>
-      )}
-      {report.totalComponents != null && report.totalComponents > 0 && (
-        <div className="flex items-center justify-between text-muted-foreground">
-          <span>Components</span>
-          <span className="font-medium text-foreground">{report.totalComponents}</span>
-        </div>
-      )}
-      {report.dimensionScores && report.dimensionScores.length > 0 && (
-        <div className="mt-1 flex flex-col gap-1">
-          <p className="font-medium text-muted-foreground">Dimensions</p>
-          {report.dimensionScores.map((dim) => (
-            <div key={dim.id ?? dim.name} className="flex items-center gap-2">
-              <span className="flex-1 truncate text-muted-foreground">{dim.name}</span>
-              <div className="h-1.5 w-16 rounded-full bg-muted">
-                <div
-                  className={`h-full rounded-full ${
-                    dim.score >= 75 ? 'bg-green-500' : dim.score >= 60 ? 'bg-amber-500' : 'bg-red-500'
-                  }`}
-                  style={{ width: `${Math.min(dim.score, 100)}%` }}
-                />
-              </div>
-              <span className="w-7 text-right tabular-nums font-medium">{dim.score}</span>
-            </div>
-          ))}
-        </div>
+      {onNavigateToTab && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNavigateToTab('grade') }}
+          className="self-start text-xs font-medium text-primary hover:underline"
+        >
+          View full report →
+        </button>
       )}
     </div>
   )
@@ -182,27 +163,34 @@ interface ProposedStructureData {
   }>
 }
 
-function ProposedStructureExpanded({ data }: { data: unknown }) {
+function ProposedStructureCompact({
+  data,
+  onNavigateToTab,
+}: {
+  data: unknown
+  onNavigateToTab?: (tab: ArtifactTab) => void
+}) {
   const structure = data as ProposedStructureData | null
   if (!structure?.modules?.length) return null
+  const topicCount = structure.modules.reduce(
+    (sum, m) => sum + (m.topics?.length ?? 0), 0
+  )
   return (
     <div className="flex flex-col gap-1.5 text-xs">
       {structure.courseTitle && (
         <p className="font-medium text-foreground">{structure.courseTitle}</p>
       )}
-      {structure.modules.map((mod, mi) => (
-        <div key={mi} className="ml-1">
-          <p className="font-medium text-foreground">{mod.title}</p>
-          {mod.topics?.map((topic, ti) => (
-            <div key={ti} className="ml-3 text-muted-foreground">
-              <p>&bull; {topic.title}</p>
-              {topic.subtopics?.map((sub, si) => (
-                <p key={si} className="ml-3 text-muted-foreground/70">- {sub.title}</p>
-              ))}
-            </div>
-          ))}
-        </div>
-      ))}
+      <p className="text-muted-foreground">
+        {structure.modules.length} modules · {topicCount} topics
+      </p>
+      {onNavigateToTab && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNavigateToTab('structure') }}
+          className="self-start text-xs font-medium text-primary hover:underline"
+        >
+          View structure →
+        </button>
+      )}
     </div>
   )
 }
@@ -229,29 +217,28 @@ function TextExpanded({ data }: { data: unknown }) {
   return <p className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">{text}</p>
 }
 
-function ExpandedContent({ type, data }: { type: ExpandedContentType; data: unknown }) {
+function ExpandedContent({
+  type,
+  data,
+  onNavigateToTab,
+}: {
+  type: ExpandedContentType
+  data: unknown
+  onNavigateToTab?: (tab: ArtifactTab) => void
+}) {
   switch (type) {
-    case 'audience_profile': return <AudienceProfileExpanded data={data} />
-    case 'proposed_structure': return <ProposedStructureExpanded data={data} />
-    case 'grade_report': return <GradeReportExpanded data={data} />
+    case 'audience_profile': return <AudienceProfileCompact data={data} onNavigateToTab={onNavigateToTab} />
+    case 'proposed_structure': return <ProposedStructureCompact data={data} onNavigateToTab={onNavigateToTab} />
+    case 'grade_report': return <GradeReportCompact data={data} onNavigateToTab={onNavigateToTab} />
     case 'challenges': return <ChallengesExpanded data={data} />
     case 'text': return <TextExpanded data={data} />
     default: return <TextExpanded data={data} />
   }
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium capitalize text-foreground">{value}</span>
-    </>
-  )
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ActivityCard({ entry, expanded, onToggleExpand }: ActivityCardProps) {
+export function ActivityCard({ entry, expanded, onToggleExpand, onNavigateToTab }: ActivityCardProps) {
   const isHuman = entry.role === 'human'
   const isActive = entry.status === 'active'
   const config = getRoleConfig(entry.role)
@@ -335,6 +322,7 @@ export function ActivityCard({ entry, expanded, onToggleExpand }: ActivityCardPr
           <ExpandedContent
             type={entry.expandedContent.type}
             data={entry.expandedContent.data}
+            onNavigateToTab={onNavigateToTab}
           />
         </div>
       )}

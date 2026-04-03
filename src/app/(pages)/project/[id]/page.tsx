@@ -97,6 +97,10 @@ export default function ProjectPage({
             }
           }}
           onSendMessage={state.handleSendMessage}
+          onNavigateToTab={(tab) => {
+            state.setActiveTab(tab)
+            state.setPanelOpen(true)
+          }}
         />
       }
       artifactPanel={

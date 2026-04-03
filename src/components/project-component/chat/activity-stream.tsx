@@ -6,6 +6,7 @@ import { ActivityCard } from './activity-card'
 import type { ActivityEntry, ExpandedContentType } from './activity-card'
 import type { ChatMessageData } from './chat-message'
 import type { BrainstormRole, IdeationPhase, IdeationMessageKind } from '@/lib/project-component'
+import type { ArtifactTab } from '@/components/project-component/layout/artifact-panel'
 
 // Re-export for convenience
 export type { ActivityEntry }
@@ -152,9 +153,10 @@ export function deriveActivityEntries(
 
 interface ActivityStreamProps {
   entries: ActivityEntry[]
+  onNavigateToTab?: (tab: ArtifactTab) => void
 }
 
-export function ActivityStream({ entries }: ActivityStreamProps) {
+export function ActivityStream({ entries, onNavigateToTab }: ActivityStreamProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
@@ -194,6 +196,7 @@ export function ActivityStream({ entries }: ActivityStreamProps) {
             entry={entry}
             expanded={expandedId === entry.id}
             onToggleExpand={() => handleToggleExpand(entry.id)}
+            onNavigateToTab={onNavigateToTab}
           />
         ))}
       </div>

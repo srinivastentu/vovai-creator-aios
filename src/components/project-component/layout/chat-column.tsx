@@ -7,6 +7,7 @@ import { PhaseIndicator } from '@/components/project-component/chat/phase-indica
 import { ErrorBanner } from '@/components/project-component/shared/error-banner'
 import type { ActivityEntry } from '@/components/project-component/chat/activity-card'
 import type { IdeationPhase } from '@/lib/project-component'
+import type { ArtifactTab } from '@/components/project-component/layout/artifact-panel'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ interface ChatColumnProps {
   startLoading: boolean
   hasConversation: boolean
   onRetryMessages: () => void
+  onNavigateToTab?: (tab: ArtifactTab) => void
   // Phase actions (all forwarded)
   anyLoading: boolean
   gradeLoading: boolean
@@ -56,6 +58,7 @@ export function ChatColumn({
   startLoading,
   hasConversation,
   onRetryMessages,
+  onNavigateToTab,
   anyLoading,
   gradeLoading,
   reviewLoading,
@@ -103,7 +106,7 @@ export function ChatColumn({
           </p>
         </div>
       ) : (
-        <ActivityStream entries={entries} />
+        <ActivityStream entries={entries} onNavigateToTab={onNavigateToTab} />
       )}
 
       {/* Phase actions + chat input (sticky bottom) */}
