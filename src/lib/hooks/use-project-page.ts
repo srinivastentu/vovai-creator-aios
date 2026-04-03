@@ -91,6 +91,7 @@ export interface UseProjectPageReturn {
   isMaterialized: boolean
   materializeStructure: () => Promise<void>
   materializeLoading: boolean
+  materializeError: string | null
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -103,6 +104,7 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
   const [visibleTabs, setVisibleTabs] = useState<Set<ArtifactTab>>(() => new Set())
   const [isMaterialized, setIsMaterialized] = useState(false)
   const [materializeLoading, setMaterializeLoading] = useState(false)
+  const [materializeError, setMaterializeError] = useState<string | null>(null)
 
   // ── Data Fetching ─────────────────────────────────────────────────────────
 
@@ -349,17 +351,40 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
   const materializeStructure = useCallback(async () => {
     if (!blueprint?.id) return
     setMaterializeLoading(true)
+    setMaterializeError(null)
     try {
       const res = await fetch(`/api/blueprints/${blueprint.id}/materialize`, {
         method: 'POST',
       })
-      if (!res.ok) throw new Error('Materialize failed')
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as { error?: string }).error ?? 'Materialize failed')
+      }
       setIsMaterialized(true)
       setStructureRefreshKey(k => k + 1)
+    } catch (err) {
+      setMaterializeError(err instanceof Error ? err.message : 'Failed to materialize')
     } finally {
       setMaterializeLoading(false)
     }
   }, [blueprint?.id])
+
+  // ── Hydrate isMaterialized from server ─────────────────────────────────────
+
+  const materializedChecked = useRef(false)
+  useEffect(() => {
+    if (!blueprint?.id || materializedChecked.current || isMaterialized) return
+    materializedChecked.current = true
+    fetch(`/api/blueprints/${blueprint.id}/nodes`)
+      .then(async (res) => {
+        if (!res.ok) return
+        const nodes = await res.json()
+        if (Array.isArray(nodes) && nodes.length > 0) {
+          setIsMaterialized(true)
+        }
+      })
+      .catch(() => { /* non-critical — will show proposed mode */ })
+  }, [blueprint?.id, isMaterialized])
 
   // ── Artifact Panel Visibility ─────────────────────────────────────────────
 
@@ -424,5 +449,6 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
     isMaterialized,
     materializeStructure,
     materializeLoading,
+    materializeError,
   }
 }

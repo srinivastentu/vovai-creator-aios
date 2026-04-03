@@ -290,6 +290,7 @@ interface ArtifactPanelProps {
   isMaterialized: boolean
   onMaterialize: () => Promise<void>
   materializeLoading: boolean
+  materializeError: string | null
   archetype: string | null
   projectName: string
   children?: React.ReactNode
@@ -307,6 +308,7 @@ export function ArtifactPanel({
   isMaterialized,
   onMaterialize,
   materializeLoading,
+  materializeError,
   archetype,
   projectName,
   children,
@@ -343,6 +345,8 @@ export function ArtifactPanel({
               proposedStructure={proposedStructure}
               onMaterialize={onMaterialize}
               materializeLoading={materializeLoading}
+              materializeError={materializeError}
+              structureRefreshKey={structureRefreshKey}
             />
           )
         }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Loader2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TreeView } from '@/components/project-component/canvas/tree-view'
@@ -19,6 +19,8 @@ interface StructureEditorProps {
   proposedStructure: ProposedStructure | null
   onMaterialize: () => Promise<void>
   materializeLoading: boolean
+  materializeError: string | null
+  structureRefreshKey: number
 }
 
 // ─── Tree Builder ──────────────────────────────────────────────────────────────
@@ -52,6 +54,8 @@ export function StructureEditor({
   proposedStructure,
   onMaterialize,
   materializeLoading,
+  materializeError,
+  structureRefreshKey,
 }: StructureEditorProps) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
 
@@ -64,6 +68,15 @@ export function StructureEditor({
     isMaterialized ? `/api/blueprints/${blueprintId}/nodes` : '',
     { skip: !isMaterialized }
   )
+
+  // Re-fetch nodes when structure changes (e.g. agent updates)
+  const prevRefreshKey = useRef(structureRefreshKey)
+  useEffect(() => {
+    if (isMaterialized && structureRefreshKey !== prevRefreshKey.current) {
+      prevRefreshKey.current = structureRefreshKey
+      refetchNodes()
+    }
+  }, [isMaterialized, structureRefreshKey, refetchNodes])
 
   const handleMutated = useCallback(async () => {
     await refetchNodes()
@@ -102,6 +115,9 @@ export function StructureEditor({
               Materialize &amp; Edit
             </Button>
           </div>
+          {materializeError && (
+            <p className="mt-2 text-xs text-destructive">{materializeError}</p>
+          )}
         </div>
 
         {/* Read-only proposed structure preview */}

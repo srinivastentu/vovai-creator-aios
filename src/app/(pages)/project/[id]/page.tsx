@@ -119,6 +119,7 @@ export default function ProjectPage({
           isMaterialized={state.isMaterialized}
           onMaterialize={state.materializeStructure}
           materializeLoading={state.materializeLoading}
+          materializeError={state.materializeError}
           archetype={state.blueprint?.archetype ?? null}
           projectName={state.blueprint?.project.name ?? 'Untitled Project'}
         />
