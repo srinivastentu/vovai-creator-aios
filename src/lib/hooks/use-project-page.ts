@@ -55,6 +55,7 @@ export interface UseProjectPageReturn {
   hasConversation: boolean
   proposedStructure: ProposedStructure | null
   audienceProfile: AudienceProfile | null
+  awaitingAudienceConfirmation: boolean
   totalCost: number
   score: number | null
   loopCount: number
@@ -283,6 +284,18 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
     return null
   }, [allMessages])
 
+  const awaitingAudienceConfirmation = useMemo(() => {
+    if (currentPhase !== 'structure') return false
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const sd = allMessages[i].structuredData as Record<string, unknown> | null
+      if (sd?.awaitingAudienceConfirmation !== undefined) {
+        return sd.awaitingAudienceConfirmation as boolean
+      }
+    }
+    // Fallback: if we have audience but no structure in structure phase
+    return !!audienceProfile && !proposedStructure && currentPhase === 'structure'
+  }, [allMessages, currentPhase, audienceProfile, proposedStructure])
+
   const totalCost = useMemo(() => computeTotalCost(allMessages), [allMessages])
 
   const showProceed = useMemo(() => {
@@ -362,6 +375,7 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
     hasConversation,
     proposedStructure,
     audienceProfile,
+    awaitingAudienceConfirmation,
     totalCost,
     score: blueprint?.ideationScore ?? null,
     loopCount,

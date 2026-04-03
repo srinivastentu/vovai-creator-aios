@@ -81,6 +81,9 @@ export default function ProjectPage({
           reviewError={state.ideation.reviewError}
           sendError={state.ideation.sendError}
           showProceed={state.showProceed}
+          awaitingAudienceConfirmation={state.awaitingAudienceConfirmation}
+          onConfirmAudience={state.ideation.confirmAudience}
+          confirmAudienceLoading={state.ideation.confirmAudienceLoading}
           onProceed={() => state.ideation.sendMessage('proceed')}
           onGrade={state.ideation.gradeStructure}
           onApprove={async () => {

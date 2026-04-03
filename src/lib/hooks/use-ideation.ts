@@ -45,6 +45,15 @@ interface ApproveResponse {
   messages: unknown[]
 }
 
+interface ConfirmAudienceResponse {
+  phase: IdeationPhase
+  message: string
+  costUSD: number
+  audienceProfile?: unknown
+  proposedStructure?: unknown
+  awaitingAudienceConfirmation?: boolean
+}
+
 // ─── Active Agent Mappings ─────────────────────────────────────────────────
 
 const AGENTS_BY_ACTION: Record<string, BrainstormRole[]> = {
@@ -54,6 +63,8 @@ const AGENTS_BY_ACTION: Record<string, BrainstormRole[]> = {
   message_refinement: ['facilitator', 'structure_architect'],
   grade: ['structure_architect', 'critic', 'synthesizer'],
   review: ['facilitator'],
+  confirm_audience_confirm: ['structure_architect', 'pedagogy_expert'],
+  confirm_audience_revise: ['audience_analyst'],
 }
 
 // ─── Hook Input/Output ─────────────────────────────────────────────────────
@@ -82,6 +93,10 @@ export interface UseIdeationReturn {
   submitReview: (action: 'approve' | 'feedback' | 'restructure', message?: string) => Promise<void>
   reviewLoading: boolean
   reviewError: string | null
+
+  confirmAudience: (action: 'confirm' | 'revise', message?: string) => Promise<void>
+  confirmAudienceLoading: boolean
+  confirmAudienceError: string | null
 
   anyLoading: boolean
   activeAgents: BrainstormRole[]
@@ -119,6 +134,11 @@ export function useIdeation({
     { action: string; message?: string },
     ApproveResponse
   >(`${baseUrl}/approve`)
+
+  const confirmAudienceMutation = useApiMutation<
+    { action: 'confirm' | 'revise'; message?: string },
+    ConfirmAudienceResponse
+  >(`${baseUrl}/confirm-audience`)
 
   const refetchAll = useCallback(async () => {
     await Promise.all([refetchMessages(), refetchBlueprint()])
@@ -188,6 +208,25 @@ export function useIdeation({
     }
   }, [blueprintId, approveMutation, refetchAll])
 
+  // ── Confirm Audience ───────────────────────────────────────────────────
+
+  const confirmAudience = useCallback(async (
+    action: 'confirm' | 'revise',
+    message?: string
+  ) => {
+    if (!blueprintId) return
+    const key = `confirm_audience_${action}`
+    setActiveAgents(AGENTS_BY_ACTION[key] ?? [])
+    setCurrentAction(key)
+    try {
+      await confirmAudienceMutation.mutate({ action, message })
+      await refetchAll()
+    } finally {
+      setActiveAgents([])
+      setCurrentAction(null)
+    }
+  }, [blueprintId, confirmAudienceMutation, refetchAll])
+
   // ── Safety: force-clear stale active agents ─────────────────────────
   // If activeAgents is set but no mutation is loading, clear it.
   // This handles edge cases where the finally block doesn't fire
@@ -196,7 +235,8 @@ export function useIdeation({
     startMutation.loading ||
     messageMutation.loading ||
     gradeMutation.loading ||
-    approveMutation.loading
+    approveMutation.loading ||
+    confirmAudienceMutation.loading
 
   useEffect(() => {
     if (!mutationLoading && activeAgents.length > 0) {
@@ -228,6 +268,10 @@ export function useIdeation({
     submitReview,
     reviewLoading: approveMutation.loading,
     reviewError: approveMutation.error,
+
+    confirmAudience,
+    confirmAudienceLoading: confirmAudienceMutation.loading,
+    confirmAudienceError: confirmAudienceMutation.error,
 
     anyLoading,
     activeAgents,

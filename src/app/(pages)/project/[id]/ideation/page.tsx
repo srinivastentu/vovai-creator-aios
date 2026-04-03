@@ -378,6 +378,9 @@ export default function IdeationPage({
               sendError={sendError}
               score={blueprint?.ideationScore ?? null}
               showProceed={showProceed}
+              awaitingAudienceConfirmation={false}
+              onConfirmAudience={() => undefined}
+              confirmAudienceLoading={false}
               onProceed={() => sendMessage('proceed')}
               onGrade={gradeStructure}
               onApprove={async () => {

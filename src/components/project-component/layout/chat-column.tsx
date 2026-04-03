@@ -36,12 +36,15 @@ interface ChatColumnProps {
   reviewError: string | null
   sendError: string | null
   showProceed: boolean
+  awaitingAudienceConfirmation: boolean
   onProceed: () => void
   onGrade: () => void
   onApprove: () => void
   onSendFeedback: (msg: string) => void
   onRestructure: () => void
   onSendMessage: (msg: string) => void
+  onConfirmAudience: (action: 'confirm' | 'revise', message?: string) => void
+  confirmAudienceLoading: boolean
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -67,12 +70,15 @@ export function ChatColumn({
   reviewError,
   sendError,
   showProceed,
+  awaitingAudienceConfirmation,
   onProceed,
   onGrade,
   onApprove,
   onSendFeedback,
   onRestructure,
   onSendMessage,
+  onConfirmAudience,
+  confirmAudienceLoading,
 }: ChatColumnProps) {
   return (
     <div className="flex h-full flex-col">
@@ -122,12 +128,15 @@ export function ChatColumn({
           sendError={sendError}
           score={score}
           showProceed={showProceed}
+          awaitingAudienceConfirmation={awaitingAudienceConfirmation}
           onProceed={onProceed}
           onGrade={onGrade}
           onApprove={onApprove}
           onSendFeedback={onSendFeedback}
           onRestructure={onRestructure}
           onSendMessage={onSendMessage}
+          onConfirmAudience={onConfirmAudience}
+          confirmAudienceLoading={confirmAudienceLoading}
         />
       )}
     </div>

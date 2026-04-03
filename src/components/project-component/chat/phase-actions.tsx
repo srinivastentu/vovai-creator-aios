@@ -19,12 +19,15 @@ interface PhaseActionsProps {
   sendError: string | null
   score: number | null
   showProceed: boolean
+  awaitingAudienceConfirmation: boolean
   onProceed: () => void
   onGrade: () => void
   onApprove: () => void
   onSendFeedback: (msg: string) => void
   onRestructure: () => void
   onSendMessage: (msg: string) => void
+  onConfirmAudience: (action: 'confirm' | 'revise', message?: string) => void
+  confirmAudienceLoading: boolean
 }
 
 // ─── Phase-specific button configs ───────────────────────────────────────────
@@ -340,6 +343,84 @@ function InlineInput({
   )
 }
 
+function AudienceConfirmationActions({
+  loading,
+  disabled,
+  onConfirm,
+}: {
+  loading: boolean
+  disabled: boolean
+  onConfirm: (action: 'confirm' | 'revise', message?: string) => void
+}) {
+  const [reviseMode, setReviseMode] = useState(false)
+  const [feedback, setFeedback] = useState('')
+
+  if (reviseMode) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground">
+          What should change about the audience profile?
+        </p>
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="Describe the changes..."
+          className="min-h-[60px] w-full resize-none rounded-md border bg-background px-3 py-2 text-sm"
+          disabled={disabled}
+        />
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => { onConfirm('revise', feedback); setReviseMode(false); setFeedback('') }}
+            disabled={disabled || !feedback.trim()}
+            className="bg-amber-600 text-white hover:bg-amber-700"
+          >
+            {loading ? <Loader2 size={14} className="mr-2 animate-spin" /> : null}
+            Submit Changes
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setReviseMode(false)}
+            disabled={disabled}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Review the audience profile in the Audience tab. Ready to proceed?
+      </p>
+      <div className="flex gap-2">
+        <Button
+          onClick={() => onConfirm('confirm')}
+          disabled={disabled}
+          className="bg-green-600 text-white hover:bg-green-700"
+        >
+          {loading ? (
+            <Loader2 size={14} className="mr-2 animate-spin" />
+          ) : (
+            <Check size={14} className="mr-2" />
+          )}
+          Looks good, proceed
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setReviseMode(true)}
+          disabled={disabled}
+        >
+          Make changes
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 export function PhaseActions({
@@ -353,12 +434,15 @@ export function PhaseActions({
   sendError,
   score,
   showProceed,
+  awaitingAudienceConfirmation,
   onProceed,
   onGrade,
   onApprove,
   onSendFeedback,
   onRestructure,
   onSendMessage,
+  onConfirmAudience,
+  confirmAudienceLoading,
 }: PhaseActionsProps) {
   const [inputExpanded, setInputExpanded] = useState(false)
   const [feedbackMode, setFeedbackMode] = useState(false)
@@ -397,12 +481,20 @@ export function PhaseActions({
           />
         )}
         {currentPhase === 'structure' && (
-          <StructureActions
-            loading={gradeLoading}
-            disabled={anyLoading}
-            error={gradeError}
-            onGrade={onGrade}
-          />
+          awaitingAudienceConfirmation ? (
+            <AudienceConfirmationActions
+              loading={confirmAudienceLoading}
+              disabled={anyLoading}
+              onConfirm={onConfirmAudience}
+            />
+          ) : (
+            <StructureActions
+              loading={gradeLoading}
+              disabled={anyLoading}
+              error={gradeError}
+              onGrade={onGrade}
+            />
+          )
         )}
         {currentPhase === 'refinement' && (
           <RefinementActions
