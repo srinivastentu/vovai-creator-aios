@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, memo } from 'react'
+import { useState, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   BookOpen,
   ChevronDown,
@@ -199,10 +199,64 @@ export interface TreeViewProps {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function TreeView({ tree, projectName, selectedNodeId, onSelectNode }: TreeViewProps) {
-  const handleSelect = (nodeId: string) => {
-    onSelectNode(selectedNodeId === nodeId ? null : nodeId)
+/** Flatten visible nodes from the tree for keyboard navigation */
+function flattenVisible(nodes: ProjectNodeType[], expandedSet: Set<string>): ProjectNodeType[] {
+  const result: ProjectNodeType[] = []
+  function walk(list: ProjectNodeType[]) {
+    for (const node of list) {
+      result.push(node)
+      if (node.children.length > 0 && (expandedSet.has(node.id) || node.depth < 1)) {
+        walk(node.children)
+      }
+    }
   }
+  walk(nodes)
+  return result
+}
+
+export function TreeView({ tree, projectName, selectedNodeId, onSelectNode }: TreeViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const handleSelect = useCallback((nodeId: string) => {
+    onSelectNode(selectedNodeId === nodeId ? null : nodeId)
+  }, [selectedNodeId, onSelectNode])
+
+  // Track expanded state at tree level for keyboard nav
+  const [expandedNodes] = useState(() => new Set<string>())
+
+  // Flatten tree for arrow key navigation
+  const flatList = useMemo(() => flattenVisible(tree, expandedNodes), [tree, expandedNodes])
+
+  // Keyboard navigation
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!['ArrowUp', 'ArrowDown', 'Escape'].includes(e.key)) return
+
+      if (e.key === 'Escape') {
+        onSelectNode(null)
+        return
+      }
+
+      e.preventDefault()
+      const currentIdx = selectedNodeId
+        ? flatList.findIndex(n => n.id === selectedNodeId)
+        : -1
+
+      if (e.key === 'ArrowDown') {
+        const nextIdx = Math.min(currentIdx + 1, flatList.length - 1)
+        if (flatList[nextIdx]) onSelectNode(flatList[nextIdx].id)
+      } else if (e.key === 'ArrowUp') {
+        const prevIdx = Math.max(currentIdx - 1, 0)
+        if (flatList[prevIdx]) onSelectNode(flatList[prevIdx].id)
+      }
+    }
+
+    el.addEventListener('keydown', handleKeyDown)
+    return () => el.removeEventListener('keydown', handleKeyDown)
+  }, [flatList, selectedNodeId, onSelectNode])
 
   if (tree.length === 0) {
     return (
@@ -214,7 +268,13 @@ export function TreeView({ tree, projectName, selectedNodeId, onSelectNode }: Tr
   }
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div
+      ref={containerRef}
+      className="flex flex-1 flex-col overflow-hidden"
+      tabIndex={0}
+      role="tree"
+      aria-label="Project structure"
+    >
       {/* Course header row */}
       <div className="flex items-center gap-2 border-b px-4 py-2.5">
         <BookOpen size={16} className="shrink-0 text-primary" />

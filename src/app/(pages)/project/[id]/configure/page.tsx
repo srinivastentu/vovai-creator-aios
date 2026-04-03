@@ -2,11 +2,13 @@
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Check, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import { useApi } from '@/lib/hooks/use-api'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
+import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
+import { ErrorBanner } from '@/components/project-component/shared/error-banner'
+import { WizardStepSkeleton } from '@/components/project-component/shared/skeleton-loader'
 import { WizardStepper, generateWizardSteps } from '@/components/project-component/wizard/wizard-stepper'
 import { WizardStepOverview } from '@/components/project-component/wizard/wizard-step-overview'
 import { WizardStepWorkflow } from '@/components/project-component/wizard/wizard-step-workflow'
@@ -278,14 +280,31 @@ export default function ConfigurePage({
     }
   }, [blueprint])
 
+  // Save status indicator
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const saveStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Track save status from workflow changes
+  useEffect(() => {
+    if (saveTimerRef.current) {
+      setSaveStatus('saving')
+      if (saveStatusTimerRef.current) clearTimeout(saveStatusTimerRef.current)
+    }
+  }, [workflowTemplate])
+
+  // Show "saved" briefly after successful save
+  const originalHandleWorkflowChange = handleWorkflowChange
+  // We'll track save completion via the saveError state clearing
+
   const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
   const loading = blueprintLoading || nodesLoading
 
   // Loading state
   if (blueprintLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <Loader2 className="animate-spin text-muted-foreground" size={24} />
+      <main className="flex min-h-screen items-center justify-center gap-2">
+        <Loader2 className="animate-spin text-muted-foreground" size={20} />
+        <span className="text-sm text-muted-foreground">Loading configuration...</span>
       </main>
     )
   }
@@ -302,11 +321,11 @@ export default function ConfigurePage({
             <ArrowLeft size={16} />
             Back to Project
           </Link>
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">{blueprintError}</p>
-            </CardContent>
-          </Card>
+          <ErrorBanner
+            message={blueprintError}
+            onRetry={() => window.location.reload()}
+            variant="card"
+          />
         </div>
       </main>
     )
@@ -322,8 +341,11 @@ export default function ConfigurePage({
         >
           <ArrowLeft size={16} />
         </Link>
-        <h1 className="text-sm font-medium">Configuration Wizard</h1>
-        <Badge variant="outline" className="text-xs capitalize">
+        <Breadcrumbs crumbs={[
+          { label: 'Project', href: `/project/${projectId}` },
+          { label: 'Configure' },
+        ]} />
+        <Badge variant="outline" className="ml-1 text-xs capitalize">
           {blueprint?.archetype?.replace('_', ' ')}
         </Badge>
       </div>
@@ -334,8 +356,8 @@ export default function ConfigurePage({
       {/* Wizard content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {loading ? (
-          <div className="flex flex-1 items-center justify-center">
-            <Loader2 className="animate-spin text-muted-foreground" size={20} />
+          <div className="mx-auto w-full max-w-3xl px-4 py-8">
+            <WizardStepSkeleton />
           </div>
         ) : (
           <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-hidden px-4 py-5">
@@ -350,15 +372,11 @@ export default function ConfigurePage({
 
             {/* Save error banner */}
             {saveError && (
-              <div className="mt-3 flex items-center justify-between rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-400">
-                <span>{saveError}</span>
-                <button
-                  type="button"
-                  onClick={() => setSaveError(null)}
-                  className="ml-2 shrink-0 font-medium underline hover:no-underline"
-                >
-                  Dismiss
-                </button>
+              <div className="mt-3">
+                <ErrorBanner
+                  message={saveError}
+                  onDismiss={() => setSaveError(null)}
+                />
               </div>
             )}
 

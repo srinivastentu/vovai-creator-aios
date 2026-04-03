@@ -3,22 +3,20 @@
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2, MessageSquare, PanelRight } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { useApi } from '@/lib/hooks/use-api'
 import { useIdeation } from '@/lib/hooks/use-ideation'
-import { ChatMessageList } from '@/components/project-component/chat/chat-message-list'
-import { ChatInput } from '@/components/project-component/chat/chat-input'
-import { AgentSidebar } from '@/components/project-component/chat/agent-sidebar'
+import { ActivityStream, deriveActivityEntries } from '@/components/project-component/chat/activity-stream'
+import { AgentSidebar, computeTotalCost } from '@/components/project-component/chat/agent-sidebar'
+import { PhaseActions } from '@/components/project-component/chat/phase-actions'
 import { PhaseIndicator } from '@/components/project-component/chat/phase-indicator'
-import { StructurePreview } from '@/components/project-component/chat/structure-preview'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
+import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
+import { ErrorBanner } from '@/components/project-component/shared/error-banner'
 import type { ChatMessageData } from '@/components/project-component/chat/chat-message'
-import type { ConversationGroup } from '@/components/project-component/chat/chat-message-list'
-import type { BlueprintSummary } from '@/components/project-component/chat/agent-sidebar'
-import type { IdeationPhase } from '@/lib/project-component'
+import type { BlueprintSummary } from '@/components/project-component/chat/context-panels'
+import type { IdeationPhase, AudienceProfile, ProposedStructure } from '@/lib/project-component'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 
@@ -104,6 +102,7 @@ export default function IdeationPage({
     reviewError,
     anyLoading,
     activeAgents,
+    currentAction,
   } = useIdeation({
     blueprintId: blueprint?.id ?? null,
     currentPhase,
@@ -112,8 +111,33 @@ export default function IdeationPage({
     refetchBlueprint,
   })
 
-  // "Start Ideation" reveals the input; first message goes to /start
-  const [readyToChat, setReadyToChat] = useState(false)
+  // Auto-start ideation when no conversation exists
+  const autoStartAttempted = useRef(false)
+  const [autoStarting, setAutoStarting] = useState(false)
+
+  useEffect(() => {
+    if (
+      autoStartAttempted.current ||
+      !blueprint ||
+      blueprintLoading ||
+      messagesLoading ||
+      hasConversation
+    ) return
+    autoStartAttempted.current = true
+    setAutoStarting(true)
+
+    const brief = [
+      `Project: ${blueprint.project.name}`,
+      `Topic: ${blueprint.project.topic}`,
+      blueprint.project.targetAudience ? `Target Audience: ${blueprint.project.targetAudience}` : '',
+    ].filter(Boolean).join('\n')
+
+    startIdeation(brief)
+      .catch(() => {
+        // Error is captured in startError — user can retry via input
+      })
+      .finally(() => setAutoStarting(false))
+  }, [blueprint, blueprintLoading, messagesLoading, hasConversation, startIdeation])
 
   // Optimistic messages — shown immediately before API responds
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessageData[]>([])
@@ -130,7 +154,6 @@ export default function IdeationPage({
 
     try {
       if (!hasConversation) {
-        // First message — create conversation via /start
         await startIdeation(message)
       } else {
         await sendMessage(message)
@@ -138,56 +161,28 @@ export default function IdeationPage({
       setOptimisticMessages([])
     } catch (err) {
       setOptimisticMessages(prev => prev.filter(m => m.id !== optimisticMsg.id))
-      throw err // Re-throw so ChatInput preserves the text
+      throw err
     }
   }, [hasConversation, startIdeation, sendMessage])
 
-  // Group messages by conversation phase
-  const conversationGroups: ConversationGroup[] = useMemo(() => {
-    let groups: ConversationGroup[] = []
-
-    if (!messagesData) {
-      groups = []
-    } else if (messagesData.groupedByPhase?.length > 0) {
-      groups = messagesData.groupedByPhase.map((group) => ({
-        phase: group.phase as IdeationPhase,
-        messages: group.messages,
-      }))
-    } else if (messagesData.messages?.length > 0) {
-      groups = [{
-        phase: messagesData.phase as IdeationPhase,
-        messages: messagesData.messages,
-      }]
+  // Flatten all messages from API response
+  const allApiMessages = useMemo<ChatMessageData[]>(() => {
+    if (!messagesData) return []
+    if (messagesData.groupedByPhase?.length > 0) {
+      return messagesData.groupedByPhase.flatMap(g => g.messages)
     }
+    return messagesData.messages ?? []
+  }, [messagesData])
 
-    // Append optimistic messages to the last group
-    if (optimisticMessages.length > 0) {
-      const lastGroup = groups[groups.length - 1]
-      if (lastGroup) {
-        return [
-          ...groups.slice(0, -1),
-          { ...lastGroup, messages: [...lastGroup.messages, ...optimisticMessages] },
-        ]
-      }
-      return [{ phase: currentPhase, messages: optimisticMessages }]
-    }
-
-    return groups
-  }, [messagesData, optimisticMessages, currentPhase])
-
-  // Flatten all messages for the sidebar
+  // Combine API messages + optimistic messages
   const allMessages = useMemo(
-    () => conversationGroups.flatMap((g) => g.messages),
-    [conversationGroups]
+    () => [...allApiMessages, ...optimisticMessages],
+    [allApiMessages, optimisticMessages]
   )
 
-  // Mobile sidebar toggle
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-
-  // Structure preview refresh key — increments after each agent message
+  // Structure preview refresh key — increments after each structure update
   const [structureRefreshKey, setStructureRefreshKey] = useState(0)
 
-  // Track structure-update messages to detect when tree should refresh
   const lastStructureMsg = useMemo(() => {
     for (let i = allMessages.length - 1; i >= 0; i--) {
       const data = allMessages[i].structuredData as Record<string, unknown> | null
@@ -198,7 +193,6 @@ export default function IdeationPage({
     return null
   }, [allMessages])
 
-  // Bump refresh key when new structure data arrives (use ref to avoid render-phase setState)
   const lastKnownStructureMsgRef = useRef<string | null>(null)
   useEffect(() => {
     if (lastStructureMsg && lastStructureMsg !== lastKnownStructureMsgRef.current) {
@@ -207,11 +201,11 @@ export default function IdeationPage({
     }
   }, [lastStructureMsg])
 
-  // Completed phases (for phase indicator click-to-scroll)
-  const completedPhases = useMemo(
-    () => conversationGroups.map((g) => g.phase),
-    [conversationGroups]
-  )
+  // Completed phases (for phase indicator)
+  const completedPhases = useMemo(() => {
+    if (!messagesData?.groupedByPhase) return []
+    return messagesData.groupedByPhase.map(g => g.phase)
+  }, [messagesData])
 
   // Derive loop count from messages
   const loopCount = useMemo(() => {
@@ -223,23 +217,101 @@ export default function IdeationPage({
     return count
   }, [allMessages])
 
-  // Scroll to a phase's messages in the chat
+  // Extract latest audience profile
+  const audienceProfile = useMemo<AudienceProfile | null>(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const data = allMessages[i].structuredData as Record<string, unknown> | null
+      if (data?.audienceProfile) return data.audienceProfile as AudienceProfile
+    }
+    return null
+  }, [allMessages])
+
+  // Extract latest proposed structure
+  const proposedStructure = useMemo<ProposedStructure | null>(() => {
+    for (let i = allMessages.length - 1; i >= 0; i--) {
+      const data = allMessages[i].structuredData as Record<string, unknown> | null
+      if (data?.proposedStructure) return data.proposedStructure as ProposedStructure
+    }
+    return null
+  }, [allMessages])
+
+  // Total cost
+  const totalCost = useMemo(() => computeTotalCost(allMessages), [allMessages])
+
+  // Show "Proceed" button in brainstorm after 2+ human messages
+  const showProceed = useMemo(() => {
+    if (currentPhase !== 'brainstorm') return false
+    return allMessages.filter(m => m.role === 'human').length >= 2
+  }, [currentPhase, allMessages])
+
+  // Activity stream entries
+  const activityEntries = useMemo(
+    () => deriveActivityEntries(allMessages, activeAgents, currentAction, currentPhase),
+    [allMessages, activeAgents, currentAction, currentPhase]
+  )
+
+  // Blueprint summary for context panels
+  const blueprintSummary = useMemo<BlueprintSummary | null>(() => {
+    if (!blueprint) return null
+    return {
+      archetype: blueprint.archetype,
+      ideationScore: blueprint.ideationScore,
+      structureSummary: blueprint.structureSummary as BlueprintSummary['structureSummary'],
+    }
+  }, [blueprint])
+
+  // Phase click → scroll (legacy, may not be needed with new stream)
   const handlePhaseClick = useCallback((phase: IdeationPhase) => {
     const el = document.querySelector(`[data-phase="${phase}"]`)
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
-  // Loading state
-  if (blueprintLoading) {
+  // Auto-create blueprint when none exists
+  const [autoCreateError, setAutoCreateError] = useState<string | null>(null)
+  const autoCreateAttempted = useRef(false)
+
+  const isNotFound = blueprintError
+    ? (() => {
+        const lower = blueprintError.toLowerCase()
+        return lower.includes('not found') || lower.includes('no blueprint') || lower.includes('404')
+      })()
+    : false
+
+  useEffect(() => {
+    if (!isNotFound || autoCreateAttempted.current) return
+    autoCreateAttempted.current = true
+
+    fetch('/api/blueprints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error(body.error ?? `Failed to create blueprint (${res.status})`)
+        }
+        return refetchBlueprint()
+      })
+      .catch((err) => {
+        setAutoCreateError(err instanceof Error ? err.message : 'Failed to create blueprint')
+      })
+  }, [isNotFound, projectId, refetchBlueprint])
+
+  // ─── Loading / Error States ────────────────────────────────────────────────
+
+  if (blueprintLoading || (isNotFound && !autoCreateError)) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <Loader2 className="animate-spin text-muted-foreground" size={24} />
+      <main className="flex min-h-screen items-center justify-center gap-2">
+        <Loader2 className="animate-spin text-muted-foreground" size={20} />
+        <span className="text-sm text-muted-foreground">
+          {isNotFound ? 'Setting up ideation...' : 'Loading project...'}
+        </span>
       </main>
     )
   }
 
-  // Error state
-  if (blueprintError) {
+  if (autoCreateError) {
     return (
       <main className="min-h-screen bg-background text-foreground">
         <div className="mx-auto max-w-6xl px-4 py-8">
@@ -250,15 +322,41 @@ export default function IdeationPage({
             <ArrowLeft size={16} />
             Back to Project
           </Link>
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">{blueprintError}</p>
-            </CardContent>
-          </Card>
+          <ErrorBanner
+            message={autoCreateError}
+            onRetry={() => {
+              setAutoCreateError(null)
+              autoCreateAttempted.current = false
+            }}
+            variant="card"
+          />
         </div>
       </main>
     )
   }
+
+  if (blueprintError && !isNotFound) {
+    return (
+      <main className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <Link
+            href={`/project/${projectId}`}
+            className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft size={16} />
+            Back to Project
+          </Link>
+          <ErrorBanner
+            message={blueprintError}
+            onRetry={() => refetchBlueprint()}
+            variant="card"
+          />
+        </div>
+      </main>
+    )
+  }
+
+  // ─── Main Layout ───────────────────────────────────────────────────────────
 
   return (
     <main className="flex h-screen flex-col bg-background text-foreground">
@@ -270,26 +368,19 @@ export default function IdeationPage({
         >
           <ArrowLeft size={16} />
         </Link>
-        <h1 className="text-sm font-medium">Project Ideation</h1>
-        <Badge variant="outline" className="text-xs capitalize">
+        <Breadcrumbs crumbs={[
+          { label: 'Project', href: `/project/${projectId}` },
+          { label: 'Ideation' },
+        ]} />
+        <Badge variant="outline" className="ml-1 text-xs capitalize">
           {blueprint?.archetype?.replace('_', ' ')}
         </Badge>
-        {/* Mobile sidebar toggle */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto md:hidden"
-          onClick={() => setSidebarOpen((v) => !v)}
-          aria-label="Toggle agent sidebar"
-        >
-          <PanelRight size={16} />
-        </Button>
       </div>
 
       {/* Project Component navigation */}
       <PcNav projectId={projectId} currentPhase={currentPhase} />
 
-      {/* Phase indicator (sticky above chat) */}
+      {/* Phase indicator */}
       <PhaseIndicator
         currentPhase={currentPhase}
         score={blueprint?.ideationScore ?? null}
@@ -298,104 +389,80 @@ export default function IdeationPage({
         onPhaseClick={handlePhaseClick}
       />
 
-      {/* Main layout: chat (70%) + sidebar (30%) */}
+      {/* Main layout: Activity Stream (70%) + Minimal Sidebar (30%) */}
       <div className="relative flex flex-1 overflow-hidden">
-        {/* Chat area — takes full width on mobile, 70% on md+ */}
+        {/* Main content: activity stream + action panel */}
         <div className="flex w-full flex-col md:w-[70%]">
           {messagesLoading ? (
-            <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-1 flex-col items-center justify-center gap-2">
               <Loader2 className="animate-spin text-muted-foreground" size={20} />
+              <span className="text-xs text-muted-foreground">Loading conversation...</span>
             </div>
           ) : messagesError ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
-              <p className="text-sm text-destructive">{messagesError}</p>
-              <button
-                type="button"
-                onClick={() => refetchMessages()}
-                className="text-xs underline hover:text-foreground"
-              >
-                Retry?
-              </button>
-            </div>
-          ) : !hasConversation && !readyToChat ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
-              <MessageSquare size={32} strokeWidth={1.5} />
-              <div className="text-center">
-                <p className="text-sm font-medium">Ready to begin ideation</p>
-                <p className="mt-1 text-xs">Describe your course idea and AI agents will brainstorm the structure</p>
-              </div>
-              <Button onClick={() => setReadyToChat(true)}>
-                Start Ideation
-              </Button>
+            <ErrorBanner
+              message={messagesError}
+              onRetry={() => refetchMessages()}
+              variant="card"
+            />
+          ) : !hasConversation && (autoStarting || startLoading) ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3">
+              <Loader2 className="animate-spin text-muted-foreground" size={24} />
+              <p className="text-sm text-muted-foreground">
+                AI agents are analyzing your brief and designing the course structure...
+              </p>
             </div>
           ) : (
-            <ChatMessageList conversations={conversationGroups} />
+            <ActivityStream entries={activityEntries} />
           )}
-          {(hasConversation || readyToChat) && (
-            <ChatInput
-              onSend={handleSendMessage}
-              loading={startLoading || sendLoading}
-              disabled={anyLoading}
-              error={startError || sendError}
-              placeholder={!hasConversation
-                ? 'Describe your course idea... (Ctrl+Enter to send)'
-                : undefined
-              }
-            />
-          )}
-        </div>
 
-        {/* Agent sidebar + structure preview — always visible on md+, slide-over on mobile */}
-        <div
-          className={`absolute inset-y-0 right-0 z-10 w-72 border-l bg-background transition-transform md:relative md:flex md:w-[30%] md:translate-x-0 md:flex-col ${
-            sidebarOpen ? 'flex translate-x-0 flex-col' : 'translate-x-full md:translate-x-0'
-          }`}
-        >
-          {/* Agent sidebar (scrolls independently) */}
-          <div className="flex-1 overflow-y-auto">
-            <AgentSidebar
+          {/* Sticky action panel */}
+          {hasConversation && (
+            <PhaseActions
               currentPhase={currentPhase}
-              messages={allMessages}
-              activeAgents={activeAgents}
-              disabled={anyLoading}
-              onGrade={gradeStructure}
+              anyLoading={anyLoading}
               gradeLoading={gradeLoading}
+              reviewLoading={reviewLoading}
+              sendLoading={sendLoading}
               gradeError={gradeError}
+              reviewError={reviewError}
+              sendError={sendError}
+              score={blueprint?.ideationScore ?? null}
+              showProceed={showProceed}
+              onProceed={() => sendMessage('proceed')}
+              onGrade={gradeStructure}
               onApprove={async () => {
                 try {
                   await submitReview('approve')
                   router.push(`/project/${projectId}/structure`)
                 } catch {
-                  // Error already captured in reviewError and displayed by AgentSidebar
+                  // Error captured in reviewError
                 }
               }}
-              onFeedback={(msg) => submitReview('feedback', msg)}
-              onRestructure={() => submitReview('restructure')}
-              reviewLoading={reviewLoading}
-              reviewError={reviewError}
-              blueprint={blueprint ? {
-                archetype: blueprint.archetype,
-                ideationScore: blueprint.ideationScore,
-                structureSummary: blueprint.structureSummary as BlueprintSummary['structureSummary'],
-              } : null}
+              onSendFeedback={(msg) => submitReview('feedback', msg)}
+              onRestructure={() => {
+                if (window.confirm('Start over from brainstorm? Brief and audience will be retained.')) {
+                  submitReview('restructure')
+                }
+              }}
+              onSendMessage={handleSendMessage}
+              proposedStructure={proposedStructure}
+              audienceProfile={audienceProfile}
+              blueprint={blueprintSummary}
+              blueprintId={blueprint?.id ?? null}
+              projectId={projectId}
+              structureRefreshKey={structureRefreshKey}
+              totalCost={totalCost}
             />
-          </div>
-
-          {/* Structure preview (pinned to bottom of sidebar) */}
-          <StructurePreview
-            blueprintId={blueprint?.id ?? null}
-            projectId={projectId}
-            refreshKey={structureRefreshKey}
-          />
+          )}
         </div>
 
-        {/* Backdrop for mobile sidebar */}
-        {sidebarOpen && (
-          <div
-            className="absolute inset-0 z-[9] bg-black/20 md:hidden"
-            onClick={() => setSidebarOpen(false)}
+        {/* Minimal sidebar — phase badge + cost */}
+        <div className="hidden border-l bg-background md:flex md:w-[30%] md:flex-col">
+          <AgentSidebar
+            currentPhase={currentPhase}
+            totalCost={totalCost}
           />
-        )}
+        </div>
       </div>
     </main>
   )

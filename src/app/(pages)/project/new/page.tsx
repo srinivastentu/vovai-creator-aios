@@ -56,7 +56,8 @@ export default function NewProjectPage() {
       return
     }
 
-    router.push("/dashboard")
+    const { id } = await res.json()
+    router.push(`/project/${id}/ideation`)
   }
 
   return (
@@ -118,7 +119,7 @@ export default function NewProjectPage() {
                   name="durationMinutes"
                   type="number"
                   min={1}
-                  max={120}
+                  max={6000}
                   defaultValue={10}
                   aria-invalid={!!errors.durationMinutes}
                 />
@@ -128,9 +129,11 @@ export default function NewProjectPage() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="ghost" render={<Link href="/dashboard" />}>
-                Cancel
-              </Button>
+              <Link href="/dashboard">
+                <Button variant="ghost" type="button">
+                  Cancel
+                </Button>
+              </Link>
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Creating..." : "Create Project"}
               </Button>

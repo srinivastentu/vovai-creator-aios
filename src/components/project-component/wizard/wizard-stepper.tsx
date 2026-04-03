@@ -89,8 +89,8 @@ export function WizardStepper({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Horizontal step indicator */}
-      <div className="flex items-center overflow-x-auto px-1 py-2">
+      {/* Step indicator — vertical on mobile, horizontal on md+ */}
+      <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-0 md:overflow-x-auto md:px-1 md:py-2">
         {steps.map((step, idx) => {
           const isCompleted = idx < currentStep
           const isCurrent = idx === currentStep
@@ -105,7 +105,7 @@ export function WizardStepper({
                 onClick={() => isClickable && onStepClick(idx)}
                 disabled={!isClickable}
                 className={`
-                  flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors
+                  flex w-full shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium transition-colors md:w-auto
                   ${isCurrent
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : isCompleted
@@ -119,7 +119,7 @@ export function WizardStepper({
                 ) : (
                   <Icon size={14} className="shrink-0" />
                 )}
-                <span className="hidden whitespace-nowrap sm:inline">{step.label}</span>
+                <span className="whitespace-nowrap">{step.label}</span>
                 {step.instanceCount !== undefined && (
                   <span className={`
                     rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none
@@ -135,11 +135,13 @@ export function WizardStepper({
                 )}
               </button>
 
-              {/* Connector line */}
+              {/* Connector line — vertical on mobile, horizontal on md+ */}
               {idx < steps.length - 1 && (
-                <div className={`mx-1 h-px w-4 shrink-0 sm:w-6 ${
-                  idx < currentStep ? 'bg-primary' : 'bg-border'
-                }`} />
+                <>
+                  <div className={`ml-5 hidden h-4 w-px md:ml-0 md:block md:mx-1 md:h-px md:w-4 lg:w-6 ${
+                    idx < currentStep ? 'bg-primary' : 'bg-border'
+                  }`} />
+                </>
               )}
             </div>
           )

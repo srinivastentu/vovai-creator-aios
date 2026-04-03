@@ -39,3 +39,6 @@ storage/
 
 # TypeScript build cache
 tsconfig.tsbuildinfo
+
+# Superpowers brainstorming sessions
+.superpowers/

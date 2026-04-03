@@ -16,13 +16,14 @@ import {
   Trophy,
   Video,
   BookOpen,
-  AlertTriangle,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useApi } from '@/lib/hooks/use-api'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
+import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
+import { ErrorBanner } from '@/components/project-component/shared/error-banner'
 import { estimateProjectCost } from '@/lib/project-component/production/cost-estimator'
 import type { CostEstimate } from '@/lib/project-component/production/cost-estimator'
 import type { IdeationPhase, WorkflowTemplate } from '@/lib/project-component'
@@ -181,8 +182,9 @@ export default function LaunchPage({
   if (bpLoading || nodesLoading) {
     return (
       <main className="min-h-screen bg-background text-foreground">
-        <div className="mx-auto flex max-w-3xl items-center justify-center px-4 py-24">
-          <Loader2 size={24} className="animate-spin text-muted-foreground" />
+        <div className="mx-auto flex max-w-3xl flex-col items-center justify-center gap-2 px-4 py-24">
+          <Loader2 size={20} className="animate-spin text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Preparing launch...</span>
         </div>
       </main>
     )
@@ -193,7 +195,18 @@ export default function LaunchPage({
     return (
       <main className="min-h-screen bg-background text-foreground">
         <div className="mx-auto max-w-3xl px-4 py-8">
-          <p className="text-sm text-destructive">{bpError ?? 'Blueprint not found'}</p>
+          <Link
+            href={`/project/${projectId}`}
+            className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft size={16} />
+            Back to Project
+          </Link>
+          <ErrorBanner
+            message={bpError ?? 'Blueprint not found'}
+            onRetry={() => window.location.reload()}
+            variant="card"
+          />
         </div>
       </main>
     )
@@ -206,13 +219,19 @@ export default function LaunchPage({
       <PcNav projectId={projectId} currentPhase={blueprint.ideationPhase} />
 
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <Link
-          href={`/project/${projectId}/configure`}
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft size={16} />
-          Back to Configuration
-        </Link>
+        <div className="mb-6 flex items-center gap-3">
+          <Link
+            href={`/project/${projectId}/configure`}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft size={16} />
+          </Link>
+          <Breadcrumbs crumbs={[
+            { label: 'Project', href: `/project/${projectId}` },
+            { label: 'Configure', href: `/project/${projectId}/configure` },
+            { label: 'Launch' },
+          ]} />
+        </div>
 
         {/* Header */}
         <div className="mb-6">
@@ -311,13 +330,24 @@ export default function LaunchPage({
                 )}
               </Button>
 
-              {handoffError && (
-                <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Handoff failed</p>
-                    <p className="mt-0.5 text-xs">{handoffError}</p>
+              {/* Progress indicator during handoff */}
+              {handoffLoading && (
+                <div className="flex w-full max-w-sm flex-col items-center gap-2">
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div className="h-full animate-pulse rounded-full bg-primary" style={{ width: '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Setting up pipeline sessions for {componentCount} component{componentCount !== 1 ? 's' : ''}...
+                  </p>
+                </div>
+              )}
+
+              {handoffError && (
+                <div className="w-full max-w-sm">
+                  <ErrorBanner
+                    message={handoffError}
+                    onRetry={handleHandoff}
+                  />
                 </div>
               )}
             </div>

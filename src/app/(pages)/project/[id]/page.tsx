@@ -2,7 +2,7 @@
 
 import { useState, use } from "react"
 import Link from "next/link"
-import { ArrowLeft, Clock, DollarSign, Grid3X3, Layers, PanelLeft, Users, Waypoints } from "lucide-react"
+import { ArrowLeft, ArrowRight, Clock, DollarSign, Grid3X3, Layers, Lightbulb, Network, PanelLeft, Users, Waypoints } from "lucide-react"
 import type { Project, StageSession, IterationRecord, Artifact, Grade, CostRecord } from "@/lib/types"
 import { STAGES } from "@/lib/pipeline"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -208,6 +208,47 @@ export default function ProjectDetailPage({
                 <DollarSign size={14} />
                 ${project.totalCostUSD.toFixed(2)}
               </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Project Component section */}
+        <Card className="mb-8">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Lightbulb size={16} className="text-amber-500" />
+                  Project Component
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Design, structure, configure, and launch your learning components
+                </CardDescription>
+              </div>
+              <Link href={`/project/${id}/ideation`}>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  Open
+                  <ArrowRight size={14} />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href={`/project/${id}/ideation`}
+                className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted"
+              >
+                <Lightbulb size={14} className="text-amber-500" />
+                Ideation
+              </Link>
+              <Link
+                href={`/project/${id}/structure`}
+                className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-muted"
+              >
+                <Network size={14} className="text-blue-500" />
+                Structure
+              </Link>
             </div>
           </CardContent>
         </Card>

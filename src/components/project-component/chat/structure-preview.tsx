@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, Loader2, RotateCw, TreePine } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { useApi } from '@/lib/hooks/use-api'
+import type { ProposedStructure } from '@/lib/project-component'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -211,6 +213,30 @@ function computeStats(nodes: ApiNode[]): TreeStats {
   return { modules, topics, components }
 }
 
+// ─── Convert ProposedStructure → TreeNodeData ───────────────────────────────
+
+function buildTreeFromProposed(proposed: ProposedStructure): TreeNodeData[] {
+  return proposed.modules.map((mod, mi) => ({
+    id: `proposed-mod-${mi}`,
+    title: mod.title,
+    depth: 1,
+    components: [],
+    children: mod.topics.map((topic, ti) => ({
+      id: `proposed-topic-${mi}-${ti}`,
+      title: topic.title,
+      depth: 2,
+      components: [],
+      children: (topic.subtopics ?? []).map((sub, si) => ({
+        id: `proposed-sub-${mi}-${ti}-${si}`,
+        title: sub,
+        depth: 3,
+        components: [],
+        children: [],
+      })),
+    })),
+  }))
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 export interface StructurePreviewProps {
@@ -218,11 +244,13 @@ export interface StructurePreviewProps {
   projectId: string
   /** Increment this to trigger a refetch */
   refreshKey?: number
+  /** Proposed structure from agent messages — shown when no DB nodes exist */
+  proposedStructure?: ProposedStructure | null
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function StructurePreview({ blueprintId, projectId, refreshKey = 0 }: StructurePreviewProps) {
+export function StructurePreview({ blueprintId, projectId, refreshKey = 0, proposedStructure = null }: StructurePreviewProps) {
   const url = blueprintId ? `/api/blueprints/${blueprintId}/nodes` : ''
   const {
     data: nodes,
@@ -244,7 +272,13 @@ export function StructurePreview({ blueprintId, projectId, refreshKey = 0 }: Str
     if (blueprintId) refetch()
   }, [blueprintId, refetch])
 
-  const tree = useMemo(() => (nodes ? buildTreeFromNodes(nodes) : []), [nodes])
+  const dbTree = useMemo(() => (nodes ? buildTreeFromNodes(nodes) : []), [nodes])
+  const proposedTree = useMemo(
+    () => (proposedStructure ? buildTreeFromProposed(proposedStructure) : []),
+    [proposedStructure]
+  )
+  const isProposed = dbTree.length === 0 && proposedTree.length > 0
+  const tree = isProposed ? proposedTree : dbTree
   const stats = useMemo(() => (nodes ? computeStats(nodes) : null), [nodes])
 
   // Don't render if no blueprint or no nodes
@@ -258,6 +292,11 @@ export function StructurePreview({ blueprintId, projectId, refreshKey = 0 }: Str
         <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
           Structure Preview
         </p>
+        {isProposed && (
+          <Badge variant="outline" className="text-[9px] border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300">
+            Proposed
+          </Badge>
+        )}
         <button
           type="button"
           onClick={handleRefetch}
@@ -286,7 +325,15 @@ export function StructurePreview({ blueprintId, projectId, refreshKey = 0 }: Str
       </div>
 
       {/* Stats footer */}
-      {stats && (stats.modules > 0 || stats.topics > 0) && (
+      {isProposed && proposedStructure ? (
+        <div className="flex items-center justify-between border-t px-4 py-2">
+          <span className="text-[10px] text-muted-foreground">
+            {proposedStructure.modules.length} modules,{' '}
+            {proposedStructure.modules.reduce((s, m) => s + m.topics.length, 0)} topics
+          </span>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400">Draft</span>
+        </div>
+      ) : stats && (stats.modules > 0 || stats.topics > 0) ? (
         <div className="flex items-center justify-between border-t px-4 py-2">
           <span className="text-[10px] text-muted-foreground">
             {stats.modules} modules, {stats.topics} topics, {stats.components} components
@@ -299,7 +346,7 @@ export function StructurePreview({ blueprintId, projectId, refreshKey = 0 }: Str
             <ExternalLink size={10} />
           </a>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

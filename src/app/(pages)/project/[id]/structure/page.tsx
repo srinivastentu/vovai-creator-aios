@@ -1,12 +1,16 @@
 'use client'
 
-import { use, useCallback, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, FolderClosed, Loader2, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { useApi } from '@/lib/hooks/use-api'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
+import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
+import { ErrorBanner } from '@/components/project-component/shared/error-banner'
+import { EmptyState } from '@/components/project-component/shared/empty-state'
+import { TreeSkeleton, NodeDetailSkeleton } from '@/components/project-component/shared/skeleton-loader'
 import { TreeView } from '@/components/project-component/canvas/tree-view'
 import { NodeCountBarExtended } from '@/components/project-component/canvas/node-count-bar'
 import { NodeDetailPanel } from '@/components/project-component/canvas/node-detail'
@@ -130,11 +134,20 @@ export default function StructurePage({
   const currentPhase = blueprint?.ideationPhase ?? 'brainstorm'
   const loading = blueprintLoading || nodesLoading
 
+  // Mobile bottom sheet for node detail
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
+
+  // Open bottom sheet when node is selected on mobile
+  useEffect(() => {
+    if (selectedNodeId) setMobileDetailOpen(true)
+  }, [selectedNodeId])
+
   // Loading state
   if (blueprintLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <Loader2 className="animate-spin text-muted-foreground" size={24} />
+      <main className="flex min-h-screen items-center justify-center gap-2">
+        <Loader2 className="animate-spin text-muted-foreground" size={20} />
+        <span className="text-sm text-muted-foreground">Loading structure...</span>
       </main>
     )
   }
@@ -151,11 +164,11 @@ export default function StructurePage({
             <ArrowLeft size={16} />
             Back to Project
           </Link>
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">{blueprintError}</p>
-            </CardContent>
-          </Card>
+          <ErrorBanner
+            message={blueprintError}
+            onRetry={() => window.location.reload()}
+            variant="card"
+          />
         </div>
       </main>
     )
@@ -171,8 +184,11 @@ export default function StructurePage({
         >
           <ArrowLeft size={16} />
         </Link>
-        <h1 className="text-sm font-medium">Structure Editor</h1>
-        <Badge variant="outline" className="text-xs capitalize">
+        <Breadcrumbs crumbs={[
+          { label: 'Project', href: `/project/${projectId}` },
+          { label: 'Structure' },
+        ]} />
+        <Badge variant="outline" className="ml-1 text-xs capitalize">
           {blueprint?.archetype?.replace('_', ' ')}
         </Badge>
       </div>
@@ -196,13 +212,19 @@ export default function StructurePage({
         {/* Center panel — tree visualization */}
         <div className="flex w-full flex-col md:flex-1">
           {loading ? (
-            <div className="flex flex-1 items-center justify-center">
-              <Loader2 className="animate-spin text-muted-foreground" size={20} />
-            </div>
+            <TreeSkeleton />
           ) : nodesError ? (
-            <div className="flex flex-1 items-center justify-center">
-              <p className="text-sm text-destructive">{nodesError}</p>
-            </div>
+            <ErrorBanner
+              message={nodesError}
+              onRetry={() => refetchNodes()}
+              variant="card"
+            />
+          ) : tree.length === 0 ? (
+            <EmptyState
+              icon={FolderClosed}
+              title="Your project structure will appear here after ideation"
+              description="Go to the Ideation tab to brainstorm your project structure with AI agents."
+            />
           ) : (
             <TreeView
               tree={tree}
@@ -223,18 +245,53 @@ export default function StructurePage({
           )}
         </div>
 
-        {/* Right panel — node detail */}
+        {/* Right panel — node detail (desktop) */}
         <div className="hidden flex-col md:flex md:w-[35%]">
-          <NodeDetailPanel
-            key={selectedNodeId}
-            node={selectedNode}
-            blueprintId={blueprint?.id ?? ''}
-            archetype={blueprint?.archetype ?? 'professional_training'}
-            flatNodes={flatNodes ?? []}
-            onMutated={handleNodesMutated}
-          />
+          {nodesLoading ? (
+            <NodeDetailSkeleton />
+          ) : (
+            <NodeDetailPanel
+              key={selectedNodeId}
+              node={selectedNode}
+              blueprintId={blueprint?.id ?? ''}
+              archetype={blueprint?.archetype ?? 'professional_training'}
+              flatNodes={flatNodes ?? []}
+              onMutated={handleNodesMutated}
+            />
+          )}
         </div>
       </div>
+
+      {/* Mobile bottom sheet for node detail */}
+      {mobileDetailOpen && selectedNode && (
+        <div className="fixed inset-0 z-20 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/20"
+            onClick={() => setMobileDetailOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[70vh] overflow-y-auto rounded-t-xl border-t bg-background shadow-lg">
+            <div className="sticky top-0 flex items-center justify-between border-b bg-background px-4 py-2">
+              <span className="text-sm font-medium">{selectedNode.title}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setMobileDetailOpen(false)}
+              >
+                <X size={16} />
+              </Button>
+            </div>
+            <NodeDetailPanel
+              key={selectedNodeId}
+              node={selectedNode}
+              blueprintId={blueprint?.id ?? ''}
+              archetype={blueprint?.archetype ?? 'professional_training'}
+              flatNodes={flatNodes ?? []}
+              onMutated={handleNodesMutated}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Rubric score bar (bottom) */}
       {!gradeLoading && effectiveGrade && (

@@ -195,13 +195,13 @@ export function RubricScoreBar({
   return (
     <div className="border-t bg-muted/20">
       {/* Summary row — always visible */}
-      <div className="flex items-center gap-3 px-4 py-3">
+      <div className="flex items-center gap-2 px-4 py-3 md:gap-3">
         {/* Clickable expand area — score label + bar + score number */}
         <button
           onClick={() => setExpanded(!expanded)}
-          className="flex flex-1 items-center gap-3 cursor-pointer group"
+          className="flex flex-1 items-center gap-2 cursor-pointer group md:gap-3"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+          <span className="hidden items-center gap-1 text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors md:flex">
             Structure Score
             {expanded ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
           </span>
@@ -221,8 +221,8 @@ export function RubricScoreBar({
 
           {/* Score */}
           <span className={`text-sm font-bold tabular-nums ${scoreColor(grade.overallScore)}`}>
-            {grade.overallScore.toFixed(2)}
-            <span className="text-muted-foreground font-normal">/100</span>
+            {grade.overallScore.toFixed(0)}
+            <span className="hidden text-muted-foreground font-normal md:inline">/100</span>
           </span>
         </button>
 
@@ -233,9 +233,9 @@ export function RubricScoreBar({
 
         {/* Structure changed indicator */}
         {structureChanged && (
-          <span className="flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+          <span className="hidden items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 sm:flex">
             <AlertTriangle size={12} />
-            Outdated
+            <span className="hidden md:inline">Outdated</span>
           </span>
         )}
 
@@ -249,12 +249,12 @@ export function RubricScoreBar({
           {grading ? (
             <>
               <Loader2 size={12} className="animate-spin" />
-              Grading…
+              <span className="hidden md:inline">Grading…</span>
             </>
           ) : (
             <>
               <RefreshCw size={12} />
-              Re-Grade
+              <span className="hidden md:inline">Re-Grade</span>
             </>
           )}
         </Button>
@@ -266,7 +266,7 @@ export function RubricScoreBar({
           onClick={onViewReport}
         >
           <FileBarChart size={12} />
-          Report
+          <span className="hidden md:inline">Report</span>
         </Button>
       </div>
 
@@ -277,11 +277,11 @@ export function RubricScoreBar({
         </div>
       )}
 
-      {/* Collapsed dimension scores — compact row with color coding */}
+      {/* Collapsed dimension scores — hidden on mobile for compact view */}
       {!expanded && (
         <button
           onClick={() => setExpanded(true)}
-          className="flex w-full flex-wrap gap-x-4 gap-y-1 px-4 pb-3 cursor-pointer hover:bg-muted/30 transition-colors"
+          className="hidden w-full flex-wrap gap-x-4 gap-y-1 px-4 pb-3 cursor-pointer hover:bg-muted/30 transition-colors md:flex"
         >
           {grade.dimensionScores.map((dim) => {
             const failing = dim.score < dim.passThreshold
@@ -315,14 +315,14 @@ export function RubricScoreBar({
       {expanded && (
         <div className="border-t px-4 py-3">
           {/* Mini bars grid */}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-2 md:grid-cols-2">
             {grade.dimensionScores.map((dim) => (
               <DimensionBar key={dim.id} dim={dim} />
             ))}
           </div>
 
           {/* Full dimension cards */}
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {grade.dimensionScores.map((dim) => (
               <DimensionDetail key={dim.id} dim={dim} />
             ))}

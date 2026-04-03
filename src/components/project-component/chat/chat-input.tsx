@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Send, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
@@ -21,6 +21,19 @@ export function ChatInput({
 }: ChatInputProps) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Track how long we've been loading for a timeout indicator
+  const [loadingSeconds, setLoadingSeconds] = useState(0)
+  useEffect(() => {
+    if (!loading) {
+      setLoadingSeconds(0)
+      return
+    }
+    const interval = setInterval(() => {
+      setLoadingSeconds(s => s + 1)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [loading])
 
   const handleSend = useCallback(async () => {
     const trimmed = value.trim()
@@ -61,7 +74,16 @@ export function ChatInput({
       {loading && (
         <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
           <Loader2 size={12} className="animate-spin" />
-          Agents are thinking...
+          <span>
+            Agents are thinking
+            <span className="inline-block w-6">{'.'.repeat((loadingSeconds % 3) + 1)}</span>
+          </span>
+          {loadingSeconds >= 5 && (
+            <span className="text-muted-foreground/60">({loadingSeconds}s)</span>
+          )}
+          {loadingSeconds >= 30 && (
+            <span className="text-amber-600 dark:text-amber-400">Taking longer than usual</span>
+          )}
         </div>
       )}
       {error && (

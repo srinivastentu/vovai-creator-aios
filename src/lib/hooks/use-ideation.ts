@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useApiMutation } from './use-api'
 import type { BrainstormRole, IdeationPhase } from '@/lib/project-component'
 
@@ -85,6 +85,7 @@ export interface UseIdeationReturn {
 
   anyLoading: boolean
   activeAgents: BrainstormRole[]
+  currentAction: string | null
 }
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ export function useIdeation({
   refetchBlueprint,
 }: UseIdeationInput): UseIdeationReturn {
   const [activeAgents, setActiveAgents] = useState<BrainstormRole[]>([])
+  const [currentAction, setCurrentAction] = useState<string | null>(null)
 
   // Keep current phase in a ref so handlers always see the latest value
   const phaseRef = useRef(currentPhase)
@@ -127,11 +129,13 @@ export function useIdeation({
   const startIdeation = useCallback(async (brief: string) => {
     if (!blueprintId || !brief) return
     setActiveAgents(AGENTS_BY_ACTION.start)
+    setCurrentAction('start')
     try {
       await startMutation.mutate({ brief })
       await refetchAll()
     } finally {
       setActiveAgents([])
+      setCurrentAction(null)
     }
   }, [blueprintId, startMutation, refetchAll])
 
@@ -141,11 +145,13 @@ export function useIdeation({
     if (!blueprintId) return
     const key = `message_${phaseRef.current}`
     setActiveAgents(AGENTS_BY_ACTION[key] ?? AGENTS_BY_ACTION.message_brainstorm)
+    setCurrentAction(key)
     try {
       await messageMutation.mutate({ message })
       await refetchAll()
     } finally {
       setActiveAgents([])
+      setCurrentAction(null)
     }
   }, [blueprintId, messageMutation, refetchAll])
 
@@ -154,11 +160,13 @@ export function useIdeation({
   const gradeStructure = useCallback(async () => {
     if (!blueprintId) return
     setActiveAgents(AGENTS_BY_ACTION.grade)
+    setCurrentAction('grade')
     try {
       await gradeMutation.mutate({} as Record<string, never>)
       await refetchAll()
     } finally {
       setActiveAgents([])
+      setCurrentAction(null)
     }
   }, [blueprintId, gradeMutation, refetchAll])
 
@@ -170,21 +178,39 @@ export function useIdeation({
   ) => {
     if (!blueprintId) return
     setActiveAgents(AGENTS_BY_ACTION.review)
+    setCurrentAction('review')
     try {
       await approveMutation.mutate({ action, message })
       await refetchAll()
     } finally {
       setActiveAgents([])
+      setCurrentAction(null)
     }
   }, [blueprintId, approveMutation, refetchAll])
 
-  // ── Derived ────────────────────────────────────────────────────────────
-
-  const anyLoading =
+  // ── Safety: force-clear stale active agents ─────────────────────────
+  // If activeAgents is set but no mutation is loading, clear it.
+  // This handles edge cases where the finally block doesn't fire
+  // (e.g., component re-mount during async operation).
+  const mutationLoading =
     startMutation.loading ||
     messageMutation.loading ||
     gradeMutation.loading ||
     approveMutation.loading
+
+  useEffect(() => {
+    if (!mutationLoading && activeAgents.length > 0) {
+      const timer = setTimeout(() => {
+        setActiveAgents([])
+        setCurrentAction(null)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [mutationLoading, activeAgents.length])
+
+  // ── Derived ────────────────────────────────────────────────────────────
+
+  const anyLoading = mutationLoading
 
   return {
     startIdeation,
@@ -205,5 +231,6 @@ export function useIdeation({
 
     anyLoading,
     activeAgents,
+    currentAction,
   }
 }

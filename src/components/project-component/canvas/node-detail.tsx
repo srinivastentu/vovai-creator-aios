@@ -405,6 +405,15 @@ function NodeDetail({
           Components ({node.components.length})
         </h4>
 
+        {node.components.length === 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-dashed py-3 px-3">
+            <Plus size={14} className="text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">
+              Add components from the palette on the left
+            </span>
+          </div>
+        )}
+
         {node.components.length > 0 && (
           <div className="mb-2 space-y-1">
             {node.components.map(comp => {
