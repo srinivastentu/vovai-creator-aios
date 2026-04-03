@@ -53,6 +53,7 @@ export type {
   DevilsAdvocateReport,
   OrchestratorOutput,
   IdeationMessageType,
+  BlueprintSummary,
 } from './types'
 
 // ─── Registries ─────────────────────────────────────────────────────────────

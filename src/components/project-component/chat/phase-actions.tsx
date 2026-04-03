@@ -1,12 +1,10 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ArrowRight, Check, Loader2, MessageSquare, Send, X } from 'lucide-react'
+import { ArrowRight, Check, Loader2, MessageSquare, Paperclip, Send, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ContextPanels } from './context-panels'
-import type { BlueprintSummary } from './context-panels'
-import type { IdeationPhase, ProposedStructure, AudienceProfile } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/project-component'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,14 +25,6 @@ interface PhaseActionsProps {
   onSendFeedback: (msg: string) => void
   onRestructure: () => void
   onSendMessage: (msg: string) => void
-  // Context panel data
-  proposedStructure: ProposedStructure | null
-  audienceProfile: AudienceProfile | null
-  blueprint: BlueprintSummary | null
-  blueprintId: string | null
-  projectId: string
-  structureRefreshKey: number
-  totalCost: number
 }
 
 // ─── Phase-specific button configs ───────────────────────────────────────────
@@ -256,6 +246,18 @@ function InlineInput({
     }
   }, [expanded])
 
+  // Auto-resize textarea up to ~4 lines
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+  }, [])
+
+  useEffect(() => {
+    autoResize()
+  }, [value, autoResize])
+
   const handleSend = useCallback(() => {
     const trimmed = value.trim()
     if (!trimmed || loading || disabled) return
@@ -288,7 +290,17 @@ function InlineInput({
   return (
     <div className="flex flex-col gap-1.5">
       {error && <p className="text-xs text-destructive">{error}</p>}
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 rounded-lg border border-input bg-background focus-within:ring-1 focus-within:ring-ring">
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled
+          className="mb-1 ml-1 h-8 w-8 shrink-0 p-0 text-muted-foreground"
+          aria-label="Attach file"
+          title="Coming soon"
+        >
+          <Paperclip size={14} />
+        </Button>
         <textarea
           ref={textareaRef}
           value={value}
@@ -300,10 +312,10 @@ function InlineInput({
               : 'Type your message... (Ctrl+Enter to send)'
           }
           disabled={loading || disabled}
-          rows={2}
-          className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          rows={1}
+          className="flex-1 resize-none bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none disabled:opacity-50"
         />
-        <div className="flex flex-col gap-1">
+        <div className="mb-1 mr-1 flex shrink-0 gap-1">
           <Button
             size="sm"
             onClick={handleSend}
@@ -347,18 +359,9 @@ export function PhaseActions({
   onSendFeedback,
   onRestructure,
   onSendMessage,
-  // Context panel data
-  proposedStructure,
-  audienceProfile,
-  blueprint,
-  blueprintId,
-  projectId,
-  structureRefreshKey,
-  totalCost,
 }: PhaseActionsProps) {
   const [inputExpanded, setInputExpanded] = useState(false)
   const [feedbackMode, setFeedbackMode] = useState(false)
-  const [contextTab, setContextTab] = useState<'structure' | 'audience' | 'session' | null>(null)
 
   const handleFeedbackOpen = useCallback(() => {
     setFeedbackMode(true)
@@ -382,21 +385,8 @@ export function PhaseActions({
 
   return (
     <div className="shrink-0 border-t bg-background">
-      {/* Context panels */}
-      <ContextPanels
-        activeTab={contextTab}
-        onTabChange={setContextTab}
-        proposedStructure={proposedStructure}
-        audienceProfile={audienceProfile}
-        blueprint={blueprint}
-        blueprintId={blueprintId}
-        projectId={projectId}
-        structureRefreshKey={structureRefreshKey}
-        totalCost={totalCost}
-      />
-
       {/* Action buttons + input */}
-      <div className="px-4 py-3">
+      <div className="px-4 pb-4 pt-3">
         {/* Phase-specific actions */}
         {currentPhase === 'brainstorm' && (
           <BrainstormActions

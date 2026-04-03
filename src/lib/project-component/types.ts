@@ -447,3 +447,17 @@ export interface IdeationMessageType {
   structuredData?: Record<string, unknown>
   createdAt: Date
 }
+
+/** Summary of a blueprint's key metadata — used by top bar and other UI components */
+export interface BlueprintSummary {
+  archetype: string
+  ideationScore: number | null
+  structureSummary: {
+    totalModules?: number
+    totalTopics?: number
+    totalSubtopics?: number
+    componentBreakdown?: Record<string, number>
+    estimatedHours?: number
+    recommendation?: string
+  } | null
+}

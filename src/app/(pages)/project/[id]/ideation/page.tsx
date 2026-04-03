@@ -15,8 +15,7 @@ import { PcNav } from '@/components/project-component/shared/pc-nav'
 import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
 import { ErrorBanner } from '@/components/project-component/shared/error-banner'
 import type { ChatMessageData } from '@/components/project-component/chat/chat-message'
-import type { BlueprintSummary } from '@/components/project-component/chat/context-panels'
-import type { IdeationPhase, AudienceProfile, ProposedStructure } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/project-component'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 
@@ -180,27 +179,6 @@ export default function IdeationPage({
     [allApiMessages, optimisticMessages]
   )
 
-  // Structure preview refresh key — increments after each structure update
-  const [structureRefreshKey, setStructureRefreshKey] = useState(0)
-
-  const lastStructureMsg = useMemo(() => {
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-      const data = allMessages[i].structuredData as Record<string, unknown> | null
-      if (data?.proposedStructure || allMessages[i].messageType === 'structure_update') {
-        return allMessages[i].id
-      }
-    }
-    return null
-  }, [allMessages])
-
-  const lastKnownStructureMsgRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (lastStructureMsg && lastStructureMsg !== lastKnownStructureMsgRef.current) {
-      lastKnownStructureMsgRef.current = lastStructureMsg
-      setStructureRefreshKey(k => k + 1)
-    }
-  }, [lastStructureMsg])
-
   // Completed phases (for phase indicator)
   const completedPhases = useMemo(() => {
     if (!messagesData?.groupedByPhase) return []
@@ -217,24 +195,6 @@ export default function IdeationPage({
     return count
   }, [allMessages])
 
-  // Extract latest audience profile
-  const audienceProfile = useMemo<AudienceProfile | null>(() => {
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-      const data = allMessages[i].structuredData as Record<string, unknown> | null
-      if (data?.audienceProfile) return data.audienceProfile as AudienceProfile
-    }
-    return null
-  }, [allMessages])
-
-  // Extract latest proposed structure
-  const proposedStructure = useMemo<ProposedStructure | null>(() => {
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-      const data = allMessages[i].structuredData as Record<string, unknown> | null
-      if (data?.proposedStructure) return data.proposedStructure as ProposedStructure
-    }
-    return null
-  }, [allMessages])
-
   // Total cost
   const totalCost = useMemo(() => computeTotalCost(allMessages), [allMessages])
 
@@ -249,16 +209,6 @@ export default function IdeationPage({
     () => deriveActivityEntries(allMessages, activeAgents, currentAction, currentPhase),
     [allMessages, activeAgents, currentAction, currentPhase]
   )
-
-  // Blueprint summary for context panels
-  const blueprintSummary = useMemo<BlueprintSummary | null>(() => {
-    if (!blueprint) return null
-    return {
-      archetype: blueprint.archetype,
-      ideationScore: blueprint.ideationScore,
-      structureSummary: blueprint.structureSummary as BlueprintSummary['structureSummary'],
-    }
-  }, [blueprint])
 
   // Phase click → scroll (legacy, may not be needed with new stream)
   const handlePhaseClick = useCallback((phase: IdeationPhase) => {
@@ -445,13 +395,6 @@ export default function IdeationPage({
                 }
               }}
               onSendMessage={handleSendMessage}
-              proposedStructure={proposedStructure}
-              audienceProfile={audienceProfile}
-              blueprint={blueprintSummary}
-              blueprintId={blueprint?.id ?? null}
-              projectId={projectId}
-              structureRefreshKey={structureRefreshKey}
-              totalCost={totalCost}
             />
           )}
         </div>
