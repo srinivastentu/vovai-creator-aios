@@ -117,6 +117,8 @@ export interface IdeationLoopState {
   outcomesMap: OutcomesMap | null
   componentPlan: ComponentPlan | null
   gradeReport: GradeReport | null
+  /** Best grade report across all iterations — for escalation presentation */
+  bestGradeReport: GradeReport | null
   challenges: Challenge[] | null
 
   // History
@@ -145,6 +147,7 @@ export function createInitialState(
     outcomesMap: null,
     componentPlan: null,
     gradeReport: null,
+    bestGradeReport: null,
     challenges: null,
     conversationHistory: [],
     humanFeedback: [],

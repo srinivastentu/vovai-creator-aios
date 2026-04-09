@@ -12,24 +12,56 @@
  * Level 1 (Engine) — orchestrates agents but doesn't know eLearning specifics.
  */
 
-import type { AgentResult } from '../agents/framework/types'
 import type {
   IdeationPhase,
+  GradeReport,
   ProjectArchetype,
   AudienceProfile,
   ProposedStructure,
   OutcomesMap,
   ComponentPlan,
-  GradeReport,
   OrchestratorOutput,
   OptimizationReport,
   DevilsAdvocateReport,
 } from '../types'
+import type { AgentResult } from '../agents/framework/types'
 import {
   getNextPhase,
   canTransition,
 } from './phase-manager'
+import { validateStructure } from './pre-validators'
 import type { IdeationLoopState, BlueprintVersion } from './phase-manager'
+
+// ─── Agent Runner Interface ──────────────────────────────────────────────────
+
+/**
+ * Agent runner functions that the loop engine depends on.
+ *
+ * Level 1 (Engine) defines the interface. Level 2 (Product) provides
+ * the concrete implementations. This decouples the engine from
+ * eLearning-specific agents — Film AIOS or Creator AIOS can supply
+ * different runners without changing engine code.
+ */
+export interface IdeationAgentRunners {
+  orchestrator: (input: {
+    humanMessage: string
+    currentPhase: IdeationPhase
+    context: {
+      brief: string
+      archetype?: ProjectArchetype
+      conversationHistory: IdeationLoopState['conversationHistory']
+    }
+  }) => Promise<AgentResult<OrchestratorOutput>>
+  audienceAnalyst: (brief: string, archetype: ProjectArchetype) => Promise<AgentResult<AudienceProfile>>
+  curriculumStrategist: (brief: string, archetype: ProjectArchetype, audience: AudienceProfile) => Promise<AgentResult<ProposedStructure>>
+  outcomeArchitect: (brief: string, archetype: ProjectArchetype, structure: ProposedStructure, audience: AudienceProfile) => Promise<AgentResult<OutcomesMap>>
+  componentRecommender: (brief: string, archetype: ProjectArchetype, structure: ProposedStructure, outcomes: OutcomesMap, audience: AudienceProfile) => Promise<AgentResult<ComponentPlan>>
+  structureOptimizer: (brief: string, archetype: ProjectArchetype, structure: ProposedStructure, outcomes: OutcomesMap, components: ComponentPlan, audience: AudienceProfile) => Promise<AgentResult<OptimizationReport>>
+  rubricGrader: (brief: string, archetype: ProjectArchetype, structure: ProposedStructure, outcomes: OutcomesMap, components: ComponentPlan, audience: AudienceProfile) => Promise<AgentResult<GradeReport>>
+  devilsAdvocate: (brief: string, archetype: ProjectArchetype, structure: ProposedStructure, outcomes: OutcomesMap, components: ComponentPlan, audience: AudienceProfile) => Promise<AgentResult<DevilsAdvocateReport>>
+}
+
+// Default runners — eLearn product agents (Level 2 wiring)
 import { runOrchestrator } from '../agents/orchestrator'
 import { runAudienceAnalyst } from '../agents/audience-analyst'
 import { runCurriculumStrategist } from '../agents/curriculum-strategist'
@@ -38,6 +70,18 @@ import { runComponentRecommender } from '../agents/component-recommender'
 import { runStructureOptimizer } from '../agents/structure-optimizer'
 import { runRubricGrader } from '../agents/rubric-grader'
 import { runDevilsAdvocate } from '../agents/devils-advocate'
+
+/** Default eLearn agent runners — used when no custom runners are provided */
+const DEFAULT_RUNNERS: IdeationAgentRunners = {
+  orchestrator: runOrchestrator,
+  audienceAnalyst: runAudienceAnalyst,
+  curriculumStrategist: runCurriculumStrategist,
+  outcomeArchitect: runOutcomeArchitect,
+  componentRecommender: runComponentRecommender,
+  structureOptimizer: runStructureOptimizer,
+  rubricGrader: runRubricGrader,
+  devilsAdvocate: runDevilsAdvocate,
+}
 
 // ─── Result Type ──────────────────────────────────────────────────────────────
 
@@ -69,9 +113,10 @@ export interface HumanFeedback {
  */
 async function runBrainstormPhase(
   state: IdeationLoopState,
-  humanMessage: string
+  humanMessage: string,
+  agents: IdeationAgentRunners,
 ): Promise<{ state: IdeationLoopState; awaitingHuman: boolean; message: string; cost: number }> {
-  const result = await runOrchestrator({
+  const result = await agents.orchestrator({
     humanMessage,
     currentPhase: state.currentPhase,
     context: {
@@ -119,7 +164,8 @@ async function runBrainstormPhase(
  * Returns awaitingHuman: true so user can confirm the profile.
  */
 async function runStructurePhaseAudience(
-  state: IdeationLoopState
+  state: IdeationLoopState,
+  agents: IdeationAgentRunners,
 ): Promise<{ state: IdeationLoopState; awaitingHuman: boolean; message: string; cost: number }> {
   if (!state.archetype) {
     return {
@@ -130,7 +176,7 @@ async function runStructurePhaseAudience(
     }
   }
 
-  const audienceResult = await runAudienceAnalyst(state.brief, state.archetype)
+  const audienceResult = await agents.audienceAnalyst(state.brief, state.archetype)
   const next = { ...state }
 
   if (audienceResult.success && audienceResult.output) {
@@ -157,7 +203,8 @@ async function runStructurePhaseAudience(
  * Called after user confirms the audience profile.
  */
 async function runStructurePhaseStructure(
-  state: IdeationLoopState
+  state: IdeationLoopState,
+  agents: IdeationAgentRunners,
 ): Promise<{ state: IdeationLoopState; awaitingHuman: boolean; message: string; cost: number }> {
   if (!state.archetype || !state.audienceProfile) {
     return {
@@ -168,7 +215,7 @@ async function runStructurePhaseStructure(
     }
   }
 
-  const curriculumResult = await runCurriculumStrategist(
+  const curriculumResult = await agents.curriculumStrategist(
     state.brief,
     state.archetype,
     state.audienceProfile
@@ -203,7 +250,8 @@ async function runStructurePhaseStructure(
  * Forces human review after maxLoops.
  */
 async function runRefinementPhase(
-  state: IdeationLoopState
+  state: IdeationLoopState,
+  agents: IdeationAgentRunners,
 ): Promise<{ state: IdeationLoopState; awaitingHuman: boolean; message: string; cost: number }> {
   const { archetype, audienceProfile, proposedStructure } = state
   if (!archetype || !audienceProfile || !proposedStructure) {
@@ -222,7 +270,7 @@ async function runRefinementPhase(
   // ── Step 1: Outcomes + Components (parallel) ──────────────────────────────
 
   const [outcomesResult, componentResult] = await Promise.all([
-    runOutcomeArchitect(
+    agents.outcomeArchitect(
       next.brief,
       archetype,
       proposedStructure,
@@ -232,7 +280,7 @@ async function runRefinementPhase(
     // fallback: if outcomesMap exists from a prior loop, use it. Otherwise
     // we'll re-run component recommender after outcomes complete.
     next.outcomesMap
-      ? runComponentRecommender(
+      ? agents.componentRecommender(
           next.brief,
           archetype,
           proposedStructure,
@@ -259,7 +307,7 @@ async function runRefinementPhase(
   // If component recommender didn't run in parallel, run it now with fresh outcomes
   let compResult = componentResult
   if (!compResult) {
-    compResult = await runComponentRecommender(
+    compResult = await agents.componentRecommender(
       next.brief,
       archetype,
       proposedStructure,
@@ -282,6 +330,14 @@ async function runRefinementPhase(
     }
   }
 
+  // ── Pre-validation: cheap structural checks before expensive LLM grading ──
+
+  const validation = validateStructure(proposedStructure)
+  if (!validation.valid) {
+    messages.push(`Structure failed pre-validation: ${validation.errors.join(' ')} Auto-refining.`)
+    return { state: next, awaitingHuman: false, message: messages.join('\n\n'), cost: totalCost }
+  }
+
   // ── Step 2: Optimizer + Grader + Devil's Advocate (parallel) ──────────────
 
   // These are guaranteed non-null by the success checks above
@@ -291,9 +347,9 @@ async function runRefinementPhase(
   // Use allSettled so one agent failure doesn't discard the others' work.
   // Only the grader is a hard gate — optimizer and devil's advocate are advisory.
   const [optimizerSettled, graderSettled, devilSettled] = await Promise.allSettled([
-    runStructureOptimizer(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
-    runRubricGrader(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
-    runDevilsAdvocate(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
+    agents.structureOptimizer(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
+    agents.rubricGrader(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
+    agents.devilsAdvocate(next.brief, archetype, proposedStructure, outcomesMap, componentPlan, audienceProfile),
   ])
 
   const optimizerResult = optimizerSettled.status === 'fulfilled' ? optimizerSettled.value : null
@@ -331,6 +387,18 @@ async function runRefinementPhase(
   next.gradeReport = graderResult.output
   next.loopCount += 1
 
+  // Track best version — escalation presents the best artifact, not the last one
+  if (!next.bestGradeReport || graderResult.output.overallScore > next.bestGradeReport.overallScore) {
+    next.bestGradeReport = graderResult.output
+  }
+
+  // Clear human feedback after it's been applied to one iteration.
+  // Prevents over-optimization where agents fixate on one comment.
+  // History is preserved in conversationHistory and versions.
+  if (next.humanFeedback.length > 0) {
+    next.humanFeedback = []
+  }
+
   // Snapshot this version
   next.versions = [
     ...next.versions,
@@ -341,10 +409,17 @@ async function runRefinementPhase(
 
   // ── Step 3: Auto-routing decision ─────────────────────────────────────────
 
+  const MIN_ITERATIONS = 2
   const nextPhase = getNextPhase('refinement', next.gradeReport)
 
   if (nextPhase === 'review') {
-    // Score >= 75 — advance to human review
+    // Enforce minimum iterations — even if v1 scores above threshold,
+    // require a second pass. First-draft bias is real.
+    if (next.loopCount < MIN_ITERATIONS) {
+      messages.push(`Score meets threshold (${graderResult.output.overallScore}/100), but minimum ${MIN_ITERATIONS} iterations required. Running iteration ${next.loopCount + 1}.`)
+      return { state: next, awaitingHuman: false, message: messages.join('\n\n'), cost: totalCost }
+    }
+    // Score >= 75 and min iterations met — advance to human review
     next.currentPhase = 'review'
     messages.push('Score meets threshold. Presenting blueprint for your review.')
     return { state: next, awaitingHuman: true, message: messages.join('\n\n'), cost: totalCost }
@@ -352,15 +427,44 @@ async function runRefinementPhase(
 
   // Score < 75 — check loop budget
   if (next.loopCount >= next.maxLoops) {
-    // Force human review after maxLoops
+    // Force human review after maxLoops — present best version across all iterations
     next.currentPhase = 'review'
-    messages.push(`Reached maximum ${next.maxLoops} refinement loops. Presenting best result for your review.`)
+    const bestScore = next.bestGradeReport?.overallScore ?? graderResult.output.overallScore
+    messages.push(`Reached maximum ${next.maxLoops} refinement loops. Best score: ${bestScore}/100. Presenting for your review.`)
     return { state: next, awaitingHuman: true, message: messages.join('\n\n'), cost: totalCost }
   }
 
   // Auto-refine: stay in refinement, don't await human
-  messages.push(`Score below 75 — auto-refining (loop ${next.loopCount}/${next.maxLoops}). Improvements needed: ${graderResult.output.specificImprovements.join(', ')}.`)
+  // Dimension-aware revision: preserve strong dimensions, target weak ones
+  const revisionGuidance = buildDimensionGuidance(graderResult.output)
+  messages.push(`Score below 75 — auto-refining (loop ${next.loopCount}/${next.maxLoops}).`)
+  if (revisionGuidance) messages.push(revisionGuidance)
+  messages.push(`Improvements needed: ${graderResult.output.specificImprovements.join(', ')}.`)
   return { state: next, awaitingHuman: false, message: messages.join('\n\n'), cost: totalCost }
+}
+
+// ─── Dimension-Aware Revision Guidance ────────────────────────────────────────
+
+/**
+ * Build revision guidance from grade dimensions.
+ * Preserve dimensions scoring >= 80, target dimensions scoring < 80.
+ */
+function buildDimensionGuidance(gradeReport: GradeReport): string | null {
+  if (!gradeReport.dimensionScores || gradeReport.dimensionScores.length === 0) return null
+
+  const preserve = gradeReport.dimensionScores.filter(d => d.score >= 80)
+  const improve = gradeReport.dimensionScores.filter(d => d.score < 80)
+
+  if (preserve.length === 0 && improve.length === 0) return null
+
+  const parts: string[] = []
+  if (preserve.length > 0) {
+    parts.push(`Preserve: ${preserve.map(d => `${d.name} (${d.score})`).join(', ')}`)
+  }
+  if (improve.length > 0) {
+    parts.push(`Improve: ${improve.map(d => `${d.name} (${d.score}) — ${d.feedback}`).join('; ')}`)
+  }
+  return parts.join('. ')
 }
 
 // ─── Version Snapshot ─────────────────────────────────────────────────────────
@@ -394,11 +498,14 @@ function createVersion(state: IdeationLoopState): BlueprintVersion {
  */
 export async function runIdeationStep(
   state: IdeationLoopState,
-  humanMessage = ''
+  humanMessage = '',
+  runners?: IdeationAgentRunners,
 ): Promise<IdeationStepResult> {
+  const agents = runners ?? DEFAULT_RUNNERS
+
   switch (state.currentPhase) {
     case 'brainstorm': {
-      const result = await runBrainstormPhase(state, humanMessage)
+      const result = await runBrainstormPhase(state, humanMessage, agents)
       return {
         updatedState: result.state,
         awaitingHuman: result.awaitingHuman,
@@ -410,7 +517,7 @@ export async function runIdeationStep(
     case 'structure': {
       // Step 1: audience analysis (if no audience yet)
       if (!state.audienceProfile) {
-        const result = await runStructurePhaseAudience(state)
+        const result = await runStructurePhaseAudience(state, agents)
         return {
           updatedState: result.state,
           awaitingHuman: result.awaitingHuman,
@@ -420,7 +527,7 @@ export async function runIdeationStep(
       }
       // Step 2: curriculum design (audience confirmed)
       if (!state.awaitingAudienceConfirmation) {
-        const result = await runStructurePhaseStructure(state)
+        const result = await runStructurePhaseStructure(state, agents)
         return {
           updatedState: result.state,
           awaitingHuman: result.awaitingHuman,
@@ -438,7 +545,7 @@ export async function runIdeationStep(
     }
 
     case 'refinement': {
-      const result = await runRefinementPhase(state)
+      const result = await runRefinementPhase(state, agents)
       return {
         updatedState: result.state,
         awaitingHuman: result.awaitingHuman,
@@ -527,6 +634,7 @@ export async function processHumanFeedback(
         outcomesMap: null,
         componentPlan: null,
         gradeReport: null,
+        bestGradeReport: null,
         challenges: null,
         humanFeedback: [...state.humanFeedback, entry],
         // Keep: brief, archetype, audienceProfile, conversationHistory, versions

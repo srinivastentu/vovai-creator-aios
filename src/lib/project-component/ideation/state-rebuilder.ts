@@ -51,6 +51,7 @@ export async function rebuildState(
   let outcomesMap: OutcomesMap | null = null
   let componentPlan: ComponentPlan | null = null
   let gradeReport: GradeReport | null = null
+  let bestGradeReport: GradeReport | null = null
 
   for (const msg of conversation.messages) {
     const data = msg.structuredData as Record<string, unknown> | null
@@ -60,7 +61,13 @@ export async function rebuildState(
     if (data.proposedStructure) proposedStructure = data.proposedStructure as ProposedStructure
     if (data.outcomesMap) outcomesMap = data.outcomesMap as OutcomesMap
     if (data.componentPlan) componentPlan = data.componentPlan as ComponentPlan
-    if (data.gradeReport) gradeReport = data.gradeReport as GradeReport
+    if (data.gradeReport) {
+      gradeReport = data.gradeReport as GradeReport
+      // Track best grade across all iterations
+      if (!bestGradeReport || gradeReport.overallScore > bestGradeReport.overallScore) {
+        bestGradeReport = gradeReport
+      }
+    }
   }
 
   // Extract awaitingAudienceConfirmation from latest message that has it
@@ -126,6 +133,7 @@ export async function rebuildState(
   state.outcomesMap = outcomesMap
   state.componentPlan = componentPlan
   state.gradeReport = gradeReport
+  state.bestGradeReport = bestGradeReport
 
   // Rebuild conversation history for the orchestrator
   state.conversationHistory = conversation.messages.map((m, i) => ({

@@ -5,6 +5,7 @@ import {
   runIdeationStep,
   processHumanFeedback,
 } from '../../src/lib/project-component/ideation/loop-engine'
+import type { IdeationAgentRunners } from '../../src/lib/project-component/ideation/loop-engine'
 import type { AgentResult } from '../../src/lib/project-component/agents/framework/types'
 import type {
   AudienceProfile,
@@ -16,43 +17,6 @@ import type {
   OptimizationReport,
   DevilsAdvocateReport,
 } from '../../src/lib/project-component/types'
-
-// ─── Mock All Agents ─────────────────────────────────────────────────────────
-
-vi.mock('../../src/lib/project-component/agents/orchestrator', () => ({
-  runOrchestrator: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/audience-analyst', () => ({
-  runAudienceAnalyst: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/curriculum-strategist', () => ({
-  runCurriculumStrategist: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/outcome-architect', () => ({
-  runOutcomeArchitect: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/component-recommender', () => ({
-  runComponentRecommender: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/structure-optimizer', () => ({
-  runStructureOptimizer: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/rubric-grader', () => ({
-  runRubricGrader: vi.fn(),
-}))
-vi.mock('../../src/lib/project-component/agents/devils-advocate', () => ({
-  runDevilsAdvocate: vi.fn(),
-}))
-
-// Import mocks after vi.mock declarations
-import { runOrchestrator } from '../../src/lib/project-component/agents/orchestrator'
-import { runAudienceAnalyst } from '../../src/lib/project-component/agents/audience-analyst'
-import { runCurriculumStrategist } from '../../src/lib/project-component/agents/curriculum-strategist'
-import { runOutcomeArchitect } from '../../src/lib/project-component/agents/outcome-architect'
-import { runComponentRecommender } from '../../src/lib/project-component/agents/component-recommender'
-import { runStructureOptimizer } from '../../src/lib/project-component/agents/structure-optimizer'
-import { runRubricGrader } from '../../src/lib/project-component/agents/rubric-grader'
-import { runDevilsAdvocate } from '../../src/lib/project-component/agents/devils-advocate'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -106,8 +70,12 @@ const MOCK_STRUCTURE: ProposedStructure = {
   courseTitle: 'Instructional Design Fundamentals',
   courseDescription: 'A comprehensive course on instructional design.',
   modules: [
-    { title: 'Module 1', description: 'Intro', topics: [] },
-    { title: 'Module 2', description: 'Advanced', topics: [] },
+    { title: 'Module 1', description: 'Intro to ID', topics: [
+      { title: 'What is Instructional Design?', description: 'Overview of ID', keyConcepts: ['ADDIE'], estimatedMinutes: 30, subtopics: [], difficulty: 'beginner', bloomLevel: 'understand' },
+    ] },
+    { title: 'Module 2', description: 'Advanced Techniques', topics: [
+      { title: 'Learner Analysis', description: 'Analyzing target audience', keyConcepts: ['personas'], estimatedMinutes: 45, subtopics: [], difficulty: 'intermediate', bloomLevel: 'apply' },
+    ] },
   ],
   sequencingRationale: 'Progressive complexity',
   alternativeStructures: [],
@@ -162,6 +130,30 @@ const MOCK_DEVILS_ADVOCATE: DevilsAdvocateReport = {
   summary: 'Some risks identified',
 }
 
+// ─── Mock Runners ───────────────────────────────────────────────────────────
+// Build mock IdeationAgentRunners directly — no vi.mock needed.
+// Tests pass these via the `runners` parameter, bypassing DEFAULT_RUNNERS.
+
+const mockOrchestrator = vi.fn()
+const mockAudienceAnalyst = vi.fn()
+const mockCurriculumStrategist = vi.fn()
+const mockOutcomeArchitect = vi.fn()
+const mockComponentRecommender = vi.fn()
+const mockStructureOptimizer = vi.fn()
+const mockRubricGrader = vi.fn()
+const mockDevilsAdvocate = vi.fn()
+
+const mockRunners: IdeationAgentRunners = {
+  orchestrator: mockOrchestrator,
+  audienceAnalyst: mockAudienceAnalyst,
+  curriculumStrategist: mockCurriculumStrategist,
+  outcomeArchitect: mockOutcomeArchitect,
+  componentRecommender: mockComponentRecommender,
+  structureOptimizer: mockStructureOptimizer,
+  rubricGrader: mockRubricGrader,
+  devilsAdvocate: mockDevilsAdvocate,
+}
+
 // ─── State Helpers ───────────────────────────────────────────────────────────
 
 function stateInStructure(): IdeationLoopState {
@@ -210,11 +202,11 @@ describe('runIdeationStep — brainstorm phase', () => {
       agentsToRun: [],
       humanFacingMessage: 'What is the target audience?',
     }
-    vi.mocked(runOrchestrator).mockResolvedValue(makeAgentResult(orchestratorOutput, { agentId: 'orchestrator' }))
+    mockOrchestrator.mockResolvedValue(makeAgentResult(orchestratorOutput, { agentId: 'orchestrator' }))
 
-    const result = await runIdeationStep(state, 'Build a teacher training course')
+    const result = await runIdeationStep(state, 'Build a teacher training course', mockRunners)
 
-    expect(runOrchestrator).toHaveBeenCalledOnce()
+    expect(mockOrchestrator).toHaveBeenCalledOnce()
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toBe('What is the target audience?')
     expect(result.stepCostUSD).toBe(0.004)
@@ -229,9 +221,9 @@ describe('runIdeationStep — brainstorm phase', () => {
       humanFacingMessage: 'Detected professional training archetype. Moving to structure phase.',
       structuredProposal: { archetype: 'professional_training' },
     }
-    vi.mocked(runOrchestrator).mockResolvedValue(makeAgentResult(orchestratorOutput, { agentId: 'orchestrator' }))
+    mockOrchestrator.mockResolvedValue(makeAgentResult(orchestratorOutput, { agentId: 'orchestrator' }))
 
-    const result = await runIdeationStep(state, 'Build a 40-hour teacher training course')
+    const result = await runIdeationStep(state, 'Build a 40-hour teacher training course', mockRunners)
 
     expect(result.updatedState.currentPhase).toBe('structure')
     expect(result.updatedState.archetype).toBe('professional_training')
@@ -245,9 +237,9 @@ describe('runIdeationStep — brainstorm phase', () => {
       agentsToRun: [],
       humanFacingMessage: 'Can you tell me more about the subject?',
     }
-    vi.mocked(runOrchestrator).mockResolvedValue(makeAgentResult(orchestratorOutput, { agentId: 'orchestrator' }))
+    mockOrchestrator.mockResolvedValue(makeAgentResult(orchestratorOutput, { agentId: 'orchestrator' }))
 
-    const result = await runIdeationStep(state, 'I want to make a course')
+    const result = await runIdeationStep(state, 'I want to make a course', mockRunners)
 
     expect(result.updatedState.currentPhase).toBe('brainstorm')
     expect(result.awaitingHuman).toBe(true)
@@ -255,9 +247,9 @@ describe('runIdeationStep — brainstorm phase', () => {
 
   it('handles orchestrator failure gracefully', async () => {
     const state = createInitialState('bp-001', 'Build a course')
-    vi.mocked(runOrchestrator).mockResolvedValue(makeFailedResult('API timeout'))
+    mockOrchestrator.mockResolvedValue(makeFailedResult('API timeout'))
 
-    const result = await runIdeationStep(state, 'Build a course')
+    const result = await runIdeationStep(state, 'Build a course', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('API timeout')
@@ -267,27 +259,41 @@ describe('runIdeationStep — brainstorm phase', () => {
 // ─── Structure Phase ─────────────────────────────────────────────────────────
 
 describe('runIdeationStep — structure phase', () => {
-  it('runs audience analyst and curriculum strategist in parallel', async () => {
+  it('runs audience analyst first, then curriculum strategist after confirmation', async () => {
+    // Step 1: audience analysis (no audienceProfile yet)
     const state = stateInStructure()
-    vi.mocked(runAudienceAnalyst).mockResolvedValue(makeAgentResult(MOCK_AUDIENCE, { agentId: 'audience-analyst' }))
-    vi.mocked(runCurriculumStrategist).mockResolvedValue(makeAgentResult(MOCK_STRUCTURE, { agentId: 'curriculum-strategist' }))
+    mockAudienceAnalyst.mockResolvedValue(makeAgentResult(MOCK_AUDIENCE, { agentId: 'audience-analyst' }))
 
-    const result = await runIdeationStep(state)
+    const step1 = await runIdeationStep(state, '', mockRunners)
 
-    expect(runAudienceAnalyst).toHaveBeenCalledOnce()
-    expect(runCurriculumStrategist).toHaveBeenCalledOnce()
-    expect(result.updatedState.audienceProfile).toEqual(MOCK_AUDIENCE)
-    expect(result.updatedState.proposedStructure).toEqual(MOCK_STRUCTURE)
-    expect(result.updatedState.currentPhase).toBe('refinement')
-    expect(result.stepCostUSD).toBe(0.008) // 2 agents * 0.004
+    expect(mockAudienceAnalyst).toHaveBeenCalledOnce()
+    expect(mockCurriculumStrategist).not.toHaveBeenCalled()
+    expect(step1.updatedState.audienceProfile).toEqual(MOCK_AUDIENCE)
+    expect(step1.updatedState.awaitingAudienceConfirmation).toBe(true)
+    expect(step1.awaitingHuman).toBe(true)
+    expect(step1.stepCostUSD).toBe(0.004)
+
+    // Step 2: curriculum design (after audience confirmed — flag cleared)
+    const confirmedState: IdeationLoopState = {
+      ...step1.updatedState,
+      awaitingAudienceConfirmation: false,
+    }
+    mockCurriculumStrategist.mockResolvedValue(makeAgentResult(MOCK_STRUCTURE, { agentId: 'curriculum-strategist' }))
+
+    const step2 = await runIdeationStep(confirmedState, '', mockRunners)
+
+    expect(mockCurriculumStrategist).toHaveBeenCalledOnce()
+    expect(step2.updatedState.proposedStructure).toEqual(MOCK_STRUCTURE)
+    expect(step2.updatedState.currentPhase).toBe('refinement')
+    expect(step2.stepCostUSD).toBe(0.004)
   })
 
   it('does not advance if audience analyst fails', async () => {
     const state = stateInStructure()
-    vi.mocked(runAudienceAnalyst).mockResolvedValue(makeFailedResult('Model unavailable'))
-    vi.mocked(runCurriculumStrategist).mockResolvedValue(makeAgentResult(MOCK_STRUCTURE))
+    mockAudienceAnalyst.mockResolvedValue(makeFailedResult('Model unavailable'))
+    mockCurriculumStrategist.mockResolvedValue(makeAgentResult(MOCK_STRUCTURE))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.updatedState.currentPhase).toBe('structure')
     expect(result.awaitingHuman).toBe(true)
@@ -295,11 +301,15 @@ describe('runIdeationStep — structure phase', () => {
   })
 
   it('does not advance if curriculum strategist fails', async () => {
-    const state = stateInStructure()
-    vi.mocked(runAudienceAnalyst).mockResolvedValue(makeAgentResult(MOCK_AUDIENCE))
-    vi.mocked(runCurriculumStrategist).mockResolvedValue(makeFailedResult('Parse error'))
+    // State with audience already confirmed — goes directly to curriculum step
+    const state: IdeationLoopState = {
+      ...stateInStructure(),
+      audienceProfile: MOCK_AUDIENCE,
+      awaitingAudienceConfirmation: false,
+    }
+    mockCurriculumStrategist.mockResolvedValue(makeFailedResult('Parse error'))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.updatedState.currentPhase).toBe('structure')
     expect(result.awaitingHuman).toBe(true)
@@ -312,7 +322,7 @@ describe('runIdeationStep — structure phase', () => {
       currentPhase: 'structure' as const,
     }
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('archetype')
@@ -324,22 +334,34 @@ describe('runIdeationStep — structure phase', () => {
 
 describe('runIdeationStep — refinement phase', () => {
   function mockAllRefinementAgents(gradeScore: number) {
-    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES, { agentId: 'outcome-architect' }))
-    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN, { agentId: 'component-recommender' }))
-    vi.mocked(runStructureOptimizer).mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION, { agentId: 'structure-optimizer' }))
-    vi.mocked(runRubricGrader).mockResolvedValue(makeAgentResult(makeGradeReport(gradeScore), { agentId: 'rubric-grader' }))
-    vi.mocked(runDevilsAdvocate).mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE, { agentId: 'devils-advocate' }))
+    mockOutcomeArchitect.mockResolvedValue(makeAgentResult(MOCK_OUTCOMES, { agentId: 'outcome-architect' }))
+    mockComponentRecommender.mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN, { agentId: 'component-recommender' }))
+    mockStructureOptimizer.mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION, { agentId: 'structure-optimizer' }))
+    mockRubricGrader.mockResolvedValue(makeAgentResult(makeGradeReport(gradeScore), { agentId: 'rubric-grader' }))
+    mockDevilsAdvocate.mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE, { agentId: 'devils-advocate' }))
   }
 
-  it('advances to review when grade >= 75', async () => {
-    const state = stateInRefinement()
+  it('enforces minimum 2 iterations before advancing to review', async () => {
+    const state = stateInRefinement() // loopCount starts at 0
     mockAllRefinementAgents(82)
 
-    const result = await runIdeationStep(state)
+    // First iteration: score >= 75 but loopCount=1 < minIterations(2) → stay in refinement
+    const result1 = await runIdeationStep(state, '', mockRunners)
+    expect(result1.updatedState.currentPhase).toBe('refinement')
+    expect(result1.updatedState.loopCount).toBe(1)
+    expect(result1.awaitingHuman).toBe(false)
+    expect(result1.humanMessage).toContain('minimum')
+  })
+
+  it('advances to review when grade >= 75 and min iterations met', async () => {
+    const state = { ...stateInRefinement(), loopCount: 1 } // already did 1 loop
+    mockAllRefinementAgents(82)
+
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.updatedState.currentPhase).toBe('review')
     expect(result.updatedState.gradeReport?.overallScore).toBe(82)
-    expect(result.updatedState.loopCount).toBe(1)
+    expect(result.updatedState.loopCount).toBe(2)
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('threshold')
   })
@@ -348,7 +370,7 @@ describe('runIdeationStep — refinement phase', () => {
     const state = stateInRefinement()
     mockAllRefinementAgents(60)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.updatedState.currentPhase).toBe('refinement')
     expect(result.updatedState.loopCount).toBe(1)
@@ -360,44 +382,65 @@ describe('runIdeationStep — refinement phase', () => {
     const state = { ...stateInRefinement(), loopCount: 4 }
     mockAllRefinementAgents(60)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     // loopCount was 4, now 5 (== maxLoops) → force review
     expect(result.updatedState.currentPhase).toBe('review')
     expect(result.updatedState.loopCount).toBe(5)
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('maximum')
+    expect(result.humanMessage).toContain('Best score')
   })
 
   it('creates a version snapshot after each refinement', async () => {
-    const state = stateInRefinement()
+    const state = { ...stateInRefinement(), loopCount: 1 } // min iterations met after this loop
     mockAllRefinementAgents(82)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.updatedState.versions).toHaveLength(1)
     expect(result.updatedState.versions[0].version).toBe(1)
     expect(result.updatedState.versions[0].gradeReport?.overallScore).toBe(82)
   })
 
+  it('tracks best grade report across iterations', async () => {
+    // First iteration: score 60
+    const state = stateInRefinement()
+    mockAllRefinementAgents(60)
+    const result1 = await runIdeationStep(state, '', mockRunners)
+    expect(result1.updatedState.bestGradeReport?.overallScore).toBe(60)
+
+    // Second iteration: score 72 (higher)
+    mockAllRefinementAgents(72)
+    const result2 = await runIdeationStep(result1.updatedState, '', mockRunners)
+    expect(result2.updatedState.bestGradeReport?.overallScore).toBe(72)
+
+    // Third iteration: score 65 (regression) — best should still be 72
+    mockAllRefinementAgents(65)
+    const result3 = await runIdeationStep(result2.updatedState, '', mockRunners)
+    expect(result3.updatedState.bestGradeReport?.overallScore).toBe(72)
+    expect(result3.updatedState.gradeReport?.overallScore).toBe(65) // current is lower
+  })
+
   it('accumulates versions across loops', async () => {
     const state = {
       ...stateInRefinement(),
+      loopCount: 1,
       versions: [{ version: 1, phase: 'refinement' as const, gradeReport: makeGradeReport(50), snapshot: {}, createdAt: new Date() }],
     }
     mockAllRefinementAgents(82)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.updatedState.versions).toHaveLength(2)
     expect(result.updatedState.versions[1].version).toBe(2)
   })
 
   it('tracks cost across all agents', async () => {
-    const state = stateInRefinement()
+    const state = { ...stateInRefinement(), loopCount: 1 }
     mockAllRefinementAgents(82)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     // 5 agents * 0.004 each = 0.020
     expect(result.stepCostUSD).toBeCloseTo(0.020, 3)
@@ -405,9 +448,9 @@ describe('runIdeationStep — refinement phase', () => {
 
   it('fails gracefully when outcome architect fails', async () => {
     const state = stateInRefinement()
-    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeFailedResult('Timeout'))
+    mockOutcomeArchitect.mockResolvedValue(makeFailedResult('Timeout'))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('Outcome mapping failed')
@@ -415,28 +458,28 @@ describe('runIdeationStep — refinement phase', () => {
 
   it('fails gracefully when rubric grader fails', async () => {
     const state = stateInRefinement()
-    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
-    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
-    vi.mocked(runStructureOptimizer).mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
-    vi.mocked(runRubricGrader).mockResolvedValue(makeFailedResult('Parse error'))
-    vi.mocked(runDevilsAdvocate).mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
+    mockOutcomeArchitect.mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    mockComponentRecommender.mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    mockStructureOptimizer.mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
+    mockRubricGrader.mockResolvedValue(makeFailedResult('Parse error'))
+    mockDevilsAdvocate.mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('Rubric grading failed')
   })
 
   it('salvages optimizer and devil results when only one agent throws', async () => {
-    const state = stateInRefinement()
-    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
-    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    const state = { ...stateInRefinement(), loopCount: 1 }
+    mockOutcomeArchitect.mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    mockComponentRecommender.mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
     // Optimizer throws (rejected promise) — should NOT block grading
-    vi.mocked(runStructureOptimizer).mockRejectedValue(new Error('Optimizer crashed'))
-    vi.mocked(runRubricGrader).mockResolvedValue(makeAgentResult(makeGradeReport(82)))
-    vi.mocked(runDevilsAdvocate).mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
+    mockStructureOptimizer.mockRejectedValue(new Error('Optimizer crashed'))
+    mockRubricGrader.mockResolvedValue(makeAgentResult(makeGradeReport(82)))
+    mockDevilsAdvocate.mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     // Grader succeeded → should advance to review despite optimizer crash
     expect(result.updatedState.currentPhase).toBe('review')
@@ -448,15 +491,17 @@ describe('runIdeationStep — refinement phase', () => {
 
   it('salvages grader result when devil advocate throws', async () => {
     const state = stateInRefinement()
-    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
-    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
-    vi.mocked(runStructureOptimizer).mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
-    vi.mocked(runRubricGrader).mockResolvedValue(makeAgentResult(makeGradeReport(78)))
-    vi.mocked(runDevilsAdvocate).mockRejectedValue(new Error('Network timeout'))
+    mockOutcomeArchitect.mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    mockComponentRecommender.mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    mockStructureOptimizer.mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
+    mockRubricGrader.mockResolvedValue(makeAgentResult(makeGradeReport(78)))
+    mockDevilsAdvocate.mockRejectedValue(new Error('Network timeout'))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
-    expect(result.updatedState.currentPhase).toBe('review')
+    // loopCount=0 → after grading loopCount=1, but min iterations=2, so stays in refinement
+    // Wait — score >= 75 but loopCount(1) < MIN_ITERATIONS(2) → stays in refinement
+    expect(result.updatedState.currentPhase).toBe('refinement')
     expect(result.humanMessage).toContain("Devil's advocate encountered an error")
     // Challenges should remain whatever was on state before (null for fresh refinement)
     expect(result.updatedState.challenges).toBeNull()
@@ -464,13 +509,13 @@ describe('runIdeationStep — refinement phase', () => {
 
   it('fails when grader throws (rejected promise)', async () => {
     const state = stateInRefinement()
-    vi.mocked(runOutcomeArchitect).mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
-    vi.mocked(runComponentRecommender).mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
-    vi.mocked(runStructureOptimizer).mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
-    vi.mocked(runRubricGrader).mockRejectedValue(new Error('API key expired'))
-    vi.mocked(runDevilsAdvocate).mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
+    mockOutcomeArchitect.mockResolvedValue(makeAgentResult(MOCK_OUTCOMES))
+    mockComponentRecommender.mockResolvedValue(makeAgentResult(MOCK_COMPONENT_PLAN))
+    mockStructureOptimizer.mockResolvedValue(makeAgentResult(MOCK_OPTIMIZATION))
+    mockRubricGrader.mockRejectedValue(new Error('API key expired'))
+    mockDevilsAdvocate.mockResolvedValue(makeAgentResult(MOCK_DEVILS_ADVOCATE))
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('Rubric grading failed')
@@ -484,7 +529,7 @@ describe('runIdeationStep — refinement phase', () => {
       currentPhase: 'refinement' as const,
     }
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('missing')
@@ -498,7 +543,7 @@ describe('runIdeationStep — review phase', () => {
   it('presents blueprint and awaits human', async () => {
     const state = stateInReview(82)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(true)
     expect(result.humanMessage).toContain('Blueprint Review')
@@ -509,7 +554,7 @@ describe('runIdeationStep — review phase', () => {
   it('includes structure info in review presentation', async () => {
     const state = stateInReview(82)
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.humanMessage).toContain('Instructional Design Fundamentals')
     expect(result.humanMessage).toContain('Modules')
@@ -525,7 +570,7 @@ describe('runIdeationStep — approved phase', () => {
   it('returns ready message and does not await human', async () => {
     const state = { ...stateInReview(90), currentPhase: 'approved' as const }
 
-    const result = await runIdeationStep(state)
+    const result = await runIdeationStep(state, '', mockRunners)
 
     expect(result.awaitingHuman).toBe(false)
     expect(result.humanMessage).toContain('approved')
@@ -580,6 +625,7 @@ describe('processHumanFeedback', () => {
     expect(result.outcomesMap).toBeNull()
     expect(result.componentPlan).toBeNull()
     expect(result.gradeReport).toBeNull()
+    expect(result.bestGradeReport).toBeNull()
     expect(result.challenges).toBeNull()
     // History preserved
     expect(result.versions).toEqual(state.versions)
