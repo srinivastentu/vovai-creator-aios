@@ -1,46 +1,24 @@
+'use client'
+
 import Link from "next/link"
-import type { Project } from "@/lib/types"
+import { Plus, Loader2, Folder } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProjectCard } from "@/components/dashboard/project-card"
-import { Plus } from "lucide-react"
+import { useApi } from "@/lib/hooks/use-api"
+import { ErrorBanner } from "@/components/project-component/shared/error-banner"
+import { EmptyState } from "@/components/project-component/shared/empty-state"
+import type { Project } from "@/lib/types"
 
-const sampleProjects: Project[] = [
-  {
-    id: "proj-001",
-    name: "Workplace Safety Training",
-    topic: "OSHA compliance and hazard identification for warehouse workers",
-    targetAudience: "New warehouse employees",
-    durationMinutes: 12,
-    status: "in_progress",
-    currentRing: 1,
-    totalCostUSD: 2.47,
-    createdAt: new Date("2026-03-25"),
-  },
-  {
-    id: "proj-002",
-    name: "Customer Service Excellence",
-    topic: "Handling difficult customers and de-escalation techniques",
-    targetAudience: "Retail staff",
-    durationMinutes: 8,
-    status: "draft",
-    currentRing: 0,
-    totalCostUSD: 0,
-    createdAt: new Date("2026-03-27"),
-  },
-  {
-    id: "proj-003",
-    name: "Data Privacy Compliance",
-    topic: "GDPR and data handling best practices for all employees",
-    targetAudience: "All company staff",
-    durationMinutes: 15,
-    status: "completed",
-    currentRing: 4,
-    totalCostUSD: 18.93,
-    createdAt: new Date("2026-03-10"),
-  },
-]
+type ProjectResponse = Omit<Project, 'createdAt'> & { createdAt: string }
 
 export default function DashboardPage() {
+  const { data, loading, error, refetch } = useApi<ProjectResponse[]>('/api/projects')
+
+  const projects: Project[] = (data ?? []).map(p => ({
+    ...p,
+    createdAt: new Date(p.createdAt),
+  }))
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-6xl px-4 py-8">
@@ -57,11 +35,26 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sampleProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-20">
+            <Loader2 className="animate-spin text-muted-foreground" size={20} />
+            <span className="text-sm text-muted-foreground">Loading projects...</span>
+          </div>
+        ) : error ? (
+          <ErrorBanner message={error} onRetry={refetch} variant="card" />
+        ) : projects.length === 0 ? (
+          <EmptyState
+            icon={Folder}
+            title="No projects yet"
+            description="Create your first eLearning project to get started."
+          />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </div>
+        )}
       </div>
     </main>
   )

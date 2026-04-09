@@ -69,6 +69,8 @@ model StageSession {
   artifacts         Artifact[]
   iterations        IterationRecord[]
   nodeComponents    NodeComponent[]
+
+  @@index([projectId])
 }
 
 // Artifact — immutable. New version = new row. Never update content.
@@ -82,6 +84,9 @@ model Artifact {
   sceneIndex     Int?
   createdAt      DateTime      @default(now())
   metadata       Json          @default("{}")
+
+  @@index([stageSessionId])
+  @@unique([stageSessionId, version])
 }
 
 // IterationRecord — one row per loop iteration. Grade + cost embedded.
@@ -98,6 +103,8 @@ model IterationRecord {
   costOutputTokens Int
   costUSD          Float
   createdAt        DateTime         @default(now())
+
+  @@index([stageSessionId])
 }
 
 // ─── Project Component Layer — Enums ──────────────────────────────────────────
