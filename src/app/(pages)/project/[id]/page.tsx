@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { useProjectPage } from '@/lib/hooks/use-project-page'
@@ -9,6 +9,7 @@ import { ProjectTopBar } from '@/components/project-component/layout/project-top
 import { ProjectPageLayout } from '@/components/project-component/layout/project-page-layout'
 import { ChatColumn } from '@/components/project-component/layout/chat-column'
 import { ArtifactPanel } from '@/components/project-component/layout/artifact-panel'
+import { ConfirmRestructureDialog } from '@/components/project-component/shared/confirm-restructure-dialog'
 
 export default function ProjectPage({
   params,
@@ -18,6 +19,7 @@ export default function ProjectPage({
   const { id: projectId } = use(params)
   const router = useRouter()
   const state = useProjectPage(projectId)
+  const [restructureOpen, setRestructureOpen] = useState(false)
 
   // ── Loading / Error States ────────────────────────────────────────────────
 
@@ -47,6 +49,7 @@ export default function ProjectPage({
   // ── Main Layout ───────────────────────────────────────────────────────────
 
   return (
+    <>
     <ProjectPageLayout
       panelOpen={state.panelOpen}
       topBar={
@@ -94,11 +97,7 @@ export default function ProjectPage({
             }
           }}
           onSendFeedback={(msg) => state.ideation.submitReview('feedback', msg)}
-          onRestructure={() => {
-            if (window.confirm('Start over from brainstorm? Brief and audience will be retained.')) {
-              state.ideation.submitReview('restructure')
-            }
-          }}
+          onRestructure={() => setRestructureOpen(true)}
           onSendMessage={state.handleSendMessage}
           onNavigateToTab={(tab) => {
             state.setActiveTab(tab)
@@ -125,5 +124,11 @@ export default function ProjectPage({
         />
       }
     />
+    <ConfirmRestructureDialog
+      open={restructureOpen}
+      onOpenChange={setRestructureOpen}
+      onConfirm={() => state.ideation.submitReview('restructure')}
+    />
+  </>
   )
 }

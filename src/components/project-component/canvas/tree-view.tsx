@@ -127,6 +127,10 @@ const TreeNodeRow = memo(function TreeNodeRow({ node, selectedId, onSelect, defa
   return (
     <div>
       <div
+        role="treeitem"
+        tabIndex={0}
+        aria-selected={isSelected}
+        aria-expanded={hasChildren ? expanded : undefined}
         className={`group flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm transition-colors ${
           isSelected
             ? 'bg-primary/10 text-foreground ring-1 ring-primary/20'
@@ -134,6 +138,12 @@ const TreeNodeRow = memo(function TreeNodeRow({ node, selectedId, onSelect, defa
         }`}
         style={{ paddingLeft: `${node.depth * 20 + 8}px` }}
         onClick={() => onSelect(node.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onSelect(node.id)
+          }
+        }}
       >
         {/* Chevron */}
         {hasChildren ? (

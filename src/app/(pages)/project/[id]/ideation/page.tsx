@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ConfirmRestructureDialog } from '@/components/project-component/shared/confirm-restructure-dialog'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2 } from 'lucide-react'
@@ -99,6 +100,8 @@ export default function IdeationPage({
     submitReview,
     reviewLoading,
     reviewError,
+    confirmAudience,
+    confirmAudienceLoading,
     anyLoading,
     activeAgents,
     currentAction,
@@ -137,6 +140,9 @@ export default function IdeationPage({
       })
       .finally(() => setAutoStarting(false))
   }, [blueprint, blueprintLoading, messagesLoading, hasConversation, startIdeation])
+
+  // Restructure confirmation dialog
+  const [restructureOpen, setRestructureOpen] = useState(false)
 
   // Optimistic messages — shown immediately before API responds
   const [optimisticMessages, setOptimisticMessages] = useState<ChatMessageData[]>([])
@@ -193,6 +199,17 @@ export default function IdeationPage({
       if (typeof data?.loopCount === 'number') count = data.loopCount as number
     }
     return count
+  }, [allMessages])
+
+  // Derive awaitingAudienceConfirmation from latest message that has it
+  const awaitingAudienceConfirmation = useMemo(() => {
+    for (const msg of [...allMessages].reverse()) {
+      const sd = msg.structuredData as Record<string, unknown> | null
+      if (sd?.awaitingAudienceConfirmation !== undefined) {
+        return sd.awaitingAudienceConfirmation as boolean
+      }
+    }
+    return false
   }, [allMessages])
 
   // Total cost
@@ -309,6 +326,7 @@ export default function IdeationPage({
   // ─── Main Layout ───────────────────────────────────────────────────────────
 
   return (
+    <>
     <main className="flex h-screen flex-col bg-background text-foreground">
       {/* Top bar */}
       <div className="flex items-center gap-3 border-b px-4 py-3">
@@ -378,9 +396,9 @@ export default function IdeationPage({
               sendError={sendError}
               score={blueprint?.ideationScore ?? null}
               showProceed={showProceed}
-              awaitingAudienceConfirmation={false}
-              onConfirmAudience={() => undefined}
-              confirmAudienceLoading={false}
+              awaitingAudienceConfirmation={awaitingAudienceConfirmation}
+              onConfirmAudience={confirmAudience}
+              confirmAudienceLoading={confirmAudienceLoading}
               onProceed={() => sendMessage('proceed')}
               onGrade={gradeStructure}
               onApprove={async () => {
@@ -392,11 +410,7 @@ export default function IdeationPage({
                 }
               }}
               onSendFeedback={(msg) => submitReview('feedback', msg)}
-              onRestructure={() => {
-                if (window.confirm('Start over from brainstorm? Brief and audience will be retained.')) {
-                  submitReview('restructure')
-                }
-              }}
+              onRestructure={() => setRestructureOpen(true)}
               onSendMessage={handleSendMessage}
             />
           )}
@@ -411,5 +425,11 @@ export default function IdeationPage({
         </div>
       </div>
     </main>
+    <ConfirmRestructureDialog
+      open={restructureOpen}
+      onOpenChange={setRestructureOpen}
+      onConfirm={() => submitReview('restructure')}
+    />
+    </>
   )
 }

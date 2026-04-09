@@ -182,6 +182,7 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
 
   const autoStartAttempted = useRef(false)
   const [autoStarting, setAutoStarting] = useState(false)
+  const { startIdeation } = ideation
 
   useEffect(() => {
     if (
@@ -205,10 +206,10 @@ export function useProjectPage(projectId: string): UseProjectPageReturn {
       sessionStorage.removeItem('brief')
     }
 
-    ideation.startIdeation(brief)
+    startIdeation(brief)
       .catch(() => { /* Error captured in startError */ })
       .finally(() => setAutoStarting(false))
-  }, [blueprint, blueprintLoading, messagesLoading, hasConversation, ideation.startIdeation])
+  }, [blueprint, blueprintLoading, messagesLoading, hasConversation, startIdeation])
 
   // ── Optimistic Messages ───────────────────────────────────────────────────
 

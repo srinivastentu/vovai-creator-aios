@@ -304,6 +304,7 @@ export function ActivityCard({ entry, expanded, onToggleExpand, onNavigateToTab 
           {entry.expandable && entry.expandedContent && (
             <button
               onClick={onToggleExpand}
+              aria-expanded={expanded}
               className="mt-1.5 flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
             >
               <span>{getExpandLabel(entry.expandedContent.type)}</span>

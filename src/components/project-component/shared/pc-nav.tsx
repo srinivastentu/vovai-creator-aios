@@ -81,14 +81,16 @@ export function PcNav({ projectId, currentPhase }: PcNavProps) {
 
         if (!isEnabled) {
           return (
-            <div
+            <button
               key={tab.key}
+              disabled
+              aria-disabled="true"
               className="flex cursor-not-allowed items-center gap-1.5 border-b-2 border-transparent px-3 py-2.5 text-xs font-medium text-muted-foreground/40"
               title={`Available after ${tab.minPhase} phase`}
             >
               <Icon size={14} className="opacity-40" />
               {tab.label}
-            </div>
+            </button>
           )
         }
 

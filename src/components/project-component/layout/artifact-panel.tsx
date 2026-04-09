@@ -104,7 +104,7 @@ function barColor(score: number): string {
 }
 
 function GradePanel({ blueprintId }: { blueprintId: string }) {
-  const { data: grade, loading } = useApi<GradeData>(
+  const { data: grade, loading, error } = useApi<GradeData>(
     `/api/blueprints/${blueprintId}/grades`
   )
 
@@ -112,6 +112,14 @@ function GradePanel({ blueprintId }: { blueprintId: string }) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 size={20} className="animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center px-6">
+        <EmptyState icon={BarChart3} title="Failed to load grade" description={error} />
       </div>
     )
   }
