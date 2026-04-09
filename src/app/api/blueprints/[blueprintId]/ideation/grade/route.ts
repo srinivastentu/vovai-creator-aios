@@ -7,23 +7,13 @@ import {
   addMessage,
   updateConversationPhase,
 } from '@/lib/project-component/ideation/conversation-manager'
-import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
-import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+import { checkCostLimit, recordIdeationCost } from '@/lib/project-component/ideation/cost-guard'
+import { rebuildState } from '@/lib/project-component/ideation/state-rebuilder'
+import type { IdeationPhase } from '@/lib/project-component/types'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 // TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
-
-import type {
-  IdeationPhase,
-  ProjectArchetype,
-  AudienceProfile,
-  ProposedStructure,
-  OutcomesMap,
-  ComponentPlan,
-  GradeReport,
-} from '@/lib/project-component/types'
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/grade
@@ -81,8 +71,8 @@ export async function POST(
       )
     }
 
-    // Rebuild state from conversation
-    const state = rebuildStateForGrading(blueprintId, blueprint, conversation)
+    // Rebuild state from conversation (shared state-rebuilder)
+    const state = await rebuildState(blueprintId, blueprint, conversation)
 
     // Run the step — if in structure phase, this will advance to refinement
     // and then run the refinement agents. If already in refinement, it runs
@@ -92,8 +82,18 @@ export async function POST(
     // If we just came from structure → refinement, the step advanced the phase
     // but refinement itself needs to run. Auto-continue if not awaiting human.
     if (!result.awaitingHuman && result.updatedState.currentPhase === 'refinement') {
+      const costCheck2 = await checkCostLimit(blueprintId)
+      if (!costCheck2.ok) {
+        return NextResponse.json(
+          { error: 'Ideation cost limit reached during auto-continuation.' },
+          { status: 400 }
+        )
+      }
       result = await runIdeationStep(result.updatedState)
     }
+
+    // Persist cost to Project.totalCostUSD
+    await recordIdeationCost(blueprintId, result.stepCostUSD)
 
     // Persist the grading result as a message (include accumulated state for rebuild)
     await addMessage({
@@ -133,7 +133,6 @@ export async function POST(
       awaitingHuman: result.awaitingHuman,
       message: result.humanMessage,
       costUSD: result.stepCostUSD,
-      state: result.updatedState,
     })
   } catch (error) {
     console.error('POST /api/blueprints/[blueprintId]/ideation/grade error:', error)
@@ -141,66 +140,3 @@ export async function POST(
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function rebuildStateForGrading(
-  blueprintId: string,
-  blueprint: {
-    ideationPhase: string
-    archetype: string | null
-    targetAudience: unknown
-    structureSummary: unknown
-  },
-  conversation: {
-    messages: Array<{
-      role: string
-      content: string
-      messageType: string
-      structuredData: unknown
-    }>
-  }
-): IdeationLoopState {
-  const firstHumanMsg = conversation.messages.find(m => m.role === 'human')
-  const brief = firstHumanMsg?.content ?? ''
-
-  // Extract accumulated state from messages
-  let archetype: ProjectArchetype | null = blueprint.archetype as ProjectArchetype | null
-  let audienceProfile: AudienceProfile | null = null
-  let proposedStructure: ProposedStructure | null = null
-  let outcomesMap: OutcomesMap | null = null
-  let componentPlan: ComponentPlan | null = null
-  let gradeReport: GradeReport | null = null
-
-  for (const msg of conversation.messages) {
-    const data = msg.structuredData as Record<string, unknown> | null
-    if (!data) continue
-    if (data.archetype) archetype = data.archetype as ProjectArchetype
-    if (data.audienceProfile) audienceProfile = data.audienceProfile as AudienceProfile
-    if (data.proposedStructure) proposedStructure = data.proposedStructure as ProposedStructure
-    if (data.outcomesMap) outcomesMap = data.outcomesMap as OutcomesMap
-    if (data.componentPlan) componentPlan = data.componentPlan as ComponentPlan
-    if (data.gradeReport) gradeReport = data.gradeReport as GradeReport
-  }
-
-  const state = createInitialState(blueprintId, brief)
-  state.currentPhase = blueprint.ideationPhase as IdeationPhase
-  state.archetype = archetype
-  state.audienceProfile = audienceProfile
-  state.proposedStructure = proposedStructure
-  state.outcomesMap = outcomesMap
-  state.componentPlan = componentPlan
-  state.gradeReport = gradeReport
-
-  // Rebuild conversation history
-  state.conversationHistory = conversation.messages.map((m, i) => ({
-    id: `msg-${i}`,
-    conversationId: '',
-    role: m.role as IdeationLoopState['conversationHistory'][number]['role'],
-    messageType: m.messageType as IdeationLoopState['conversationHistory'][number]['messageType'],
-    content: m.content,
-    structuredData: (m.structuredData as Record<string, unknown>) ?? undefined,
-    createdAt: new Date(),
-  }))
-
-  return state
-}

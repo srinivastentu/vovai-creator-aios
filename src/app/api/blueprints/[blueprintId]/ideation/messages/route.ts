@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import type { IdeationPhase as IdeationPhaseEnum } from '@/generated/prisma/client'
-import {
-  getLatestConversation,
-  getMessages,
-} from '@/lib/project-component/ideation/conversation-manager'
 import { IDEATION_PHASE_VALUES } from '@/lib/validations/blueprint'
 
 // TODO(Ring-5): Add authentication + authorization middleware
@@ -61,12 +57,22 @@ export async function GET(
         })
       }
 
-      const phaseMessages = await getMessages(conversation.id)
+      const phaseMessages = await db.ideationMessage.findMany({
+        where: { conversationId: conversation.id },
+        orderBy: { createdAt: 'asc' },
+      })
 
       return NextResponse.json({
         conversationId: conversation.id,
         phase: conversation.phase,
-        messages: phaseMessages,
+        messages: phaseMessages.map(m => ({
+          id: m.id,
+          role: m.role,
+          messageType: m.messageType,
+          content: m.content,
+          structuredData: m.structuredData,
+          createdAt: m.createdAt.toISOString(),
+        })),
       })
     }
 
@@ -92,18 +98,35 @@ export async function GET(
       })
     }
 
-    // Fetch messages from ALL conversations, grouped by phase
-    const groupedByPhase = []
-    for (const convo of conversations) {
-      const convoMessages = await getMessages(convo.id)
-      if (convoMessages.length > 0) {
-        groupedByPhase.push({
-          conversationId: convo.id,
-          phase: convo.phase,
-          messages: convoMessages,
-        })
-      }
+    // Fetch messages from ALL conversations in a single query (avoids N+1)
+    const conversationIds = conversations.map(c => c.id)
+    const allConvoMessages = await db.ideationMessage.findMany({
+      where: { conversationId: { in: conversationIds } },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    // Group by conversation, preserving conversation order
+    const messagesByConvo = new Map<string, typeof allConvoMessages>()
+    for (const msg of allConvoMessages) {
+      const existing = messagesByConvo.get(msg.conversationId) ?? []
+      existing.push(msg)
+      messagesByConvo.set(msg.conversationId, existing)
     }
+
+    const groupedByPhase = conversations
+      .filter(convo => (messagesByConvo.get(convo.id)?.length ?? 0) > 0)
+      .map(convo => ({
+        conversationId: convo.id,
+        phase: convo.phase,
+        messages: (messagesByConvo.get(convo.id) ?? []).map(m => ({
+          id: m.id,
+          role: m.role,
+          messageType: m.messageType,
+          content: m.content,
+          structuredData: m.structuredData,
+          createdAt: m.createdAt.toISOString(),
+        })),
+      }))
 
     // Flatten all messages for backward compatibility
     const allMessages = groupedByPhase.flatMap(g => g.messages)

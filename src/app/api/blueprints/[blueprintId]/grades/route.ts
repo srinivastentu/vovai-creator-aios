@@ -26,7 +26,7 @@ export async function GET(
     })
 
     if (!grade) {
-      return NextResponse.json(null)
+      return NextResponse.json({ error: 'No grades yet' }, { status: 404 })
     }
 
     return NextResponse.json(grade)

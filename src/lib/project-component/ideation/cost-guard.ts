@@ -73,3 +73,24 @@ export async function checkCostLimit(blueprintId: string): Promise<CostCheckResu
     limitUSD,
   }
 }
+
+// ─── Cost Persistence ───────────────────────────────────────────────────────
+
+/**
+ * Record ideation step cost on Project.totalCostUSD.
+ * Call this after each successful ideation step that incurred cost.
+ */
+export async function recordIdeationCost(blueprintId: string, costUSD: number): Promise<void> {
+  if (costUSD <= 0) return
+
+  const blueprint = await db.projectBlueprint.findUnique({
+    where: { id: blueprintId },
+    select: { projectId: true },
+  })
+  if (!blueprint) return
+
+  await db.project.update({
+    where: { id: blueprint.projectId },
+    data: { totalCostUSD: { increment: costUSD } },
+  })
+}

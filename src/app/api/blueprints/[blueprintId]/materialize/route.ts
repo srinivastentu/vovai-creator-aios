@@ -29,6 +29,15 @@ export async function POST(
       return NextResponse.json({ error: 'Blueprint not found' }, { status: 404 })
     }
 
+    // Phase guard: only allow materialization when ideation is approved or in review
+    const phase = blueprint.ideationPhase
+    if (phase !== 'approved' && phase !== 'review') {
+      return NextResponse.json(
+        { error: `Cannot materialize in '${phase}' phase. Blueprint must be approved or in review.` },
+        { status: 409 }
+      )
+    }
+
     // Check if already materialized (nodes exist)
     const existingNodes = await db.projectNode.count({
       where: { blueprintId },

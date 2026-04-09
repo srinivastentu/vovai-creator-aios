@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { updateProjectSchema } from '@/lib/validations/project'
+import { formatZodError } from '@/lib/validations/blueprint'
 
 export async function PATCH(
   request: Request,
@@ -8,25 +10,18 @@ export async function PATCH(
   try {
     const { projectId } = await params
     const body = await request.json()
-    const { name } = body as { name?: string }
 
-    if (typeof name !== 'string' || name.trim().length === 0) {
+    const parsed = updateProjectSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: 'Name is required and must be a non-empty string' },
-        { status: 400 }
-      )
-    }
-
-    if (name.trim().length > 255) {
-      return NextResponse.json(
-        { error: 'Name must be 255 characters or less' },
+        { error: formatZodError(parsed.error) },
         { status: 400 }
       )
     }
 
     const project = await db.project.update({
       where: { id: projectId },
-      data: { name: name.trim() },
+      data: { name: parsed.data.name.trim() },
     })
 
     return NextResponse.json({ id: project.id, name: project.name })

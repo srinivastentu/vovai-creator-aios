@@ -8,24 +8,13 @@ import {
   getMessages,
   updateConversationPhase,
 } from '@/lib/project-component/ideation/conversation-manager'
-import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
-import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { processHumanFeedback, runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
 import { materializeStructure } from '@/lib/project-component/ideation/materializer'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+import { checkCostLimit, recordIdeationCost } from '@/lib/project-component/ideation/cost-guard'
+import { rebuildState } from '@/lib/project-component/ideation/state-rebuilder'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 // TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
-
-import type {
-  IdeationPhase,
-  ProjectArchetype,
-  AudienceProfile,
-  ProposedStructure,
-  OutcomesMap,
-  ComponentPlan,
-  GradeReport,
-} from '@/lib/project-component/types'
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/approve
@@ -82,8 +71,8 @@ export async function POST(
       structuredData: { action: parsed.data.action },
     })
 
-    // Rebuild state and process the feedback
-    const state = rebuildStateForReview(blueprintId, blueprint, conversation)
+    // Rebuild state and process the feedback (shared state-rebuilder)
+    const state = await rebuildState(blueprintId, blueprint, conversation)
     const updatedState = await processHumanFeedback(state, {
       action: parsed.data.action,
       message: parsed.data.message,
@@ -169,6 +158,9 @@ export async function POST(
         },
       })
 
+      // Persist cost to Project.totalCostUSD
+      await recordIdeationCost(blueprintId, stepResult.stepCostUSD)
+
       if (stepResult.updatedState.currentPhase !== updatedState.currentPhase) {
         await updateConversationPhase(conversation.id, stepResult.updatedState.currentPhase)
         await db.projectBlueprint.update({
@@ -197,7 +189,6 @@ export async function POST(
       costUSD: nextStepResult?.costUSD ?? 0,
       materializeResult,
       messages,
-      state: updatedState,
     })
   } catch (error) {
     console.error('POST /api/blueprints/[blueprintId]/ideation/approve error:', error)
@@ -205,66 +196,3 @@ export async function POST(
   }
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function rebuildStateForReview(
-  blueprintId: string,
-  blueprint: {
-    ideationPhase: string
-    archetype: string | null
-    targetAudience: unknown
-    structureSummary: unknown
-  },
-  conversation: {
-    messages: Array<{
-      role: string
-      content: string
-      messageType: string
-      structuredData: unknown
-    }>
-  }
-): IdeationLoopState {
-  const firstHumanMsg = conversation.messages.find(m => m.role === 'human')
-  const brief = firstHumanMsg?.content ?? ''
-
-  // Extract accumulated state from messages
-  let archetype: ProjectArchetype | null = blueprint.archetype as ProjectArchetype | null
-  let audienceProfile: AudienceProfile | null = null
-  let proposedStructure: ProposedStructure | null = null
-  let outcomesMap: OutcomesMap | null = null
-  let componentPlan: ComponentPlan | null = null
-  let gradeReport: GradeReport | null = null
-
-  for (const msg of conversation.messages) {
-    const data = msg.structuredData as Record<string, unknown> | null
-    if (!data) continue
-    if (data.archetype) archetype = data.archetype as ProjectArchetype
-    if (data.audienceProfile) audienceProfile = data.audienceProfile as AudienceProfile
-    if (data.proposedStructure) proposedStructure = data.proposedStructure as ProposedStructure
-    if (data.outcomesMap) outcomesMap = data.outcomesMap as OutcomesMap
-    if (data.componentPlan) componentPlan = data.componentPlan as ComponentPlan
-    if (data.gradeReport) gradeReport = data.gradeReport as GradeReport
-  }
-
-  const state = createInitialState(blueprintId, brief)
-  state.currentPhase = 'review'
-  state.archetype = archetype
-  state.audienceProfile = audienceProfile
-  state.proposedStructure = proposedStructure
-  state.outcomesMap = outcomesMap
-  state.componentPlan = componentPlan
-  state.gradeReport = gradeReport
-
-  // Rebuild conversation history
-  state.conversationHistory = conversation.messages.map((m, i) => ({
-    id: `msg-${i}`,
-    conversationId: '',
-    role: m.role as IdeationLoopState['conversationHistory'][number]['role'],
-    messageType: m.messageType as IdeationLoopState['conversationHistory'][number]['messageType'],
-    content: m.content,
-    structuredData: (m.structuredData as Record<string, unknown>) ?? undefined,
-    createdAt: new Date(),
-  }))
-
-  return state
-}

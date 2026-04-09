@@ -10,7 +10,7 @@ import {
 } from '@/lib/project-component/ideation/conversation-manager'
 import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+import { checkCostLimit, recordIdeationCost } from '@/lib/project-component/ideation/cost-guard'
 import { rebuildState } from '@/lib/project-component/ideation/state-rebuilder'
 
 // TODO(Ring-5): Add authentication + authorization middleware
@@ -95,6 +95,9 @@ export async function POST(
       },
     })
 
+    // Persist cost to Project.totalCostUSD
+    await recordIdeationCost(blueprintId, result.stepCostUSD)
+
     // Update conversation phase if it changed
     if (result.updatedState.currentPhase !== conversation.phase) {
       await updateConversationPhase(conversation.id, result.updatedState.currentPhase)
@@ -117,7 +120,6 @@ export async function POST(
       message: result.humanMessage,
       costUSD: result.stepCostUSD,
       messages,
-      state: result.updatedState,
     })
   } catch (error) {
     console.error('POST /api/blueprints/[blueprintId]/ideation/message error:', error)

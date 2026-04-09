@@ -5,7 +5,7 @@ import { formatZodError } from '@/lib/validations/blueprint'
 import { createConversation, addMessage, getLatestConversation } from '@/lib/project-component/ideation/conversation-manager'
 import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
 import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+import { checkCostLimit, recordIdeationCost } from '@/lib/project-component/ideation/cost-guard'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 // TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
@@ -99,6 +99,9 @@ export async function POST(
       },
     })
 
+    // Persist cost to Project.totalCostUSD
+    await recordIdeationCost(blueprintId, result.stepCostUSD)
+
     // Update blueprint ideation phase
     await db.projectBlueprint.update({
       where: { id: blueprintId },
@@ -112,7 +115,6 @@ export async function POST(
       awaitingHuman: result.awaitingHuman,
       message: result.humanMessage,
       costUSD: result.stepCostUSD,
-      state: result.updatedState,
     }, { status: 201 })
   } catch (error) {
     console.error('POST /api/blueprints/[blueprintId]/ideation/start error:', error)
