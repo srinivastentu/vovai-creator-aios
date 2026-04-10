@@ -114,10 +114,10 @@ Batch 4d — Remaining src/ files:
 - [x] 10.6 `grep -r "lib/project-component" src/ tests/ scripts/` — ZERO hits confirmed
 
 ### Phase 11: Commit
-- [ ] 11.1 `git add -A`
-- [ ] 11.2 `git commit -m "refactor(LE-0): move project-component to domain/workflows — 29 files, ~122 import updates"`
-- [ ] 11.3 `git tag LE-0-folder-restructure`
-- [ ] 11.4 `git push origin feature/loop-engine-v2 --tags`
+- [x] 11.1 `git add -A`
+- [x] 11.2 `git commit -m "refactor(LE-0): move project-component to domain/workflows — 29 files, ~122 import updates"`
+- [x] 11.3 `git tag LE-0-folder-restructure`
+- [x] 11.4 `git push origin feature/loop-engine-v2 --tags`
 
 ---
 
