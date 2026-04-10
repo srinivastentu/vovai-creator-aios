@@ -2167,3 +2167,99 @@ sessions with flaky API connections.
 2. Request idempotency on `/ideation/start` (prevents duplicate sessions)
 3. Structured logging utility (foundation for everything else)
 4. Pagination on list endpoints (before real project data arrives)
+
+---
+
+## Senior Engineer Review — Pre-LE-0 Sign-off
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Purpose:** Final checkpoint before loop-engine-v2 refactor begins. No code changes except blockers.
+**Branch:** feature/loop-engine-v2
+
+### A. Codebase Health
+
+- [ ] A1. Run full test suite (`npm run test`). Report: total tests, pass/fail, skipped
+- [ ] A2. Run typecheck (`npm run typecheck`). Report: errors or clean
+- [ ] A3. Run build (`npm run build`). Report: success or failures
+- [ ] A4. Run linter (`npm run lint`). Report: warning/error counts
+- [ ] A5. Scan for TODO/FIXME/HACK in src/ — flag any that affect the refactor
+- [ ] A6. Scan for console.log in src/ — flag production-inappropriate logging
+- [ ] A7. Scan for hardcoded API keys or secrets in any file
+- [ ] A8. Report: total file count in src/, approximate lines of code
+
+### B. Architecture Alignment Audit
+
+- [ ] B1. Read all architecture docs: CLAUDE.md, recursive-loop-engine.md, elearn-pipeline.md, core-domain-framework.md, loop-engine-action-plan.md
+- [ ] B2. Map every existing src/lib/ file to its FUTURE core/ or domain/ location. Create migration table: Current path → New path → Category → System (1-4)
+- [ ] B3. Flag files that don't clearly belong to one system
+- [ ] B4. Flag files that currently import across the future core/domain boundary
+- [ ] B5. Count total import changes needed for LE-0 folder restructure
+- [ ] B6. Check for circular dependencies between files
+
+### C. Dependency Audit
+
+- [ ] C1. Run `npm audit` — report vulnerabilities
+- [ ] C2. Check Anthropic SDK, OpenAI SDK, Prisma versions
+- [ ] C3. Scan for unused dependencies (listed in package.json but never imported)
+- [ ] C4. Flag any dependency that would conflict with core/domain split
+
+### D. Database Schema Review
+
+- [ ] D1. Read prisma/schema.prisma — list all models and relationships
+- [ ] D2. Check: any model needing stageId for per-stage conversations (LE-9)?
+- [ ] D3. Check: models tightly coupled to old single-loop architecture
+- [ ] D4. Check: missing indexes that would hurt performance
+- [ ] D5. Report: total model count, total field count
+
+### E. Test Coverage Assessment
+
+- [ ] E1. List all test files with test count per file
+- [ ] E2. Identify which systems have tests, which don't
+- [ ] E3. Flag critical paths with ZERO tests (loop engine, rubric grading, review actions, agent execution)
+- [ ] E4. Flag tests that test implementation details (will break during refactor)
+- [ ] E5. Flag tests importing from src/lib/project-component/ (need path updates in LE-0)
+- [ ] E6. Estimate test breakage from folder rename
+
+### F. Security Review
+
+- [ ] F1. Check API routes for Zod input validation
+- [ ] F2. Check rate limiting on AI-calling endpoints
+- [ ] F3. Check authentication on all API routes
+- [ ] F4. Check for SQL injection vectors (raw queries)
+- [ ] F5. Check cost guard — $5 limit enforced on all paths
+- [ ] F6. Verify API keys loaded from env vars, not hardcoded
+- [ ] F7. Check for sensitive data logged to console
+- [ ] F8. Report: security posture rating
+
+### G. Code Quality
+
+- [ ] G1. Scan for `any` types in TypeScript files
+- [ ] G2. Check for inconsistent style (semicolons where there shouldn't be)
+- [ ] G3. Scan for dead code (exported functions never imported)
+- [ ] G4. List files over 500 lines (splitting candidates)
+- [ ] G5. Check for deeply nested functions (complexity hotspots)
+- [ ] G6. Report: code quality grade
+
+### H. Refactor Risk Assessment
+
+- [ ] H1. Identify the SINGLE RISKIEST thing about LE-0 folder restructure
+- [ ] H2. Find files with the MOST imports pointing to them (path typo = breakage)
+- [ ] H3. Check for dynamic imports or require() calls (won't be caught by find-replace)
+- [ ] H4. Check tsconfig.json path aliases referencing project-component
+- [ ] H5. Check scripts, configs, CI files referencing project-component paths
+- [ ] H6. Define rollback plan if LE-0 breaks something
+
+### I. Missing Pieces
+
+- [ ] I1. List items referenced in CLAUDE.md that don't exist yet
+- [ ] I2. Check for stub/empty agent files
+- [ ] I3. Check for incomplete rubric files
+- [ ] I4. Verify seed data sufficiency for new pipeline
+- [ ] I5. Check: does the 14-step action plan assume anything that doesn't exist?
+
+### Deliverables
+
+- [ ] Write sign-off report to tasks/senior-engineer-review.md
+- [ ] Fix any BLOCKER items found
+- [ ] Commit report + fixes, push to feature/loop-engine-v2
