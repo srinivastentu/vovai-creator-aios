@@ -574,3 +574,268 @@ The 14-step action plan's assumptions all hold. The primary mechanical risk (225
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-0 Post-Completion Verification
+
+**Verdict: LE-0 VERIFIED — Ready for LE-1**
+
+**Date:** 2026-04-10
+**Verifier:** Claude (Senior Engineer role)
+**Branch:** feature/loop-engine-v2
+**Commit:** b087f41 `refactor(LE-0): move project-component to domain/workflows — 29 files, ~122 import updates`
+
+---
+
+### A. Checklist Completion — PASS
+
+All 11 phases (1–11) present. Every item is marked `[x]` complete.
+
+| Phase | Items | Status |
+|-------|-------|--------|
+| 1. Create directories | 3 | All [x] |
+| 2. Move files (29) | 29 | All [x] |
+| 3. Barrel verification | 4 | All [x] |
+| 4. Update src/ imports | 8 | All [x] |
+| 5. Update test imports | 2 | All [x] |
+| 6. Update script imports | 4 | All [x] |
+| 7. Package.json scripts | 3 | All [x] |
+| 8. Fix npm vulnerabilities | 2 | All [x] |
+| 9. Clean up | 3 | All [x] |
+| 10. Full verification | 6 | All [x] |
+| 11. Commit | 4 | All [x] |
+| **Total** | **68** | **All complete** |
+
+Note: The user's estimate of "52 checklist items" was conservative — the actual count is 68 granular items across 11 phases. All are checked.
+
+---
+
+### B. File Structure Verification — PASS
+
+**B.1: Old directory removed**
+```
+$ ls src/lib/project-component/
+ls: No such file or directory
+```
+
+**B.2: File count**
+```
+$ find src/lib/domain/workflows/ -type f | wc -l
+29
+```
+
+**B.3: All 29 files present — cross-referenced against B1 migration table:**
+
+| Expected File | Present? |
+|---|---|
+| `types.ts` | YES |
+| `index.ts` | YES |
+| `server.ts` | YES |
+| `archetypes.ts` | YES |
+| `component-registry.ts` | YES |
+| `compatibility.ts` | YES |
+| `workflow-defaults.ts` | YES |
+| `rubrics/structure-rubric.ts` | YES |
+| `tree/tree-utils.ts` | YES |
+| `tree/tree-serializer.ts` | YES |
+| `tree/tree-validator.ts` | YES |
+| `agents/orchestrator.ts` | YES |
+| `agents/audience-analyst.ts` | YES |
+| `agents/curriculum-strategist.ts` | YES |
+| `agents/outcome-architect.ts` | YES |
+| `agents/component-recommender.ts` | YES |
+| `agents/structure-optimizer.ts` | YES |
+| `agents/devils-advocate.ts` | YES |
+| `agents/rubric-grader.ts` | YES |
+| `agents/framework/types.ts` | YES |
+| `agents/framework/registry.ts` | YES |
+| `agents/framework/executor.ts` | YES |
+| `ideation/loop-engine.ts` | YES |
+| `ideation/phase-manager.ts` | YES |
+| `ideation/conversation-manager.ts` | YES |
+| `ideation/cost-guard.ts` | YES |
+| `ideation/materializer.ts` | YES |
+| `production/handoff.ts` | YES |
+| `production/cost-estimator.ts` | YES |
+
+**Zero missing. Zero extra files.**
+
+**B.4: All 6 required subdirectories exist:**
+- `agents/` — YES
+- `agents/framework/` — YES
+- `rubrics/` — YES
+- `tree/` — YES
+- `ideation/` — YES
+- `production/` — YES
+
+---
+
+### C. Import Path Verification — PASS
+
+| Check | Result |
+|---|---|
+| `grep -r "lib/project-component" src/` | **ZERO hits** |
+| `grep -r "lib/project-component" tests/` | **ZERO hits** |
+| `grep -r "lib/project-component" scripts/` | **ZERO hits** |
+| `grep -r "@/lib/project-component" src/` | **ZERO hits** |
+
+**No stale import references. Zero blockers.**
+
+---
+
+### D. Barrel Import Verification — PASS
+
+**`index.ts`** — 10 re-export groups, all pointing to valid relative paths:
+- `./types` → `types.ts` exists
+- `./archetypes` → `archetypes.ts` exists
+- `./component-registry` → `component-registry.ts` exists
+- `./compatibility` → `compatibility.ts` exists
+- `./workflow-defaults` → `workflow-defaults.ts` exists
+- `./rubrics/structure-rubric` → `rubrics/structure-rubric.ts` exists
+- `./tree/tree-utils` → `tree/tree-utils.ts` exists
+- `./tree/tree-validator` → `tree/tree-validator.ts` exists
+- `./tree/tree-serializer` → `tree/tree-serializer.ts` exists
+- `./production/cost-estimator` → `production/cost-estimator.ts` exists
+- `./ideation/phase-manager` → `ideation/phase-manager.ts` exists
+
+**`server.ts`** — 3 re-export groups, all pointing to valid relative paths:
+- `./production/handoff` → `production/handoff.ts` exists
+- `./ideation/loop-engine` → `ideation/loop-engine.ts` exists
+- `./ideation/conversation-manager` → `ideation/conversation-manager.ts` exists
+
+**`npm run typecheck`** — **Clean, zero errors.**
+
+---
+
+### E. Full Test Suite — PASS
+
+```
+Test Files  17 passed (17)
+     Tests  385 passed (385)
+  Duration  813ms
+```
+
+**385/385 tests pass. Zero failures. Zero skipped.**
+
+---
+
+### F. Build Verification — PASS
+
+```
+✓ Compiled successfully in 1197ms
+✓ Generating static pages (12/12)
+```
+
+- **12 static pages**, **29 routes** (21 dynamic API + 8 page routes)
+- Build output clean, no warnings
+
+---
+
+### G. Cross-Reference Check — PASS
+
+**5 API routes verified (sampled):**
+
+| Route | Imports From | Valid? |
+|---|---|---|
+| `api/archetypes/route.ts` | `@/lib/domain/workflows/archetypes` | YES |
+| `api/component-registry/route.ts` | `@/lib/domain/workflows/component-registry`, `compatibility`, `types` | YES |
+| `api/blueprints/[id]/ideation/start/route.ts` | `@/lib/domain/workflows/ideation/conversation-manager`, `phase-manager`, `loop-engine`, `cost-guard` | YES |
+| `api/blueprints/[id]/ideation/grade/route.ts` | `@/lib/domain/workflows/ideation/*`, `types` | YES |
+| `api/blueprints/[id]/ideation/ask/route.ts` | `@/lib/domain/workflows/agents/framework/executor`, `cost-guard` | YES |
+
+**5 test files verified (sampled):**
+
+| Test File | Imports From | Valid? |
+|---|---|---|
+| `stage02-agents.test.ts` | `../../src/lib/domain/workflows/types`, `agents/framework/registry` | YES |
+| `agent-framework.test.ts` | `../../src/lib/domain/workflows/agents/framework/types`, `registry` | YES |
+| `loop-engine.test.ts` | `../../src/lib/domain/workflows/ideation/*`, `agents/*` (8 agents) | YES |
+| `tree-utils.test.ts` | `../../src/lib/domain/workflows/tree/tree-utils`, `types` | YES |
+| `handoff.test.ts` | `../../src/lib/domain/workflows/production/handoff`, `cost-estimator`, `component-registry` | YES |
+
+**3 UI components verified (sampled):**
+
+| Component | Imports From | Valid? |
+|---|---|---|
+| `canvas/node-detail.tsx` | `@/lib/domain/workflows` (barrel) | YES |
+| `wizard/wizard-step-review.tsx` | `@/lib/domain/workflows` (barrel) | YES |
+| `chat/chat-message.tsx` | `@/lib/domain/workflows` (barrel) | YES |
+
+---
+
+### H. Senior Review Warnings — MIXED
+
+| # | Warning | Status | Details |
+|---|---|---|---|
+| W1 | Anthropic SDK security advisory | **INFO** | `package.json` still shows `^0.80.0`, installed version is `0.80.0`. `npm audit fix` (without `--force`) did NOT update this. The fix requires `--force` due to breaking changes. The todo item 8.1 note about "updated to 0.87.0" appears inaccurate — the SDK was NOT actually updated. 4 moderate vulnerabilities remain. **Not a blocker for LE-1** but should be addressed before any production deployment. |
+| W2 | vite + defu HIGH vulnerabilities | **PASS** | Resolved. `npm audit` now shows only 4 moderate issues (SDK + hono). The 2 HIGH severity (vite path traversal, defu prototype pollution) no longer appear. |
+| W3 | `/versions/[version]/restore` missing Zod | **INFO** | Still present — no Zod/safeParse in the restore route. Deferred to LE-8 as planned. Not blocking. |
+| W4 | package.json scripts referencing old paths | **PASS** | Scripts reference filenames (`seed-project-component.ts`, `test-e2e-project-component.ts`), not lib paths. These are script filenames that were NOT renamed (per plan: "Script filenames — stay"). No stale lib path references in package.json. |
+
+---
+
+### I. Git State — PASS
+
+**Status:** Clean working tree (only `tasks/todo.md` modified — expected).
+
+**Recent commits:**
+```
+b087f41 refactor(LE-0): move project-component to domain/workflows — 29 files, ~122 import updates
+1b2e56b chore: senior engineer review — pre-LE-0 sign-off
+19324f9 docs: align all architecture docs - 5 review actions, four-system core/domain split
+```
+
+**Tags:**
+```
+LE-0-folder-restructure  (points to b087f41)
+```
+
+**Diff vs main:** 96 files changed, 2619 insertions, 984 deletions.
+
+**Branch:** `feature/loop-engine-v2`, up to date with `origin/feature/loop-engine-v2`.
+
+---
+
+### J. Readiness for LE-1 — PASS
+
+| Check | Result |
+|---|---|
+| `src/lib/core/` does NOT exist | Confirmed — "No such file or directory" |
+| `src/lib/core/engine/` does NOT exist | Confirmed |
+| `domain/workflows/` barrel exports work | Confirmed (typecheck clean) |
+| All 385 tests pass | Confirmed |
+| Build succeeds | Confirmed |
+| Zero stale `lib/project-component` references | Confirmed |
+
+---
+
+### Remaining Concerns
+
+1. **[INFO] Anthropic SDK still at 0.80.0** — Todo item 8.1 claims `npm audit fix` updated it to 0.87.0, but this did not actually happen (requires `--force`). The SDK has a moderate security advisory (GHSA-5474-4w2j-mq4c). Not blocking LE-1, but the todo record is inaccurate on this point.
+2. **[INFO] 4 moderate npm vulnerabilities remain** — SDK sandbox escape + hono middleware bypass. Both require `--force` to fix (breaking changes). Acceptable for development; address before production.
+3. **[INFO] `/versions/[version]/restore` still lacks Zod validation** — Deferred to LE-8 as planned.
+
+---
+
+### Summary
+
+| Section | Result |
+|---|---|
+| A. Checklist Completion | **PASS** — 68/68 items complete across 11 phases |
+| B. File Structure | **PASS** — 29/29 files, 6/6 subdirs, old dir removed |
+| C. Import Paths | **PASS** — Zero stale references |
+| D. Barrel Imports | **PASS** — All re-exports resolve, typecheck clean |
+| E. Test Suite | **PASS** — 385/385 pass |
+| F. Build | **PASS** — 12 pages, 29 routes |
+| G. Cross-References | **PASS** — 13/13 sampled imports correct |
+| H. Warnings | **MIXED** — W2/W4 fixed; W1 SDK not actually updated (INFO); W3 deferred (INFO) |
+| I. Git State | **PASS** — Clean, tagged, pushed |
+| J. LE-1 Readiness | **PASS** — core/ absent, all foundations solid |
+
+---
+
+# LE-0 VERIFIED — Ready for LE-1
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
