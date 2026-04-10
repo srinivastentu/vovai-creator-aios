@@ -1,5 +1,5 @@
 ---
-paths: ["src/lib/engine*.ts", "src/lib/loop*.ts", "src/lib/types.ts"]
+paths: ["src/lib/core/engine/**"]
 ---
 # Recursive Loop Engine Rules
 - Every state change MUST emit an event
