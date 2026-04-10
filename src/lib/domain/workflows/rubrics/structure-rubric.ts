@@ -7,6 +7,7 @@
  */
 
 import type { GradeRecommendation } from '../types'
+import type { RubricDefinition } from '../../../core/engine/types'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -138,6 +139,22 @@ export const STRUCTURE_RUBRIC: StructureRubric = {
       },
     },
   ],
+}
+
+// ─── Core-compatible export ───────────────────────────────────────────────
+
+export const STRUCTURE_RUBRIC_DEFINITION: RubricDefinition = {
+  id: 'structure-quality-v1',
+  name: STRUCTURE_RUBRIC.name,
+  passThreshold: STRUCTURE_RUBRIC.passThreshold,
+  dimensions: STRUCTURE_RUBRIC.dimensions.map(d => ({
+    id: d.id,
+    name: d.name,
+    weight: d.weight,
+    passThreshold: d.passThreshold,
+    description: d.description,
+    criteria: d.criteria,
+  })),
 }
 
 // ─── Scoring Functions ─────────────────────────────────────────────────────
