@@ -194,7 +194,7 @@ async function main() {
 
   const context: Record<string, unknown> = {
     brief: 'Build an AI fundamentals course for working professionals transitioning to AI roles. Cover ML basics, neural networks, and practical deployment. 8 hours total, no prerequisites beyond basic math.',
-    archetype: { id: 'professional_training', name: 'Professional Training' },
+    archetype: 'professional_training',
   }
 
   const rl = isInteractive
