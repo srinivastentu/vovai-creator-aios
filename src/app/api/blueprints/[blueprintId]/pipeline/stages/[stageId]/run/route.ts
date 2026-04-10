@@ -4,6 +4,7 @@ import { formatZodError } from '@/lib/validations/blueprint'
 import { loadPipelineState, savePipelineState } from '@/lib/domain/workflows/pipeline-persistence'
 import { getCurrentStage, runCurrentStage } from '@/lib/domain/workflows/pipeline-orchestrator'
 import { createMockAgentExecutor, createMockJudge } from '@/lib/domain/workflows/pipeline-mocks'
+import { getOrCreateStageConversation, addMessage } from '@/lib/domain/workflows/ideation/conversation-manager'
 
 export async function POST(
   request: Request,
@@ -66,10 +67,19 @@ export async function POST(
       updated.stageStates[stageId] = finalState
     }
 
-    // 7. Persist
+    // 7. Store agent output in stage-specific conversation
+    const conversation = await getOrCreateStageConversation(blueprintId, stageId)
+    await addMessage({
+      conversationId: conversation.id,
+      role: 'facilitator',
+      content: JSON.stringify(finalState.currentArtifact),
+      messageType: 'text',
+    })
+
+    // 8. Persist
     await savePipelineState(blueprintId, updated)
 
-    // 8. Return stage state
+    // 9. Return stage state
     return NextResponse.json({
       stageId,
       status: finalState.status,

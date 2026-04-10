@@ -112,6 +112,49 @@ export async function updateConversationPhase(conversationId: string, phase: Ide
   })
 }
 
+// ─── Stage-specific conversations ───────────────────────────────────────────
+
+/**
+ * Get or create a conversation for a specific pipeline stage.
+ * Uses blueprintId + stageId to find existing, or creates new.
+ */
+export async function getOrCreateStageConversation(blueprintId: string, stageId: string) {
+  const existing = await db.ideationConversation.findFirst({
+    where: { blueprintId, stageId },
+    include: { messages: { orderBy: { createdAt: 'asc' } } },
+  })
+
+  if (existing) return existing
+
+  return db.ideationConversation.create({
+    data: {
+      blueprintId,
+      stageId,
+      phase: 'brainstorm',
+    },
+    include: { messages: true },
+  })
+}
+
+/**
+ * Get all stage-specific conversations for a blueprint, keyed by stageId.
+ * Excludes conversations with no stageId (legacy ideation conversations).
+ */
+export async function getStageConversations(blueprintId: string) {
+  const conversations = await db.ideationConversation.findMany({
+    where: { blueprintId, stageId: { not: null } },
+    include: { messages: { orderBy: { createdAt: 'asc' } } },
+  })
+
+  const result: Record<string, typeof conversations[number]> = {}
+  for (const conv of conversations) {
+    if (conv.stageId) {
+      result[conv.stageId] = conv
+    }
+  }
+  return result
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Map a Prisma IdeationMessage row to the application-level type. */

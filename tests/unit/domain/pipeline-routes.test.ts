@@ -17,6 +17,13 @@ vi.mock('@/lib/db', () => {
       update: vi.fn(),
       deleteMany: vi.fn(),
     },
+    ideationConversation: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+    },
+    ideationMessage: {
+      create: vi.fn(),
+    },
   }
   return { db: mockDb }
 })
@@ -30,6 +37,13 @@ const mockDb = db as unknown as {
     create: ReturnType<typeof vi.fn>
     update: ReturnType<typeof vi.fn>
     deleteMany: ReturnType<typeof vi.fn>
+  }
+  ideationConversation: {
+    findFirst: ReturnType<typeof vi.fn>
+    create: ReturnType<typeof vi.fn>
+  }
+  ideationMessage: {
+    create: ReturnType<typeof vi.fn>
   }
 }
 
@@ -98,6 +112,16 @@ function pipelineWithAwaitingReview(stageId: string, blueprintId = 'bp1'): Ideat
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Default conversation mocks — the /run route stores messages in stage conversations
+  mockDb.ideationConversation.findFirst.mockResolvedValue(null)
+  mockDb.ideationConversation.create.mockResolvedValue({
+    id: 'conv-stage', blueprintId: 'bp1', stageId: 'brief',
+    phase: 'brainstorm', messages: [], createdAt: new Date(), updatedAt: new Date(),
+  })
+  mockDb.ideationMessage.create.mockResolvedValue({
+    id: 'msg-1', conversationId: 'conv-stage', role: 'facilitator',
+    content: '{}', messageType: 'text', structuredData: null, createdAt: new Date(),
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

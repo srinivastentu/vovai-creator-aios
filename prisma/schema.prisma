@@ -233,12 +233,14 @@ model IdeationConversation {
   blueprintId  String
   blueprint    ProjectBlueprint  @relation(fields: [blueprintId], references: [id], onDelete: Cascade)
   phase        IdeationPhase
+  stageId      String?           @map("stage_id")
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
   messages     IdeationMessage[]
 
   @@index([blueprintId])
+  @@index([blueprintId, stageId])
 }
 
 model IdeationMessage {
