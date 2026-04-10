@@ -2250,3 +2250,303 @@ Zero issues found. 529 tests pass, typecheck clean, build succeeds, all 5 stages
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-8 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Branch:** feature/loop-engine-v2
+**Scope:** LE-8 — Pipeline API Routes (4 routes, 3 helpers, 3 test files)
+
+---
+
+### A. File Existence and Structure — PASS
+
+**Route directory structure** — all 4 route files present:
+```
+src/app/api/blueprints/[blueprintId]/pipeline/
+  start/route.ts          (48 lines)
+  state/route.ts          (57 lines)
+  stages/[stageId]/run/route.ts     (85 lines)
+  stages/[stageId]/review/route.ts  (115 lines)
+```
+
+**Helper files** — all 3 present:
+```
+src/lib/validations/pipeline.ts              (19 lines)
+src/lib/domain/workflows/pipeline-mocks.ts   (83 lines)
+src/lib/domain/workflows/pipeline-persistence.ts  (80 lines)
+```
+
+**Total: 487 lines across 7 source files.**
+
+| Check | Result |
+|-------|--------|
+| Ideation routes unchanged (git diff LE-7..LE-8) | **PASS** — empty diff |
+| Zero new files in core/ (git diff LE-7..LE-8) | **PASS** — empty diff |
+| Zero changes to schema.prisma | **PASS** — empty diff |
+
+---
+
+### B. Route Endpoints — PASS
+
+| Route | Expected Export | Actual | Status |
+|-------|---------------|--------|--------|
+| start/route.ts | `export async function POST` | POST | PASS |
+| state/route.ts | `export async function GET` | GET | PASS |
+| run/route.ts | `export async function POST` | POST | PASS |
+| review/route.ts | `export async function POST` | POST | PASS |
+
+---
+
+### C. Zod Validation — PASS
+
+**File:** `src/lib/validations/pipeline.ts` (19 lines)
+
+| Schema | Field | Validation | Status |
+|--------|-------|-----------|--------|
+| `runStageSchema` | `context` | `z.record(z.string(), z.unknown()).optional()` | PASS |
+| `reviewStageSchema` | `action` | `z.enum(['approve','reject','feedback','use_segments','mix_produce'])` | PASS |
+| `reviewStageSchema` | `message` | `z.string().max(5000).optional()` | PASS |
+| `reviewStageSchema` | `editedArtifact` | `z.unknown().optional()` | PASS |
+
+**5 action types match core ReviewAction** (verified against `src/lib/core/review/gate.ts:11-16`):
+`approve`, `reject`, `feedback`, `use_segments`, `mix_produce` — PASS
+
+---
+
+### D. Pipeline Persistence — PASS
+
+**File:** `src/lib/domain/workflows/pipeline-persistence.ts` (80 lines)
+
+| Check | Detail | Status |
+|-------|--------|--------|
+| `savePipelineState` upserts with sentinel stageId=0 | findFirst → create (new) or update (existing) | PASS |
+| `loadPipelineState` deserializes JSON | Parses string or object, reconstructs `new Date()` for createdAt/updatedAt | PASS |
+| Returns null when no row found | Line 69: `if (!session?.metadata) return null` | PASS |
+| No Prisma schema changes | git diff empty for schema.prisma | PASS |
+| Handles both string and parsed JSON metadata | `typeof data === 'string' ? JSON.parse(data) : data` | PASS |
+
+---
+
+### E. Mock Quality — PASS (1 INFO)
+
+**File:** `src/lib/domain/workflows/pipeline-mocks.ts` (83 lines)
+
+| Check | Detail | Status |
+|-------|--------|--------|
+| Different artifacts per stage | brief, audience, structure, components, handoff — 5 distinct shapes | PASS |
+| Per-stage counters | `Map<string, number>` keyed by `rubric.id` (each stage has unique rubric) | PASS |
+| First call → 65, second → 80 | Lines 79-80: `count === 1 ? 65 : 80` | PASS |
+| Counter reset on reject? | **INFO** — Counter does NOT reset. Keyed by `rubric.id`, so after reject+re-run, the counter continues incrementing (returns 80, not 65). Acceptable for mock — real agents won't have this issue. | INFO |
+| Fallback for unknown stages | Returns `{ mock: true, stageId }` | PASS |
+
+---
+
+### F. Route Logic — start — PASS
+
+**File:** `start/route.ts` (48 lines)
+
+| Check | Line(s) | Status |
+|-------|---------|--------|
+| Validates blueprintId via DB lookup | 14-18 → 404 | PASS |
+| Returns 409 if pipeline exists | 22-28 → loadPipelineState check | PASS |
+| Calls `createElearnIdeationPipeline` | 31 | PASS |
+| Persists via `savePipelineState` | 34 | PASS |
+| Response: `{ pipelineId, currentStage, totalStages, status }` | 38-43 | PASS |
+
+---
+
+### G. Route Logic — run — PASS
+
+**File:** `run/route.ts` (85 lines)
+
+| Check | Line(s) | Status |
+|-------|---------|--------|
+| Loads pipeline (404 if missing) | 27-29 | PASS |
+| Validates stageId matches current (400) | 33-42 | PASS |
+| Checks not already approved (409) | 45-51 | PASS |
+| Runs with mock executor + judge | 54-59 | PASS |
+| Transitions presenting → awaiting_review | 63-67 | PASS |
+| Persists updated state | 70 | PASS |
+| Response: `{ stageId, status, loopCount, grade, bestScore, gate }` | 73-80 | PASS |
+
+---
+
+### H. Route Logic — review — PASS
+
+**File:** `review/route.ts` (115 lines)
+
+| Check | Line(s) | Status |
+|-------|---------|--------|
+| Loads pipeline (404 if missing) | 29-31 | PASS |
+| Validates stage in awaiting_review (400) | 44-49 | PASS |
+| Validates via core `validateReviewAction` | 65-74 | PASS |
+| Calls `processReview` from core/engine | 77 | PASS |
+| If approve + canAdvance → advancePipeline | 93-98 | PASS |
+| Persists updated state | 101 | PASS |
+| Response: `{ stageId, status, pipelineAdvanced, nextStage, pipelineStatus }` | 104-110 | PASS |
+
+---
+
+### I. Route Logic — state — PASS
+
+**File:** `state/route.ts` (57 lines)
+
+| Check | Line(s) | Status |
+|-------|---------|--------|
+| Loads pipeline (404 if missing) | 16-19 | PASS |
+| Calls `getPipelineProgress` | 22 | PASS |
+| Response: `{ pipelineId, status, progress, currentStage, stages }` | 46-52 | PASS |
+
+---
+
+### J. Error Handling — PASS
+
+| Check | Status |
+|-------|--------|
+| Every route has try/catch | PASS — all 4 routes wrap in try/catch |
+| HTTP status codes: 200, 400, 404, 409, 500 | PASS — all used correctly |
+| Meaningful error messages | PASS — e.g. "Stage 'X' is not the current stage" |
+| No stack traces leaked | PASS — `console.error` server-side, generic message to client |
+
+---
+
+### K. Architectural Purity — PASS
+
+| Check | Result | Status |
+|-------|--------|--------|
+| `grep -r "from.*domain/" src/lib/core/` | Only a comment in loop-engine.ts: `// Zero imports from domain/` — not an actual import | PASS |
+| Routes import from `domain/workflows/` | Correct — routes are app layer | PASS |
+| Routes import from `core/engine/` and `core/review/` | Correct — for types and functions | PASS |
+| No direct Anthropic/OpenAI SDK calls in routes | Correct — mocks used exclusively | PASS |
+
+---
+
+### L. Test Coverage — PASS (1 INFO)
+
+**3 test files, 29 tests total:**
+
+**File 1: `pipeline-routes.test.ts`** — 10 tests
+| Group | Tests |
+|-------|-------|
+| POST /pipeline/start | 1. 404 blueprint not found |
+| | 2. 409 pipeline already exists |
+| | 3. 200 success (5 stages, brief as current) |
+| POST /pipeline/stages/[stageId]/run | 4. 404 pipeline not found |
+| | 5. 400 wrong stageId |
+| | 6. 200 successful run |
+| POST /pipeline/stages/[stageId]/review | 7. 400 invalid action (Zod) |
+| | 8. 400 not awaiting_review |
+| GET /pipeline/state | 9. 404 pipeline not found |
+| | 10. 200 full state response |
+
+**File 2: `pipeline-mocks.test.ts`** — 10 tests
+| Group | Tests |
+|-------|-------|
+| createMockAgentExecutor | 1-5. Correct shape for brief/audience/structure/components/handoff |
+| | 6. Fallback for unknown stage |
+| createMockJudge | 7. Score 65 on first call |
+| | 8. Score 80 on second call |
+| | 9. Independent counters per rubric |
+| | 10. Dimension scores match rubric |
+
+**File 3: `pipeline-persistence.test.ts`** — 9 tests
+| Group | Tests |
+|-------|-------|
+| PIPELINE_SENTINEL_STAGE_ID | 1. Is 0 |
+| savePipelineState | 2. Creates new StageSession |
+| | 3. Updates existing StageSession |
+| | 4. Throws if blueprint not found |
+| loadPipelineState | 5. Returns null when no sentinel |
+| | 6. Returns deserialized pipeline |
+| | 7. Reconstructs Date objects |
+| | 8. Handles pre-parsed JSON object |
+| deletePipelineState | 9. Deletes sentinel session |
+
+**Coverage Assessment:**
+| Check | Status |
+|-------|--------|
+| Each route has happy path + error tests | PASS |
+| Persistence round-trip tested | PASS |
+| Mock executor/judge tested independently | PASS |
+| **INFO: Review route missing happy-path approve test** | No test exercises successful approve → advancePipeline flow. Covered implicitly by core engine tests, but no route-level integration test. Non-blocking for LE-8. | INFO |
+
+---
+
+### M. Build Verification — PASS
+
+| Command | Result | Status |
+|---------|--------|--------|
+| `npm run typecheck` | Clean (0 errors) | PASS |
+| `npm run test` | 558 tests passed (26 files) | PASS |
+| `npm run build` | Production build success | PASS |
+
+---
+
+### N. Git State — PASS
+
+**Working tree:** clean (no uncommitted changes)
+
+**LE-8 commits (10 total):**
+```
+9cc384e fix(test): correct LoopState property name in route tests (artifact → currentArtifact)
+21f2bb0 test(api): LE-8 pipeline route integration tests
+b2defe4 feat(api): LE-8 GET /pipeline/state route
+d6c1dc3 feat(api): LE-8 POST /pipeline/stages/[stageId]/review route
+607800f feat(api): LE-8 POST /pipeline/stages/[stageId]/run route
+6a8781c feat(api): LE-8 POST /pipeline/start route
+2263341 feat(domain): LE-8 pipeline state persistence via StageSession sentinel
+1918f66 feat(domain): LE-8 mock agent executor and judge with per-stage counters
+b7376a4 feat(api): LE-8 Zod schemas for pipeline routes
+e46d990 docs: LE-8 implementation plan for pipeline API routes
+```
+
+**Tags:** LE-0 through LE-8 all present (9 tags: `LE-0-folder-restructure` through `LE-8-api-routes`)
+
+---
+
+### O. Readiness for LE-9 — PASS
+
+| Check | Result | Status |
+|-------|--------|--------|
+| `conversation-manager.ts` exists | `src/lib/domain/workflows/ideation/conversation-manager.ts` | PASS |
+| IdeationConversation model in schema | Present at line 231 of schema.prisma | PASS |
+| Fields: id, blueprintId, phase, createdAt, updatedAt, messages[] | All present | PASS |
+| `stageId` field absent | Confirmed — not present (LE-9 will add it) | PASS |
+
+---
+
+### Summary
+
+| Section | Checks | Pass | Info | Fail |
+|---------|--------|------|------|------|
+| A. File Existence & Structure | 7 | 7 | 0 | 0 |
+| B. Route Endpoints | 4 | 4 | 0 | 0 |
+| C. Zod Validation | 5 | 5 | 0 | 0 |
+| D. Pipeline Persistence | 5 | 5 | 0 | 0 |
+| E. Mock Quality | 5 | 4 | 1 | 0 |
+| F. Route Logic — start | 5 | 5 | 0 | 0 |
+| G. Route Logic — run | 7 | 7 | 0 | 0 |
+| H. Route Logic — review | 7 | 7 | 0 | 0 |
+| I. Route Logic — state | 3 | 3 | 0 | 0 |
+| J. Error Handling | 4 | 4 | 0 | 0 |
+| K. Architectural Purity | 4 | 4 | 0 | 0 |
+| L. Test Coverage | 4 | 3 | 1 | 0 |
+| M. Build Verification | 3 | 3 | 0 | 0 |
+| N. Git State | 3 | 3 | 0 | 0 |
+| O. LE-9 Readiness | 4 | 4 | 0 | 0 |
+| **TOTAL** | **70** | **68** | **2** | **0** |
+
+**INFO items (non-blocking):**
+1. **Mock judge counter doesn't reset on reject** — after reject+re-run, counter continues (returns 80 instead of 65). Acceptable for mock; real agents won't share this behavior.
+2. **Review route missing happy-path approve test** — no route-level test exercises successful approve → pipeline advancement. Core engine tests cover the logic, but a route integration test would strengthen coverage. Consider adding in a future LE.
+
+Zero FAIL items. 558 tests pass, typecheck clean, build succeeds. All 4 routes correctly wired with proper validation, error handling, persistence, and architectural separation. The import rule is enforced. No existing files were modified.
+
+# LE-8 VERIFIED — Ready for LE-9
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
