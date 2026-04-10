@@ -2044,3 +2044,209 @@ The pipeline orchestrator correctly bridges core systems (engine + review) from 
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-7 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Branch:** feature/loop-engine-v2
+**Commit:** bf9b127 — `feat(domain): LE-7 ideation pipeline config — 5 stages wired, 20 tests, explicit deps`
+**Tag:** LE-7-ideation-config
+
+---
+
+### A. File Existence
+
+| Check | Result | Status |
+|-------|--------|--------|
+| A1. pipeline-config.ts exists | `src/lib/domain/workflows/ideation/pipeline-config.ts` — 4,697 bytes, 137 lines | **PASS** |
+| A2. No new files in core/ | `git diff LE-6..LE-7 -- src/lib/core/` returned empty — zero core changes | **PASS** |
+| A3. No existing agent files modified | `git diff LE-6..LE-7 -- agents/ rubrics/` returned empty — zero modifications | **PASS** |
+| A4. Files changed in LE-7 | 3 files: `pipeline-config.ts` (new), `pipeline-config.test.ts` (new), `senior-engineer-review.md` (doc) — all insertions, 0 modifications | **PASS** |
+
+---
+
+### B. Stage Config Completeness
+
+| Stage | agents | rubric | threshold | max | min | pattern | deps | roles | gate |
+|-------|--------|--------|-----------|-----|-----|---------|------|-------|------|
+| brief | 1 (ORCHESTRATOR) | BRIEF_RUBRIC (5 dims, pass 75) | 75 | 3 | 2 | standard | — | project_owner | approve/reject/feedback |
+| audience | 1 (AUDIENCE_ANALYST) | AUDIENCE_RUBRIC (5 dims, pass 75) | 75 | 3 | 2 | standard | [brief] | project_owner | approve/reject/feedback |
+| structure | 2 (CURRICULUM_STRATEGIST, OUTCOME_ARCHITECT) | STRUCTURE_RUBRIC_DEFINITION (7 dims, pass 75) | 75 | 5 | 2 | strategic | [brief, audience] | project_owner, instructional_designer | approve/reject/feedback |
+| components | 2 (COMPONENT_RECOMMENDER, STRUCTURE_OPTIMIZER) | COMPONENT_RUBRIC (5 dims, pass 75) | 75 | 3 | 2 | standard | [brief, audience, structure] | project_owner | approve/reject/feedback |
+| handoff | 1 (HANDOFF_CHECKER) | HANDOFF_RUBRIC (5 dims, pass 80) | 80 | 2 | 1 | standard | [brief, audience, structure, components] | project_owner | approve/reject/feedback |
+
+All 5 stages have every required field. **PASS**
+
+---
+
+### C. Dependency Chain (Critical)
+
+| Stage | Expected dependsOn | Actual dependsOn | Status |
+|-------|-------------------|------------------|--------|
+| brief | undefined | undefined | **PASS** |
+| audience | ['brief'] | ['brief'] | **PASS** |
+| structure | ['brief', 'audience'] | ['brief', 'audience'] | **PASS** |
+| components | ['brief', 'audience', 'structure'] | ['brief', 'audience', 'structure'] | **PASS** |
+| handoff | ['brief', 'audience', 'structure', 'components'] | ['brief', 'audience', 'structure', 'components'] | **PASS** |
+
+All stages list ALL upstream stages (explicit/transitive), not just the immediate predecessor. **PASS**
+
+---
+
+### D. Agent Config Bridge
+
+| Check | Result | Status |
+|-------|--------|--------|
+| D1. toAgentConfig maps: id, name, model, maxRetries, timeoutMs | Lines 29-37 — confirmed, exactly these 5 fields | **PASS** |
+| D2. Does NOT include domain fields (tier, maxTokens) | `tier` appears only in HANDOFF_CHECKER_CONFIG definition (line 46), never in toAgentConfig output | **PASS** |
+| D3. HANDOFF_CHECKER_CONFIG defined inline | Lines 43-53 — defined as IdeationAgentConfig, no existing agent file for it | **PASS** |
+| D4. All models valid | All agents use: primary `claude-sonnet-4-20250514`, fallback `claude-haiku-4-5-20251001` — 2 unique model strings across all 7 agent configs (6 imported + 1 inline) | **PASS** |
+
+---
+
+### E. Rubric Wiring
+
+| Stage | Expected Rubric | Actual Import | Dims | Threshold | Source File | Status |
+|-------|----------------|---------------|------|-----------|-------------|--------|
+| brief | BRIEF_RUBRIC | BRIEF_RUBRIC | 5 | 75 | rubrics/brief-rubric.ts | **PASS** |
+| audience | AUDIENCE_RUBRIC | AUDIENCE_RUBRIC | 5 | 75 | rubrics/audience-rubric.ts | **PASS** |
+| structure | STRUCTURE_RUBRIC_DEFINITION | STRUCTURE_RUBRIC_DEFINITION | 7 | 75 | rubrics/structure-rubric.ts | **PASS** |
+| components | COMPONENT_RUBRIC | COMPONENT_RUBRIC | 5 | 75 | rubrics/component-rubric.ts | **PASS** |
+| handoff | HANDOFF_RUBRIC | HANDOFF_RUBRIC | 5 | 80 | rubrics/handoff-rubric.ts | **PASS** |
+
+Structure uses STRUCTURE_RUBRIC_DEFINITION (core-compatible export, line 146 of structure-rubric.ts), not legacy STRUCTURE_RUBRIC. **PASS**
+
+---
+
+### F. createElearnIdeationPipeline
+
+| Check | Result | Status |
+|-------|--------|--------|
+| F1. Calls createPipeline from pipeline-orchestrator | Line 132: `return createPipeline(...)` | **PASS** |
+| F2. Pipeline ID format | `'elearn-ideation-${blueprintId}'` (line 133) | **PASS** |
+| F3. Passes ELEARN_IDEATION_STAGES | Line 135: third arg to createPipeline | **PASS** |
+| F4. Return type IdeationPipeline | Line 131: explicit return type annotation | **PASS** |
+
+---
+
+### G. Test Coverage
+
+**23 test files, 529 tests total. pipeline-config.test.ts: 20 tests, all pass.**
+
+#### ELEARN_IDEATION_STAGES (15 tests):
+
+| # | Test | Verifies |
+|---|------|----------|
+| a | has exactly 5 stages | Stage count |
+| b | stage IDs are: brief, audience, structure, components, handoff | Stage ordering |
+| c | each stage has a valid rubric (passThreshold > 0, dimensions.length > 0) | Rubric validity |
+| d | brief stage has no dependsOn | Brief deps |
+| e | audience depends on ['brief'] | Audience deps |
+| f | structure depends on ['brief', 'audience'] | Structure deps |
+| g | components depends on ['brief', 'audience', 'structure'] | Components deps |
+| h | handoff depends on ['brief', 'audience', 'structure', 'components'] | Handoff deps |
+| i | structure uses 'strategic' pattern, others use 'standard' | Loop patterns |
+| j | handoff threshold is 80, others are 75 | Thresholds |
+| k | each stage has at least 1 agent config | Agent presence |
+| l | all agent configs have id, name, model with primary and fallback | Agent fields |
+| m | handoff minIterations is 1, others are 2 | Min iterations |
+| n | all stages have reviewerRoles (non-empty array) | Reviewer roles |
+| o | all stages have reviewGateConfig with allowedActions | Gate config |
+
+#### createElearnIdeationPipeline (5 tests):
+
+| # | Test | Verifies |
+|---|------|----------|
+| p | returns IdeationPipeline with correct blueprintId | Factory output |
+| q | pipeline has 5 stages | Stage passthrough |
+| r | pipeline status is 'active' | Initial status |
+| s | all stageStates initialized to 'idle' | State initialization |
+| t | currentStageIndex is 0 | Starting index |
+
+**Cross-reference:** All 5 stages verified, all 5 dependency chains verified, loop patterns verified, thresholds verified, agent configs validated, rubric validity checked, pipeline creation tested. **PASS**
+
+---
+
+### H. Import Resolution
+
+| Import | Source | Resolves | Status |
+|--------|--------|----------|--------|
+| AgentConfig (type) | core/engine/types | Exists | **PASS** |
+| IdeationAgentConfig (type) | agents/framework/types | Exists | **PASS** |
+| StageConfig, IdeationPipeline (type) | pipeline-orchestrator | Exported at lines 21, 29 | **PASS** |
+| createPipeline | pipeline-orchestrator | Exported at line 52 | **PASS** |
+| BRIEF_RUBRIC | rubrics/brief-rubric | Exported at line 6 | **PASS** |
+| AUDIENCE_RUBRIC | rubrics/audience-rubric | Exported at line 6 | **PASS** |
+| STRUCTURE_RUBRIC_DEFINITION | rubrics/structure-rubric | Exported at line 146 | **PASS** |
+| COMPONENT_RUBRIC | rubrics/component-rubric | Exported at line 6 | **PASS** |
+| HANDOFF_RUBRIC | rubrics/handoff-rubric | Exported at line 7 | **PASS** |
+| ORCHESTRATOR_CONFIG | agents/orchestrator | Exported at line 31 | **PASS** |
+| AUDIENCE_ANALYST_CONFIG | agents/audience-analyst | Exported at line 19 | **PASS** |
+| CURRICULUM_STRATEGIST_CONFIG | agents/curriculum-strategist | Exported at line 20 | **PASS** |
+| OUTCOME_ARCHITECT_CONFIG | agents/outcome-architect | Exported at line 26 | **PASS** |
+| COMPONENT_RECOMMENDER_CONFIG | agents/component-recommender | Exported at line 29 | **PASS** |
+| STRUCTURE_OPTIMIZER_CONFIG | agents/structure-optimizer | Exported at line 27 | **PASS** |
+
+All 15 imports resolve. Zero broken references. **PASS**
+
+---
+
+### I. Build Verification
+
+| Check | Result | Status |
+|-------|--------|--------|
+| I1. TypeScript typecheck | `tsc --noEmit` — clean, zero errors | **PASS** |
+| I2. Test suite | 529 tests, 23 files, ALL PASS (1.14s) | **PASS** |
+| I3. Production build | `next build` success — 12 static pages, 28 routes | **PASS** |
+| I4. Core import rule | `grep -r "from.*domain/" src/lib/core/` — zero imports (one comment only) | **PASS** |
+
+---
+
+### J. Git State
+
+| Check | Result | Status |
+|-------|--------|--------|
+| J1. Working tree | Clean — no uncommitted changes | **PASS** |
+| J2. Recent commits | bf9b127 (LE-7) -> e1daf0f (LE-6 verify) -> 64e839b (LE-6) -> 91344b9 (LE-5 verify) -> 9d1148c (LE-5) | **PASS** |
+| J3. Tags | LE-0 through LE-7 all present (LE-7-ideation-config) | **PASS** |
+| J4. LE-7 diff | 3 files added, 440 insertions, 0 modifications to existing files | **PASS** |
+
+---
+
+### K. Readiness for LE-8
+
+| Check | Result | Status |
+|-------|--------|--------|
+| K1. createElearnIdeationPipeline exported | Line 131 — `export function` | **PASS** |
+| K2. Pipeline orchestrator exports | runCurrentStage, getCurrentStage, getCurrentState, advancePipeline, getPipelineProgress — all exported | **PASS** |
+| K3. Review system exports | validateReviewAction, getAvailableActions — exported from core/review/actions.ts | **PASS** |
+| K4. API route directory does NOT exist | `src/app/api/blueprints/[blueprintId]/pipeline/` — confirmed absent | **PASS** |
+
+---
+
+### Summary
+
+| Section | Tests | Pass | Fail | Info |
+|---------|-------|------|------|------|
+| A. File Existence | 4 | 4 | 0 | 0 |
+| B. Stage Config | 50 | 50 | 0 | 0 |
+| C. Dependency Chain | 5 | 5 | 0 | 0 |
+| D. Agent Config Bridge | 4 | 4 | 0 | 0 |
+| E. Rubric Wiring | 5 | 5 | 0 | 0 |
+| F. createElearnIdeationPipeline | 4 | 4 | 0 | 0 |
+| G. Test Coverage | 20 | 20 | 0 | 0 |
+| H. Import Resolution | 15 | 15 | 0 | 0 |
+| I. Build Verification | 4 | 4 | 0 | 0 |
+| J. Git State | 4 | 4 | 0 | 0 |
+| K. LE-8 Readiness | 4 | 4 | 0 | 0 |
+| **TOTAL** | **119** | **119** | **0** | **0** |
+
+Zero issues found. 529 tests pass, typecheck clean, build succeeds, all 5 stages fully wired with correct dependencies, rubrics, agents, and review gates. The import rule is enforced. No existing files were modified.
+
+# LE-7 VERIFIED — Ready for LE-8
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
