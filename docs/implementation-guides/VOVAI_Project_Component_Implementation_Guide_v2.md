@@ -1,3 +1,15 @@
+# SUPERSEDED
+
+> **This guide is superseded by the Loop Engine v2 action plan.**
+> See: [`loop-engine-action-plan.md`](./loop-engine-action-plan.md)
+>
+> The `src/lib/project-component/` path referenced below was moved to
+> `src/lib/domain/workflows/` in LE-0. The core/domain architecture
+> described in the action plan replaces this guide's structure.
+> Preserved as historical context.
+
+---
+
 # VOVAI eLearnOS — Project Component
 # ADAPTED IMPLEMENTATION GUIDE v2.0
 ## For the Existing vovai-elearn-aios Codebase

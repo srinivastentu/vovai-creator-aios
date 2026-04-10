@@ -1,4 +1,31 @@
 # VOVAI Loop Engine v2 — Claude Code Action Plan
+
+## COMPLETED — 2026-04-10
+
+All 14 steps (LE-0 through LE-13) are complete. The Loop Engine v2 is built, tested, and verified.
+
+| Metric | Value |
+|--------|-------|
+| **Total tests** | 641 (up from 385 at start) |
+| **Branch** | `feature/loop-engine-v2` → merged to `main` |
+| **Tags** | LE-0 through LE-13 (13 step tags + final docs tag) |
+| **Core files** | `engine/` (3 files), `agentic/` (2 files), `review/` (4 files) |
+| **Domain files** | `workflows/` (pipeline orchestrator, ideation config, rubrics, agents, production) |
+| **Commits on branch** | 35 |
+| **Architectural contract** | `grep -r "from.*domain/" src/lib/core/` returns nothing — held at every step |
+| **Engine universality** | Proven at LE-12: document pipeline uses same core engine, different domain config |
+
+**Deviations from original plan:**
+- Step 1 originally had `inline_edit` as a ReviewAction type and 6 actions. Refined to 5 actions (inline editing is a UI behavior via `editedArtifact` field on any action, not a separate action type).
+- Step 2 originally said "4 functions" — implementation has 5 (`createInitialState` added).
+- Step 5 originally said "Phase 0: approve, reject, feedback, inline_edit" — refined to "approve, reject, feedback" (inline editing handled via `editedArtifact`).
+- Steps 8-9 added Zod validation schemas and persistence layer not originally specified.
+- Step 11 E2E split into 47 mock tests + 6 live integration tests (original plan just said "E2E test").
+
+**The step descriptions below are preserved as historical record.**
+
+---
+
 ## 14 Steps, Each = 1 Session, Each = Visible Progress
 ## Core/Domain Architecture
 

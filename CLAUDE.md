@@ -86,6 +86,31 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 
 ---
 
+## Build Progress — Loop Engine v2
+
+**Branch:** `feature/loop-engine-v2` (14 steps, all complete, ready for merge to main)
+**Tests:** 641 | **Architectural contract:** `grep -r "from.*domain/" src/lib/core/` returns nothing
+**Action plan:** `docs/implementation-guides/loop-engine-action-plan.md`
+
+| Step | Tag | What Was Built |
+|------|-----|----------------|
+| LE-0 | `LE-0-folder-restructure` | Moved `project-component/` → `domain/workflows/`. All 385 tests pass at new paths. |
+| LE-1 | `LE-1-engine-types` | Core engine types: LoopStage, LoopState, GradeReport, RubricDefinition, AgentExecutor, JudgeFunction. 13 exports, zero domain imports. |
+| LE-2 | `LE-2-loop-functions` | 5 core functions: createInitialState, produce, evaluate, runLoop, processReview. 25 tests, 9 loop rules enforced. |
+| LE-3 | `LE-3-generic-grader` | Generic rubric grader in core/agentic. gradeArtifact, calculateWeightedScore, checkThresholds. 17 tests. |
+| LE-4 | `LE-4-ideation-rubrics` | 4 new ideation rubrics (brief, audience, component, handoff) + structure compat. 27 tests, 454 total. |
+| LE-5 | `LE-5-review-system` | Human Review System in core/review. Gate enforcement, 5 actions, sovereignty checks. 28 tests. |
+| LE-6 | `LE-6-pipeline-orchestrator` | Pipeline orchestrator in domain/workflows. 8 functions, 26 tests, bridges all core systems. |
+| LE-7 | `LE-7-ideation-config` | 5 ideation stages wired with real agent configs + rubrics. 20 tests, explicit stage deps. |
+| LE-8 | `LE-8-api-routes` | 4 pipeline API routes (start, run, review, state). Zod schemas, mock executor. Integration tests. |
+| LE-9 | `LE-9-per-stage-conversations` | Per-stage conversation isolation. Prisma migration, 2 functions, 7 tests. |
+| LE-10 | `LE-10-real-agents` | Agent bridge wiring real agents. Cost tracking integration. 14 tests, 579 total. |
+| LE-11 | `LE-11-e2e-pipeline` | Full 5-stage pipeline E2E. 47 mock tests + 6 live tests, all 4 systems integrated. 626 total. |
+| LE-12 | `LE-12-document-pipeline-proof` | Document pipeline proof — same engine, different domain config. 15 tests, 641 total. Engine universality proven. |
+| LE-13 | `LE-13-docs-complete` | Final docs update, verification, merge to main. |
+
+---
+
 ## Workflow
 
 1. **Plan first** — plan mode for 3+ step tasks. Re-plan if things go sideways.
@@ -107,7 +132,7 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 ### Testing
 
 - `npm run typecheck && npm run test -- --bail` before every commit
-- 385+ tests must pass. `grep -r "from.*domain/" src/lib/core/` must return nothing.
+- 641+ tests must pass. `grep -r "from.*domain/" src/lib/core/` must return nothing.
 
 ### Core Principles
 
