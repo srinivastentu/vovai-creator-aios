@@ -1361,3 +1361,144 @@ All types needed by LE-3 (generic rubric grader in core/agentic/) are available 
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-3 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Branch:** feature/loop-engine-v2
+**Commit:** 83e01fa — feat(core): LE-3 generic rubric grader
+**Tag:** LE-3-generic-grader
+
+---
+
+### Executive Summary
+
+LE-3 delivers a **generic rubric grader** in `src/lib/core/agentic/` — the first file in System 2 (Agentic). The grader scores ANY artifact against ANY `RubricDefinition` via an injected `callJudgeModel` function. Zero domain words, zero external SDK imports. All 427 tests pass, typecheck clean, build succeeds. Domain files untouched — full backward compatibility confirmed.
+
+**Verdict: LE-3 VERIFIED — Ready for LE-4**
+
+---
+
+### A. File Existence — PASS
+
+| File | Size |
+|------|------|
+| `src/lib/core/agentic/grader.ts` | 5,817 bytes |
+| `src/lib/core/agentic/index.ts` | 95 bytes |
+
+Exactly 2 files. No other files in `core/agentic/` yet.
+
+### B. Export Completeness — PASS
+
+3 exports from `grader.ts`:
+1. `calculateWeightedScore(dimensionScores: DimensionScore[]) → number` — pure weighted sum
+2. `checkThresholds(grade: GradeReport, rubric: RubricDefinition) → { passes, failingDimensions }` — per-dimension + overall threshold check
+3. `createJudgeFunction(callJudgeModel: (prompt: string) => Promise<string>) → JudgeFunction` — factory, injected dependency
+
+`index.ts` re-exports all 3 — confirmed.
+
+### C. Core Purity — PASS
+
+- `grader.ts` imports ONLY from `'../engine/types'` (core-to-core, allowed)
+- `grep -r "from.*domain/" src/lib/core/` → only comments (loop-engine.ts line 2 comment)
+- `grep -r "from.*review/" src/lib/core/` → only comments (same)
+- No Anthropic SDK, no OpenAI SDK, no API key references in `core/`
+- `callJudgeModel` is a parameter to `createJudgeFunction`, not imported — **dependency injection confirmed**
+
+### D. Grading Prompt Quality — PASS
+
+The prompt built by `buildGradingPrompt()`:
+- Opens with "You are an evaluation judge" — zero domain words
+- Includes rubric name, dimension table (name, weight, description), and per-dimension criteria
+- Instructs judge to return JSON with `dimensionScores` array, `recommendation`, `improvementPriorities`
+- Ends with "Return ONLY the JSON object. No markdown fences, no commentary."
+- Verified: no occurrences of "eLearning", "curriculum", "audience", "course", "module", "lesson"
+
+### E. Error Handling — PASS
+
+| Scenario | Behavior |
+|----------|----------|
+| `callJudgeModel` returns invalid JSON | Returns `GradeReport` with `overallScore: 0`, `passesThreshold: false`, all dimensions score 0, feedback "Failed to parse judge response" |
+| `callJudgeModel` returns JSON wrapped in markdown fences | `stripMarkdownFences()` removes `` ```json `` / `` ``` `` before parsing — handles correctly |
+| `callJudgeModel` throws | Caught, returns failing grade report — does NOT propagate exception |
+
+### F. Backward Compatibility — PASS
+
+- `git diff LE-2..LE-3 -- domain/workflows/agents/rubric-grader.ts` → empty (unchanged)
+- `git diff LE-2..LE-3 -- domain/workflows/rubrics/structure-rubric.ts` → empty (unchanged)
+- `runRubricGrader` still exported and callable from domain
+- `calculateOverallScore` and `getRecommendation` still exported from `structure-rubric.ts`
+- Only 4 new files added between LE-2 and LE-3, zero modifications to existing files
+
+### G. Test Coverage — PASS (17 tests)
+
+**`calculateWeightedScore` (4 tests):**
+1. Calculates weighted sum for 3 dimensions (80×0.3 + 60×0.3 + 90×0.4 = 78)
+2. Returns 100 for single dimension with score 100, weight 1.0
+3. Returns 0 when all scores are 0
+4. Returns 0 for empty array
+
+**`checkThresholds` (4 tests):**
+5. Passes when overall >= threshold and no dimension below its threshold
+6. Fails when one dimension below its individual threshold
+7. Fails when overall score below rubric passThreshold
+8. Lists all failing dimensions when multiple fail
+
+**`createJudgeFunction` (6 tests):**
+9. Returns GradeReport with correct overallScore
+10. Sets passesThreshold correctly based on rubric
+11. Populates dimensionScores with weights from rubric
+12. Propagates recommendation and improvementPriorities
+13. Returns failing grade with score 0 on invalid JSON (does not throw)
+14. Builds prompt containing rubric dimension names (and no domain words)
+
+**Backward compatibility (3 tests):**
+15. `runRubricGrader` still exported from domain rubric-grader
+16. `calculateOverallScore` still exported from domain structure-rubric
+17. `getRecommendation` still exported from domain structure-rubric
+
+### H. Build Verification — PASS
+
+| Command | Result |
+|---------|--------|
+| `npm run typecheck` | Clean — zero errors |
+| `npm run test` | **427 passed** (385 original + 25 LE-2 + 17 LE-3) across 19 test files |
+| `npm run build` | Success — production build completes |
+
+### I. Git State — PASS
+
+- Working tree: **clean**
+- Tags: `LE-0-folder-restructure`, `LE-1-engine-types`, `LE-2-loop-functions`, `LE-3-generic-grader`
+- `git diff LE-2..LE-3 --stat`: 4 files changed, 743 insertions
+
+### J. Readiness for LE-4 — PASS
+
+- LE-4 will create 4 new ideation rubrics in `domain/workflows/rubrics/`
+- `RubricDefinition` is exported from `core/engine/types` (line 72) — available for import
+- `structure-rubric.ts` untouched — existing rubric unaffected
+- `core/agentic/grader.ts` ready to grade any rubric passed to it
+
+---
+
+| Check | Result |
+|-------|--------|
+| A. File Existence | **PASS** — 2 files, correct sizes |
+| B. Export Completeness | **PASS** — 3 exports, all re-exported |
+| C. Core Purity | **PASS** — core-to-core only, injected deps |
+| D. Grading Prompt Quality | **PASS** — zero domain words, JSON schema |
+| E. Error Handling | **PASS** — graceful failure, fence stripping |
+| F. Backward Compatibility | **PASS** — domain files unchanged |
+| G. Test Coverage | **PASS** — 17 tests, all categories covered |
+| H. Build Verification | **PASS** — typecheck + 427 tests + build |
+| I. Git State | **PASS** — clean, tagged LE-0 through LE-3 |
+| J. Readiness for LE-4 | **PASS** — RubricDefinition exported, ready |
+
+---
+
+# LE-3 VERIFIED — Ready for LE-4
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
