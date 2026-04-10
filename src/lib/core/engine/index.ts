@@ -13,3 +13,11 @@ export type {
   AgentExecutor,
   JudgeFunction,
 } from './types'
+
+export {
+  createInitialState,
+  produce,
+  evaluate,
+  runLoop,
+  processReview,
+} from './loop-engine'
