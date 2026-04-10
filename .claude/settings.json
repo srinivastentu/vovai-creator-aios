@@ -10,23 +10,5 @@
       "brew list", "brew info *"
     ],
     "deny": ["rm -rf /", "rm -rf ~", "npm run db:reset"]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [{ "type": "command", "command": "npm run lint --fix 2>/dev/null || true" }]
-      }
-    ],
-    "PreCommit": [
-      {
-        "matcher": "*",
-        "hooks": [
-          { "type": "command", "command": "npm run typecheck" },
-          { "type": "command", "command": "npm run test -- --bail" }
-        ]
-      }
-    ]
-  },
-  "env": { "MAX_THINKING_TOKENS": "10000" }
+  }
 }

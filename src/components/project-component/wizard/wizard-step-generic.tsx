@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch'
 
 import { Button } from '@/components/ui/button'
 import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
-import type { ComponentDefinition } from '@/lib/project-component'
+import type { ComponentDefinition } from '@/lib/domain/workflows'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -16,7 +16,7 @@ import type {
   ArchetypeDefinition,
   ComponentDefinition,
   ComponentCategory,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 
 const CATEGORY_COLORS: Record<ComponentCategory, string> = {
   content: 'text-blue-600 dark:text-blue-400',

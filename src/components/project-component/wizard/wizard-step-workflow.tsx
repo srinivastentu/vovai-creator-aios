@@ -15,13 +15,13 @@ import type {
   ArchetypeDefinition,
   ComponentDefinition,
   WorkflowTemplate,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 import {
   COMPONENT_REGISTRY,
   COMPONENT_COMPATIBILITY,
   getRecommendedProductionOrder,
   validateDependencyOrder,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 
 const CATEGORY_COLORS: Record<string, string> = {
   content: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',

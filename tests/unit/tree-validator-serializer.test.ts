@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { validateTree } from '../../src/lib/project-component/tree/tree-validator'
+import { validateTree } from '../../src/lib/domain/workflows/tree/tree-validator'
 import {
   serializeBlueprint,
   deserializeBlueprint,
-} from '../../src/lib/project-component/tree/tree-serializer'
+} from '../../src/lib/domain/workflows/tree/tree-serializer'
 import type {
   ProjectNodeType,
   AttachedComponentType,
   ProjectBlueprintType,
-} from '../../src/lib/project-component/types'
+} from '../../src/lib/domain/workflows/types'
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 

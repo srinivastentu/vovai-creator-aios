@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { startIdeationSchema } from '@/lib/validations/ideation'
 import { formatZodError } from '@/lib/validations/blueprint'
-import { createConversation, addMessage, getLatestConversation } from '@/lib/project-component/ideation/conversation-manager'
-import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
-import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+import { createConversation, addMessage, getLatestConversation } from '@/lib/domain/workflows/ideation/conversation-manager'
+import { createInitialState } from '@/lib/domain/workflows/ideation/phase-manager'
+import { runIdeationStep } from '@/lib/domain/workflows/ideation/loop-engine'
+import { checkCostLimit } from '@/lib/domain/workflows/ideation/cost-guard'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 // TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)

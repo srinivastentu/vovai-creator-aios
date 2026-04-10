@@ -18,8 +18,8 @@ import { ComponentPalette } from '@/components/project-component/canvas/componen
 import { RubricScoreBar } from '@/components/project-component/canvas/rubric-score-bar'
 import { GradeReportModal } from '@/components/project-component/canvas/grade-report-modal'
 import { AgentChatDrawer } from '@/components/project-component/canvas/agent-chat-drawer'
-import { buildTree, findNode } from '@/lib/project-component'
-import type { IdeationPhase, ProjectNodeType, GradeRecommendation, DimensionGradeScore } from '@/lib/project-component'
+import { buildTree, findNode } from '@/lib/domain/workflows'
+import type { IdeationPhase, ProjectNodeType, GradeRecommendation, DimensionGradeScore } from '@/lib/domain/workflows'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 

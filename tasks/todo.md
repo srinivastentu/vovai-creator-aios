@@ -1,6 +1,142 @@
 # VOVAI eLearn AIOS — Task Tracker
 
-## Current Focus: Project Component Build (PC-1 through PC-9)
+## Current Focus: LE-0 Folder Restructure
+
+Move `src/lib/project-component/` → `src/lib/domain/workflows/`.
+Pure mechanical move — zero logic changes. 29 files, ~122 import paths.
+
+---
+
+## LE-0: Folder Restructure
+
+### Phase 1: Create directories
+- [x] 1.1 Create `src/lib/domain/`
+- [x] 1.2 Create `src/lib/domain/workflows/`
+- [x] 1.3 Create subdirectories: `agents/`, `agents/framework/`, `rubrics/`, `tree/`, `ideation/`, `production/`
+
+### Phase 2: Move files (29 files)
+**Root-level files (7):**
+- [x] 2.1 Move `types.ts`
+- [x] 2.2 Move `index.ts`
+- [x] 2.3 Move `server.ts`
+- [x] 2.4 Move `archetypes.ts`
+- [x] 2.5 Move `component-registry.ts`
+- [x] 2.6 Move `compatibility.ts`
+- [x] 2.7 Move `workflow-defaults.ts`
+
+**rubrics/ (1):**
+- [x] 2.8 Move `rubrics/structure-rubric.ts`
+
+**tree/ (3):**
+- [x] 2.9 Move `tree/tree-utils.ts`
+- [x] 2.10 Move `tree/tree-serializer.ts`
+- [x] 2.11 Move `tree/tree-validator.ts`
+
+**agents/ (7):**
+- [x] 2.12 Move `agents/orchestrator.ts`
+- [x] 2.13 Move `agents/audience-analyst.ts`
+- [x] 2.14 Move `agents/curriculum-strategist.ts`
+- [x] 2.15 Move `agents/outcome-architect.ts`
+- [x] 2.16 Move `agents/component-recommender.ts`
+- [x] 2.17 Move `agents/structure-optimizer.ts`
+- [x] 2.18 Move `agents/devils-advocate.ts`
+- [x] 2.19 Move `agents/rubric-grader.ts`
+
+**agents/framework/ (3):**
+- [x] 2.20 Move `agents/framework/types.ts`
+- [x] 2.21 Move `agents/framework/registry.ts`
+- [x] 2.22 Move `agents/framework/executor.ts`
+
+**ideation/ (5):**
+- [x] 2.23 Move `ideation/loop-engine.ts`
+- [x] 2.24 Move `ideation/phase-manager.ts`
+- [x] 2.25 Move `ideation/conversation-manager.ts`
+- [x] 2.26 Move `ideation/cost-guard.ts`
+- [x] 2.27 Move `ideation/materializer.ts`
+
+**production/ (2):**
+- [x] 2.28 Move `production/handoff.ts`
+- [x] 2.29 Move `production/cost-estimator.ts`
+
+### Phase 3: Barrel import verification (HIGHEST RISK — do first after move)
+- [x] 3.1 Open `src/lib/domain/workflows/index.ts` — verify all internal relative imports resolve
+- [x] 3.2 Open `src/lib/domain/workflows/server.ts` — verify its internal relative imports resolve
+- [x] 3.3 Update comment references to `@/lib/project-component` inside `index.ts` and `server.ts`
+- [x] 3.4 Run `npm run typecheck` — MUST PASS before proceeding
+
+### Phase 4: Update src/ imports (~69 actual import statements + comments)
+Batch 4a — API routes:
+- [x] 4a.1 Find-and-replace `@/lib/project-component` → `@/lib/domain/workflows` in `src/app/api/` (10 route files)
+- [x] 4a.2 Run `npm run typecheck` — MUST PASS
+
+Batch 4b — Components:
+- [x] 4b.1 Find-and-replace `@/lib/project-component` → `@/lib/domain/workflows` in `src/components/` (23 files)
+- [x] 4b.2 Run `npm run typecheck` — MUST PASS
+
+Batch 4c — Pages:
+- [x] 4c.1 Find-and-replace `@/lib/project-component` → `@/lib/domain/workflows` in `src/app/(pages)/` (4 files)
+- [x] 4c.2 Run `npm run typecheck` — MUST PASS
+
+Batch 4d — Remaining src/ files:
+- [x] 4d.1 Find-and-replace `@/lib/project-component` → `@/lib/domain/workflows` in `src/lib/hooks/use-ideation.ts` + `src/lib/validations/blueprint.ts`
+- [x] 4d.2 Run `npm run typecheck` — MUST PASS
+
+### Phase 5: Update test imports (~46 import statements)
+- [x] 5.1 Find-and-replace `../../src/lib/project-component` → `../../src/lib/domain/workflows` in all `tests/` files (15 files)
+- [x] 5.2 Run `npm run typecheck` — MUST PASS
+
+### Phase 6: Update script imports (3 import statements)
+- [x] 6.1 Update 3 imports in `scripts/test-stage02-agents.ts`: `../src/lib/project-component` → `../src/lib/domain/workflows`
+- [x] 6.2 Verify `scripts/seed-project-component.ts` has no lib imports (confirmed: zero)
+- [x] 6.3 Verify `scripts/test-e2e-project-component.ts` has no lib imports (confirmed: uses API URLs only)
+- [x] 6.4 Run `npm run typecheck` — MUST PASS
+
+### Phase 7: Update package.json scripts
+- [x] 7.1 Verify `db:seed:pc` script path — currently `npx tsx scripts/seed-project-component.ts` (filename unchanged, no lib imports → no change needed)
+- [x] 7.2 Verify `test:e2e` script path — currently `npx tsx scripts/test-e2e-project-component.ts` (filename unchanged → no change needed)
+- [x] 7.3 Confirm: package.json scripts reference script filenames, not lib paths — **no changes needed**
+
+### Phase 8: Fix npm vulnerabilities (non-breaking)
+- [x] 8.1 Run `npm audit fix` (no `--force`) — updated @anthropic-ai/sdk to 0.87.0; 4 moderate vulns remain (require --force)
+- [x] 8.2 Run `npm run typecheck && npm run test` — verify nothing broke
+
+### Phase 9: Clean up
+- [x] 9.1 Verify `src/lib/project-component/` is empty
+- [x] 9.2 Delete `src/lib/project-component/` directory
+- [x] 9.3 Run `ls src/lib/project-component/` — "No such file or directory" confirmed
+
+### Phase 10: Full verification
+- [x] 10.1 `npm run typecheck` — clean (0 errors)
+- [x] 10.2 `npm run test` — 385/385 tests pass
+- [x] 10.3 `npm run build` — success
+- [x] 10.4 `grep -r "project-component" src/` — only UI component paths + API route paths (allowed, not moved)
+- [x] 10.5 `grep -r "project-component" tests/` — only 1 UI component import (allowed)
+- [x] 10.6 `grep -r "lib/project-component" src/ tests/ scripts/` — ZERO hits confirmed
+
+### Phase 11: Commit
+- [ ] 11.1 `git add -A`
+- [ ] 11.2 `git commit -m "refactor(LE-0): move project-component to domain/workflows — 29 files, ~122 import updates"`
+- [ ] 11.3 `git tag LE-0-folder-restructure`
+- [ ] 11.4 `git push origin feature/loop-engine-v2 --tags`
+
+---
+
+## NOT touched in LE-0 (explicit exclusions)
+- `src/lib/engine.ts` — stays (stub, replaced in LE-2)
+- `src/lib/types.ts` — stays (core types)
+- `src/lib/db.ts` — stays (database client)
+- `src/lib/pipeline.ts` — stays
+- `src/lib/validations/` — stays (3 validation files)
+- `src/app/api/project-component/` — stays (API route folder, URL paths unchanged)
+- `src/components/project-component/` — stays (UI component folder, only imports updated)
+- Script filenames — stay (only internal imports updated)
+- No renames of functions, types, variables, or files
+- No agent logic, rubric logic, or loop engine logic changes
+- agents/framework/ files keep "Ideation" in names (renamed in LE-3)
+
+---
+
+## Previous: Project Component Build (PC-1 through PC-9)
 
 **What we're building:** The Project Component layer — a pre-pipeline system
 that lets users configure multi-module, multi-topic eLearning projects with

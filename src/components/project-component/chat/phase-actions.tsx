@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ContextPanels } from './context-panels'
 import type { BlueprintSummary } from './context-panels'
-import type { IdeationPhase, ProposedStructure, AudienceProfile } from '@/lib/project-component'
+import type { IdeationPhase, ProposedStructure, AudienceProfile } from '@/lib/domain/workflows'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

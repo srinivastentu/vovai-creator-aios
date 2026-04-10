@@ -2,7 +2,7 @@
 
 import { Check, RotateCw } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import type { IdeationPhase } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/domain/workflows'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 

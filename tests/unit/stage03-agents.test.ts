@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { AudienceProfile, OutcomesMap, ComponentPlan, ProposedStructure } from '../../src/lib/project-component/types'
+import type { AudienceProfile, OutcomesMap, ComponentPlan, ProposedStructure } from '../../src/lib/domain/workflows/types'
 import {
   clearAgents,
   getAgent,
   listAgents,
   registerAgent,
-} from '../../src/lib/project-component/agents/framework/registry'
+} from '../../src/lib/domain/workflows/agents/framework/registry'
 
 // ─── Mock Anthropic SDK ───────────────────────────────────────────────────
 
@@ -388,9 +388,9 @@ describe('Outcome Architect Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/outcome-architect')
+    const mod = await import('../../src/lib/domain/workflows/agents/outcome-architect')
     return mod
   }
 
@@ -583,9 +583,9 @@ describe('Component Recommender Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/component-recommender')
+    const mod = await import('../../src/lib/domain/workflows/agents/component-recommender')
     return mod
   }
 
@@ -781,14 +781,14 @@ describe('Stage 0.2 → 0.3 Full Chain (mocked)', () => {
 
   it('runs audience → curriculum → outcomes → components chain', async () => {
     clearAgents()
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
 
     // Import all 4 agents
-    const { runAudienceAnalyst, AUDIENCE_ANALYST_CONFIG } = await import('../../src/lib/project-component/agents/audience-analyst')
-    const { runCurriculumStrategist, CURRICULUM_STRATEGIST_CONFIG } = await import('../../src/lib/project-component/agents/curriculum-strategist')
-    const { runOutcomeArchitect, OUTCOME_ARCHITECT_CONFIG } = await import('../../src/lib/project-component/agents/outcome-architect')
-    const { runComponentRecommender, COMPONENT_RECOMMENDER_CONFIG } = await import('../../src/lib/project-component/agents/component-recommender')
+    const { runAudienceAnalyst, AUDIENCE_ANALYST_CONFIG } = await import('../../src/lib/domain/workflows/agents/audience-analyst')
+    const { runCurriculumStrategist, CURRICULUM_STRATEGIST_CONFIG } = await import('../../src/lib/domain/workflows/agents/curriculum-strategist')
+    const { runOutcomeArchitect, OUTCOME_ARCHITECT_CONFIG } = await import('../../src/lib/domain/workflows/agents/outcome-architect')
+    const { runComponentRecommender, COMPONENT_RECOMMENDER_CONFIG } = await import('../../src/lib/domain/workflows/agents/component-recommender')
 
     // Re-register since clearAgents removed them and modules are cached
     clearAgents()

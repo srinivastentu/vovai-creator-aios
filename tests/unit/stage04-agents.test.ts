@@ -7,13 +7,13 @@ import type {
   OptimizationReport,
   GradeReport,
   DevilsAdvocateReport,
-} from '../../src/lib/project-component/types'
+} from '../../src/lib/domain/workflows/types'
 import {
   clearAgents,
   getAgent,
   listAgents,
   registerAgent,
-} from '../../src/lib/project-component/agents/framework/registry'
+} from '../../src/lib/domain/workflows/agents/framework/registry'
 
 // ─── Mock Anthropic SDK ───────────────────────────────────────────────────
 
@@ -347,9 +347,9 @@ describe('Structure Optimizer Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/structure-optimizer')
+    const mod = await import('../../src/lib/domain/workflows/agents/structure-optimizer')
     return mod
   }
 
@@ -529,9 +529,9 @@ describe('Rubric Grader Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/rubric-grader')
+    const mod = await import('../../src/lib/domain/workflows/agents/rubric-grader')
     return mod
   }
 
@@ -755,9 +755,9 @@ describe("Devil's Advocate Agent", () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/devils-advocate')
+    const mod = await import('../../src/lib/domain/workflows/agents/devils-advocate')
     return mod
   }
 
@@ -920,17 +920,17 @@ describe('Full 7-Agent Pipeline Chain (mocked)', () => {
 
   it('runs all 7 agents in sequence and produces final grade + challenges', async () => {
     clearAgents()
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
 
     // Import all 7 agents
-    const { runAudienceAnalyst, AUDIENCE_ANALYST_CONFIG } = await import('../../src/lib/project-component/agents/audience-analyst')
-    const { runCurriculumStrategist, CURRICULUM_STRATEGIST_CONFIG } = await import('../../src/lib/project-component/agents/curriculum-strategist')
-    const { runOutcomeArchitect, OUTCOME_ARCHITECT_CONFIG } = await import('../../src/lib/project-component/agents/outcome-architect')
-    const { runComponentRecommender, COMPONENT_RECOMMENDER_CONFIG } = await import('../../src/lib/project-component/agents/component-recommender')
-    const { runStructureOptimizer, STRUCTURE_OPTIMIZER_CONFIG } = await import('../../src/lib/project-component/agents/structure-optimizer')
-    const { runRubricGrader, RUBRIC_GRADER_CONFIG } = await import('../../src/lib/project-component/agents/rubric-grader')
-    const { runDevilsAdvocate, DEVILS_ADVOCATE_CONFIG } = await import('../../src/lib/project-component/agents/devils-advocate')
+    const { runAudienceAnalyst, AUDIENCE_ANALYST_CONFIG } = await import('../../src/lib/domain/workflows/agents/audience-analyst')
+    const { runCurriculumStrategist, CURRICULUM_STRATEGIST_CONFIG } = await import('../../src/lib/domain/workflows/agents/curriculum-strategist')
+    const { runOutcomeArchitect, OUTCOME_ARCHITECT_CONFIG } = await import('../../src/lib/domain/workflows/agents/outcome-architect')
+    const { runComponentRecommender, COMPONENT_RECOMMENDER_CONFIG } = await import('../../src/lib/domain/workflows/agents/component-recommender')
+    const { runStructureOptimizer, STRUCTURE_OPTIMIZER_CONFIG } = await import('../../src/lib/domain/workflows/agents/structure-optimizer')
+    const { runRubricGrader, RUBRIC_GRADER_CONFIG } = await import('../../src/lib/domain/workflows/agents/rubric-grader')
+    const { runDevilsAdvocate, DEVILS_ADVOCATE_CONFIG } = await import('../../src/lib/domain/workflows/agents/devils-advocate')
 
     // Re-register since clearAgents removed them and modules are cached
     clearAgents()

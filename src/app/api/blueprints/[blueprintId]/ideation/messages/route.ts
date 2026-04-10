@@ -4,7 +4,7 @@ import type { IdeationPhase as IdeationPhaseEnum } from '@/generated/prisma/clie
 import {
   getLatestConversation,
   getMessages,
-} from '@/lib/project-component/ideation/conversation-manager'
+} from '@/lib/domain/workflows/ideation/conversation-manager'
 import { IDEATION_PHASE_VALUES } from '@/lib/validations/blueprint'
 
 // TODO(Ring-5): Add authentication + authorization middleware

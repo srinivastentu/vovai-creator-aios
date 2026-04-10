@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Lightbulb, Network, Settings, Rocket } from 'lucide-react'
-import type { IdeationPhase } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/domain/workflows'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

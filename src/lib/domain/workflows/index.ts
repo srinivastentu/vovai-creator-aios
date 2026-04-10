@@ -2,7 +2,7 @@
  * Project Component Layer — Barrel Export
  *
  * Single import point for all UI-facing types, registries, and utilities.
- * Usage: import { ProjectNodeType, buildTree, STRUCTURE_RUBRIC } from '@/lib/project-component'
+ * Usage: import { ProjectNodeType, buildTree, STRUCTURE_RUBRIC } from '@/lib/domain/workflows'
  *
  * Internal-only exports (agent framework, executor) are NOT re-exported here.
  */
@@ -163,4 +163,4 @@ export {
 
 // ─── Server-only exports live in ./server.ts ────────────────────────────────
 // executeHandoff, HandoffError, conversation-manager, loop-engine
-// Import from '@/lib/project-component/server' in API routes.
+// Import from '@/lib/domain/workflows/server' in API routes.

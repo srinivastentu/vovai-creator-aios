@@ -3,7 +3,7 @@
 import { ChevronDown, Check } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { RoleAvatar, getRoleConfig } from './role-avatar'
-import type { BrainstormRole, IdeationPhase, AudienceProfile } from '@/lib/project-component'
+import type { BrainstormRole, IdeationPhase, AudienceProfile } from '@/lib/domain/workflows'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

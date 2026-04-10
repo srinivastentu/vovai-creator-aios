@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { executeHandoff, HandoffError } from '@/lib/project-component/production/handoff'
+import { executeHandoff, HandoffError } from '@/lib/domain/workflows/production/handoff'
 import { handoffSchema } from '@/lib/validations/ideation'
 import { formatZodError } from '@/lib/validations/blueprint'
 

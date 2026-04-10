@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react'
 import { ActivityCard } from './activity-card'
 import type { ActivityEntry, ExpandedContentType } from './activity-card'
 import type { ChatMessageData } from './chat-message'
-import type { BrainstormRole, IdeationPhase, IdeationMessageKind } from '@/lib/project-component'
+import type { BrainstormRole, IdeationPhase, IdeationMessageKind } from '@/lib/domain/workflows'
 
 // Re-export for convenience
 export type { ActivityEntry }

@@ -24,9 +24,9 @@ import { useApi } from '@/lib/hooks/use-api'
 import { PcNav } from '@/components/project-component/shared/pc-nav'
 import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
 import { ErrorBanner } from '@/components/project-component/shared/error-banner'
-import { estimateProjectCost } from '@/lib/project-component/production/cost-estimator'
-import type { CostEstimate } from '@/lib/project-component/production/cost-estimator'
-import type { IdeationPhase, WorkflowTemplate } from '@/lib/project-component'
+import { estimateProjectCost } from '@/lib/domain/workflows/production/cost-estimator'
+import type { CostEstimate } from '@/lib/domain/workflows/production/cost-estimator'
+import type { IdeationPhase, WorkflowTemplate } from '@/lib/domain/workflows'
 
 // ─── API Response Types ─────────────────────────────────────────────────────
 

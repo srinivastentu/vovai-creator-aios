@@ -10,9 +10,9 @@
 
 import dotenv from 'dotenv'
 dotenv.config({ path: '.env.local' })
-import { runAudienceAnalyst } from '../src/lib/project-component/agents/audience-analyst'
-import { runCurriculumStrategist } from '../src/lib/project-component/agents/curriculum-strategist'
-import { listAgents } from '../src/lib/project-component/agents/framework/registry'
+import { runAudienceAnalyst } from '../src/lib/domain/workflows/agents/audience-analyst'
+import { runCurriculumStrategist } from '../src/lib/domain/workflows/agents/curriculum-strategist'
+import { listAgents } from '../src/lib/domain/workflows/agents/framework/registry'
 
 const BRIEF = `I'm building a teacher retooling program on instructional design for mid-career CBSE teachers (5-15 years experience). About 40 hours total, self-paced with optional mentor support. Must be experiential and outcome-focused.`
 

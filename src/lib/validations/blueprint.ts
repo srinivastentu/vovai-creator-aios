@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { COMPONENT_REGISTRY } from '@/lib/project-component'
+import { COMPONENT_REGISTRY } from '@/lib/domain/workflows'
 
 // ─── Security Constants ──────────────────────────────────────────────────────
 

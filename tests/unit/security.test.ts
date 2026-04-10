@@ -535,7 +535,7 @@ import {
   DEFAULT_IDEATION_COST_LIMIT_USD,
   checkCostLimit,
   getAccumulatedCost,
-} from '../../src/lib/project-component/ideation/cost-guard'
+} from '../../src/lib/domain/workflows/ideation/cost-guard'
 
 describe('Security: Cost Limit Enforcement', () => {
   beforeEach(() => {
@@ -633,7 +633,7 @@ describe('Security: Cost Limit Enforcement', () => {
 // ─── 5. Agent Output Safety Tests ───────────────────────────────────────────
 
 // Reset the singleton client before testing executor
-import { resetClient } from '../../src/lib/project-component/agents/framework/executor'
+import { resetClient } from '../../src/lib/domain/workflows/agents/framework/executor'
 
 const mockCreate = vi.hoisted(() => vi.fn())
 vi.mock('@anthropic-ai/sdk', () => ({
@@ -642,8 +642,8 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }))
 
-import { executeIdeationAgent } from '../../src/lib/project-component/agents/framework/executor'
-import type { IdeationAgentConfig } from '../../src/lib/project-component/agents/framework/types'
+import { executeIdeationAgent } from '../../src/lib/domain/workflows/agents/framework/executor'
+import type { IdeationAgentConfig } from '../../src/lib/domain/workflows/agents/framework/types'
 
 function makeTestConfig(overrides: Partial<IdeationAgentConfig> = {}): IdeationAgentConfig {
   return {

@@ -11,8 +11,8 @@ import {
   moveNode,
   updatePaths,
   getTreeStats,
-} from '../../src/lib/project-component/tree/tree-utils'
-import type { ProjectNodeType, AttachedComponentType } from '../../src/lib/project-component/types'
+} from '../../src/lib/domain/workflows/tree/tree-utils'
+import type { ProjectNodeType, AttachedComponentType } from '../../src/lib/domain/workflows/types'
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 

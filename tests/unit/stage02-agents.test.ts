@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { AudienceProfile } from '../../src/lib/project-component/types'
+import type { AudienceProfile } from '../../src/lib/domain/workflows/types'
 import {
   clearAgents,
   getAgent,
   listAgents,
   registerAgent,
-} from '../../src/lib/project-component/agents/framework/registry'
+} from '../../src/lib/domain/workflows/agents/framework/registry'
 
 // ─── Mock Anthropic SDK ───────────────────────────────────────────────────
 
@@ -130,9 +130,9 @@ describe('Audience Analyst Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/audience-analyst')
+    const mod = await import('../../src/lib/domain/workflows/agents/audience-analyst')
     return mod
   }
 
@@ -218,9 +218,9 @@ describe('Curriculum Strategist Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/curriculum-strategist')
+    const mod = await import('../../src/lib/domain/workflows/agents/curriculum-strategist')
     return mod
   }
 
@@ -378,16 +378,16 @@ describe('Stage 0.2 Integration (mocked)', () => {
 
   it('runs audience analyst → curriculum strategist pipeline', async () => {
     clearAgents()
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
 
     // Import agents (triggers self-registration)
-    const { runAudienceAnalyst } = await import('../../src/lib/project-component/agents/audience-analyst')
-    const { runCurriculumStrategist } = await import('../../src/lib/project-component/agents/curriculum-strategist')
+    const { runAudienceAnalyst } = await import('../../src/lib/domain/workflows/agents/audience-analyst')
+    const { runCurriculumStrategist } = await import('../../src/lib/domain/workflows/agents/curriculum-strategist')
 
     // Re-register since clearAgents removed them and modules are cached
-    const { AUDIENCE_ANALYST_CONFIG } = await import('../../src/lib/project-component/agents/audience-analyst')
-    const { CURRICULUM_STRATEGIST_CONFIG } = await import('../../src/lib/project-component/agents/curriculum-strategist')
+    const { AUDIENCE_ANALYST_CONFIG } = await import('../../src/lib/domain/workflows/agents/audience-analyst')
+    const { CURRICULUM_STRATEGIST_CONFIG } = await import('../../src/lib/domain/workflows/agents/curriculum-strategist')
     clearAgents()
     registerAgent(AUDIENCE_ANALYST_CONFIG)
     registerAgent(CURRICULUM_STRATEGIST_CONFIG)

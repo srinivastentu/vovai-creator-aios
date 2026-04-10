@@ -3,7 +3,7 @@
 import { DollarSign } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import type { ChatMessageData } from './chat-message'
-import type { IdeationPhase } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/domain/workflows'
 
 // ─── Exported Types ──────────────────────────────────────────────────────────
 

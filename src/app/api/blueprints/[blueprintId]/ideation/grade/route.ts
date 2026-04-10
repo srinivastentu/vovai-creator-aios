@@ -6,11 +6,11 @@ import {
   getLatestConversation,
   addMessage,
   updateConversationPhase,
-} from '@/lib/project-component/ideation/conversation-manager'
-import { createInitialState } from '@/lib/project-component/ideation/phase-manager'
-import type { IdeationLoopState } from '@/lib/project-component/ideation/phase-manager'
-import { runIdeationStep } from '@/lib/project-component/ideation/loop-engine'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+} from '@/lib/domain/workflows/ideation/conversation-manager'
+import { createInitialState } from '@/lib/domain/workflows/ideation/phase-manager'
+import type { IdeationLoopState } from '@/lib/domain/workflows/ideation/phase-manager'
+import { runIdeationStep } from '@/lib/domain/workflows/ideation/loop-engine'
+import { checkCostLimit } from '@/lib/domain/workflows/ideation/cost-guard'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 // TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)
@@ -23,7 +23,7 @@ import type {
   OutcomesMap,
   ComponentPlan,
   GradeReport,
-} from '@/lib/project-component/types'
+} from '@/lib/domain/workflows/types'
 
 /**
  * POST /api/blueprints/[blueprintId]/ideation/grade

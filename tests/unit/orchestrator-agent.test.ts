@@ -8,12 +8,12 @@ import type {
   Challenge,
   OrchestratorOutput,
   IdeationMessageType,
-} from '../../src/lib/project-component/types'
+} from '../../src/lib/domain/workflows/types'
 import {
   clearAgents,
   getAgent,
   listAgents,
-} from '../../src/lib/project-component/agents/framework/registry'
+} from '../../src/lib/domain/workflows/agents/framework/registry'
 
 // ─── Mock Anthropic SDK ───────────────────────────────────────────────────
 
@@ -113,9 +113,9 @@ describe('Orchestrator Agent', () => {
   })
 
   async function getModule() {
-    const executor = await import('../../src/lib/project-component/agents/framework/executor')
+    const executor = await import('../../src/lib/domain/workflows/agents/framework/executor')
     executor.resetClient()
-    const mod = await import('../../src/lib/project-component/agents/orchestrator')
+    const mod = await import('../../src/lib/domain/workflows/agents/orchestrator')
     return mod
   }
 
@@ -378,21 +378,21 @@ describe('Agent Registry — All 8 Agents', () => {
   async function importAllAgents() {
     // Fresh imports after resetModules — each triggers registerAgent()
     const { clearAgents: clear } = await import(
-      '../../src/lib/project-component/agents/framework/registry'
+      '../../src/lib/domain/workflows/agents/framework/registry'
     )
     clear()
     await Promise.all([
-      import('../../src/lib/project-component/agents/audience-analyst'),
-      import('../../src/lib/project-component/agents/curriculum-strategist'),
-      import('../../src/lib/project-component/agents/outcome-architect'),
-      import('../../src/lib/project-component/agents/component-recommender'),
-      import('../../src/lib/project-component/agents/structure-optimizer'),
-      import('../../src/lib/project-component/agents/rubric-grader'),
-      import('../../src/lib/project-component/agents/devils-advocate'),
-      import('../../src/lib/project-component/agents/orchestrator'),
+      import('../../src/lib/domain/workflows/agents/audience-analyst'),
+      import('../../src/lib/domain/workflows/agents/curriculum-strategist'),
+      import('../../src/lib/domain/workflows/agents/outcome-architect'),
+      import('../../src/lib/domain/workflows/agents/component-recommender'),
+      import('../../src/lib/domain/workflows/agents/structure-optimizer'),
+      import('../../src/lib/domain/workflows/agents/rubric-grader'),
+      import('../../src/lib/domain/workflows/agents/devils-advocate'),
+      import('../../src/lib/domain/workflows/agents/orchestrator'),
     ])
     const { listAgents: list, getAgent: get } = await import(
-      '../../src/lib/project-component/agents/framework/registry'
+      '../../src/lib/domain/workflows/agents/framework/registry'
     )
     return { listAgents: list, getAgent: get }
   }

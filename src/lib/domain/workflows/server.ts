@@ -2,11 +2,11 @@
  * Project Component Layer — Server-Only Exports
  *
  * These modules import from @/lib/db (Prisma/pg) and MUST NOT be imported
- * in client components. Use '@/lib/project-component/server' in API routes
+ * in client components. Use '@/lib/domain/workflows/server' in API routes
  * and server components only.
  *
  * Client-safe exports (types, registries, tree-utils, rubric, cost estimator,
- * phase-manager) live in '@/lib/project-component'.
+ * phase-manager) live in '@/lib/domain/workflows'.
  */
 
 // ─── Production Handoff ────────────────────────────────────────────────────

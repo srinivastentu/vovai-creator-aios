@@ -3,17 +3,17 @@ import {
   calculateCost,
   MODEL_PRICING,
   DEFAULT_PRICING,
-} from '../../src/lib/project-component/agents/framework/types'
+} from '../../src/lib/domain/workflows/agents/framework/types'
 import type {
   IdeationAgentConfig,
   AgentResult,
-} from '../../src/lib/project-component/agents/framework/types'
+} from '../../src/lib/domain/workflows/agents/framework/types'
 import {
   registerAgent,
   getAgent,
   listAgents,
   clearAgents,
-} from '../../src/lib/project-component/agents/framework/registry'
+} from '../../src/lib/domain/workflows/agents/framework/registry'
 
 // ─── Test Helpers ──────────────────────────────────────────────────────────
 
@@ -191,7 +191,7 @@ describe('Agent Executor', () => {
 
   async function getExecutor() {
     // Dynamic import to re-evaluate after env changes
-    const mod = await import('../../src/lib/project-component/agents/framework/executor')
+    const mod = await import('../../src/lib/domain/workflows/agents/framework/executor')
     mod.resetClient()
     return mod
   }

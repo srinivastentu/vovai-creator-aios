@@ -16,7 +16,7 @@ import { Breadcrumbs } from '@/components/project-component/shared/breadcrumbs'
 import { ErrorBanner } from '@/components/project-component/shared/error-banner'
 import type { ChatMessageData } from '@/components/project-component/chat/chat-message'
 import type { BlueprintSummary } from '@/components/project-component/chat/context-panels'
-import type { IdeationPhase, AudienceProfile, ProposedStructure } from '@/lib/project-component'
+import type { IdeationPhase, AudienceProfile, ProposedStructure } from '@/lib/domain/workflows'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 

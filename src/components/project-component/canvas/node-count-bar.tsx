@@ -1,7 +1,7 @@
 'use client'
 
 import { Boxes } from 'lucide-react'
-import type { TreeStats } from '@/lib/project-component'
+import type { TreeStats } from '@/lib/domain/workflows'
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 

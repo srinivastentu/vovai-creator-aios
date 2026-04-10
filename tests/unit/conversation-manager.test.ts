@@ -24,7 +24,7 @@ import {
   getLatestConversation,
   getConversation,
   updateConversationPhase,
-} from '../../src/lib/project-component/ideation/conversation-manager'
+} from '../../src/lib/domain/workflows/ideation/conversation-manager'
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 

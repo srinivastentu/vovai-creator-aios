@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { ChevronUp, ChevronDown, Loader2, RefreshCw, FileBarChart, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import type { GradeRecommendation, DimensionGradeScore } from '@/lib/project-component'
+import type { GradeRecommendation, DimensionGradeScore } from '@/lib/domain/workflows'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

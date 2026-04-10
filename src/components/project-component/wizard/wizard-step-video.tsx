@@ -20,7 +20,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { COMPONENT_REGISTRY } from '@/lib/project-component'
+import { COMPONENT_REGISTRY } from '@/lib/domain/workflows'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

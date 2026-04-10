@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { MessageSquare } from 'lucide-react'
 import { ChatMessage } from './chat-message'
 import type { ChatMessageData } from './chat-message'
-import type { IdeationPhase } from '@/lib/project-component'
+import type { IdeationPhase } from '@/lib/domain/workflows'
 
 export interface ConversationGroup {
   phase: IdeationPhase

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { listComponents } from '@/lib/project-component/component-registry'
-import { COMPONENT_COMPATIBILITY } from '@/lib/project-component/compatibility'
-import type { ProjectArchetype } from '@/lib/project-component/types'
+import { listComponents } from '@/lib/domain/workflows/component-registry'
+import { COMPONENT_COMPATIBILITY } from '@/lib/domain/workflows/compatibility'
+import type { ProjectArchetype } from '@/lib/domain/workflows/types'
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

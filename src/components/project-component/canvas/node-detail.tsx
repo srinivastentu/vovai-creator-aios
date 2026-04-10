@@ -23,14 +23,14 @@ import { useApiMutation } from '@/lib/hooks/use-api'
 import {
   getArchetype,
   getComponent,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 import type {
   ProjectNodeType,
   LearningOutcome,
   BloomLevel,
   NodeStatus,
   ComponentPriority,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

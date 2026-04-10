@@ -3,7 +3,7 @@
 import { TreePine, Users, Info, DollarSign } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { StructurePreview } from './structure-preview'
-import type { ProposedStructure, AudienceProfile } from '@/lib/project-component'
+import type { ProposedStructure, AudienceProfile } from '@/lib/domain/workflows'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

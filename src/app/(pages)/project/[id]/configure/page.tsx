@@ -22,13 +22,13 @@ import {
   getArchetype,
   COMPONENT_REGISTRY,
   buildDefaultWorkflowTemplate,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 import type {
   IdeationPhase,
   ProjectNodeType,
   ComponentDefinition,
   WorkflowTemplate,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 

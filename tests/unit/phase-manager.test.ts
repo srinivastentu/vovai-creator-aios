@@ -4,8 +4,8 @@ import {
   canTransition,
   getNextPhase,
   createInitialState,
-} from '../../src/lib/project-component/ideation/phase-manager'
-import type { IdeationPhase, GradeReport } from '../../src/lib/project-component/types'
+} from '../../src/lib/domain/workflows/ideation/phase-manager'
+import type { IdeationPhase, GradeReport } from '../../src/lib/domain/workflows/types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

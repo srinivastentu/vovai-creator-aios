@@ -4,11 +4,11 @@ import {
   buildDefaultWorkflowTemplate,
   validateDependencyOrder,
   PIPELINE_PHASE_ORDER,
-} from '../../src/lib/project-component/workflow-defaults'
-import { COMPONENT_REGISTRY } from '../../src/lib/project-component/component-registry'
-import { PROJECT_ARCHETYPES } from '../../src/lib/project-component/archetypes'
+} from '../../src/lib/domain/workflows/workflow-defaults'
+import { COMPONENT_REGISTRY } from '../../src/lib/domain/workflows/component-registry'
+import { PROJECT_ARCHETYPES } from '../../src/lib/domain/workflows/archetypes'
 import { generateWizardSteps } from '../../src/components/project-component/wizard/wizard-stepper'
-import type { ComponentDefinition, WorkflowTemplate } from '../../src/lib/project-component/types'
+import type { ComponentDefinition, WorkflowTemplate } from '../../src/lib/domain/workflows/types'
 
 // ─── getRecommendedProductionOrder ────────────────────────────────────────
 

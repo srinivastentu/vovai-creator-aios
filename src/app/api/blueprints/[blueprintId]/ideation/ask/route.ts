@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { executeIdeationAgent } from '@/lib/project-component/agents/framework/executor'
+import { executeIdeationAgent } from '@/lib/domain/workflows/agents/framework/executor'
 import { askMessageSchema } from '@/lib/validations/ideation'
 import { formatZodError } from '@/lib/validations/blueprint'
-import { checkCostLimit } from '@/lib/project-component/ideation/cost-guard'
+import { checkCostLimit } from '@/lib/domain/workflows/ideation/cost-guard'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 // TODO(Ring-5): Add rate limiting (expensive — triggers LLM call)

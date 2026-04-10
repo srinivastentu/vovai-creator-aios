@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createInitialState } from '../../src/lib/project-component/ideation/phase-manager'
-import type { IdeationLoopState } from '../../src/lib/project-component/ideation/phase-manager'
+import { createInitialState } from '../../src/lib/domain/workflows/ideation/phase-manager'
+import type { IdeationLoopState } from '../../src/lib/domain/workflows/ideation/phase-manager'
 import {
   runIdeationStep,
   processHumanFeedback,
-} from '../../src/lib/project-component/ideation/loop-engine'
-import type { AgentResult } from '../../src/lib/project-component/agents/framework/types'
+} from '../../src/lib/domain/workflows/ideation/loop-engine'
+import type { AgentResult } from '../../src/lib/domain/workflows/agents/framework/types'
 import type {
   AudienceProfile,
   ProposedStructure,
@@ -15,44 +15,44 @@ import type {
   OrchestratorOutput,
   OptimizationReport,
   DevilsAdvocateReport,
-} from '../../src/lib/project-component/types'
+} from '../../src/lib/domain/workflows/types'
 
 // ─── Mock All Agents ─────────────────────────────────────────────────────────
 
-vi.mock('../../src/lib/project-component/agents/orchestrator', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/orchestrator', () => ({
   runOrchestrator: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/audience-analyst', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/audience-analyst', () => ({
   runAudienceAnalyst: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/curriculum-strategist', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/curriculum-strategist', () => ({
   runCurriculumStrategist: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/outcome-architect', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/outcome-architect', () => ({
   runOutcomeArchitect: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/component-recommender', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/component-recommender', () => ({
   runComponentRecommender: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/structure-optimizer', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/structure-optimizer', () => ({
   runStructureOptimizer: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/rubric-grader', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/rubric-grader', () => ({
   runRubricGrader: vi.fn(),
 }))
-vi.mock('../../src/lib/project-component/agents/devils-advocate', () => ({
+vi.mock('../../src/lib/domain/workflows/agents/devils-advocate', () => ({
   runDevilsAdvocate: vi.fn(),
 }))
 
 // Import mocks after vi.mock declarations
-import { runOrchestrator } from '../../src/lib/project-component/agents/orchestrator'
-import { runAudienceAnalyst } from '../../src/lib/project-component/agents/audience-analyst'
-import { runCurriculumStrategist } from '../../src/lib/project-component/agents/curriculum-strategist'
-import { runOutcomeArchitect } from '../../src/lib/project-component/agents/outcome-architect'
-import { runComponentRecommender } from '../../src/lib/project-component/agents/component-recommender'
-import { runStructureOptimizer } from '../../src/lib/project-component/agents/structure-optimizer'
-import { runRubricGrader } from '../../src/lib/project-component/agents/rubric-grader'
-import { runDevilsAdvocate } from '../../src/lib/project-component/agents/devils-advocate'
+import { runOrchestrator } from '../../src/lib/domain/workflows/agents/orchestrator'
+import { runAudienceAnalyst } from '../../src/lib/domain/workflows/agents/audience-analyst'
+import { runCurriculumStrategist } from '../../src/lib/domain/workflows/agents/curriculum-strategist'
+import { runOutcomeArchitect } from '../../src/lib/domain/workflows/agents/outcome-architect'
+import { runComponentRecommender } from '../../src/lib/domain/workflows/agents/component-recommender'
+import { runStructureOptimizer } from '../../src/lib/domain/workflows/agents/structure-optimizer'
+import { runRubricGrader } from '../../src/lib/domain/workflows/agents/rubric-grader'
+import { runDevilsAdvocate } from '../../src/lib/domain/workflows/agents/devils-advocate'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 

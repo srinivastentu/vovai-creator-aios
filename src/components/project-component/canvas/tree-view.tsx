@@ -9,7 +9,7 @@ import {
   FolderClosed,
   Paperclip,
 } from 'lucide-react'
-import type { ProjectNodeType, NodeStatus } from '@/lib/project-component'
+import type { ProjectNodeType, NodeStatus } from '@/lib/domain/workflows'
 
 // ─── Component Color Map ─────────────────────────────────────────────────────
 

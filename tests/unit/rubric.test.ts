@@ -3,7 +3,7 @@ import {
   STRUCTURE_RUBRIC,
   calculateOverallScore,
   getRecommendation,
-} from '../../src/lib/project-component/rubrics/structure-rubric'
+} from '../../src/lib/domain/workflows/rubrics/structure-rubric'
 
 describe('STRUCTURE_RUBRIC', () => {
   it('has exactly 7 dimensions', () => {

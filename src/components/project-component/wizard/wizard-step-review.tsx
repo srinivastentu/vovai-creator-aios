@@ -20,14 +20,14 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { COMPONENT_ICONS, COMPONENT_ICON_FALLBACK } from '@/components/project-component/shared/component-icons'
-import { COMPONENT_REGISTRY } from '@/lib/project-component'
+import { COMPONENT_REGISTRY } from '@/lib/domain/workflows'
 import type {
   ArchetypeDefinition,
   ComponentDefinition,
   WorkflowTemplate,
   ComponentCategory,
   ProjectNodeType,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

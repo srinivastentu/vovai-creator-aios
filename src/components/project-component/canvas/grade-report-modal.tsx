@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogClose,
 } from '@/components/ui/dialog'
-import type { GradeRecommendation, DimensionGradeScore } from '@/lib/project-component'
+import type { GradeRecommendation, DimensionGradeScore } from '@/lib/domain/workflows'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 

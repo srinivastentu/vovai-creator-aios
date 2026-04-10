@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useApiMutation } from './use-api'
-import type { BrainstormRole, IdeationPhase } from '@/lib/project-component'
+import type { BrainstormRole, IdeationPhase } from '@/lib/domain/workflows'
 
 // ─── API Response Types ────────────────────────────────────────────────────
 

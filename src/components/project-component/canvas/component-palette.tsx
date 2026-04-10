@@ -14,12 +14,12 @@ import {
   isComponentAvailable,
   getComponent,
   getCompatibleComponents,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 import type {
   ProjectNodeType,
   ComponentCategory,
   ComponentDefinition,
-} from '@/lib/project-component'
+} from '@/lib/domain/workflows'
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, ExternalLink, Loader2, RotateCw, TreePine } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useApi } from '@/lib/hooks/use-api'
-import type { ProposedStructure } from '@/lib/project-component'
+import type { ProposedStructure } from '@/lib/domain/workflows'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

@@ -17,9 +17,9 @@ const mockDb = vi.hoisted(() => {
 
 vi.mock('../../src/lib/db', () => ({ db: mockDb }))
 
-import { executeHandoff, HandoffError } from '../../src/lib/project-component/production/handoff'
-import { estimateProjectCost } from '../../src/lib/project-component/production/cost-estimator'
-import { COMPONENT_REGISTRY } from '../../src/lib/project-component/component-registry'
+import { executeHandoff, HandoffError } from '../../src/lib/domain/workflows/production/handoff'
+import { estimateProjectCost } from '../../src/lib/domain/workflows/production/cost-estimator'
+import { COMPONENT_REGISTRY } from '../../src/lib/domain/workflows/component-registry'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

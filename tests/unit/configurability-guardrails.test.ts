@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { COMPONENT_REGISTRY } from '../../src/lib/project-component/component-registry'
+import { COMPONENT_REGISTRY } from '../../src/lib/domain/workflows/component-registry'
 import { workflowTemplateSchema } from '../../src/lib/validations/blueprint'
 
 // ─── Registry Guardrails ────────────────────────────────────────────────────

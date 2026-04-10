@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RoleAvatar, getRoleConfig } from './role-avatar'
-import type { BrainstormRole, IdeationMessageKind } from '@/lib/project-component'
+import type { BrainstormRole, IdeationMessageKind } from '@/lib/domain/workflows'
 
 export interface ChatMessageData {
   id: string

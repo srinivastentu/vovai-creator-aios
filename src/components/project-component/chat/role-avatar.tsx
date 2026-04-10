@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   Layers,
 } from 'lucide-react'
-import type { BrainstormRole } from '@/lib/project-component'
+import type { BrainstormRole } from '@/lib/domain/workflows'
 
 const ROLE_CONFIG: Record<BrainstormRole, {
   icon: typeof Users

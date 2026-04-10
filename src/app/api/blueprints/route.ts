@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import { createBlueprintSchema, formatZodError } from '@/lib/validations/blueprint'
-import { getArchetype } from '@/lib/project-component/archetypes'
+import { getArchetype } from '@/lib/domain/workflows/archetypes'
 
 // TODO(Ring-5): Add authentication + authorization middleware
 
