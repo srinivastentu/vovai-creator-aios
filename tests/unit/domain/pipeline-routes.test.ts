@@ -79,7 +79,7 @@ function pipelineWithAwaitingReview(stageId: string, blueprintId = 'bp1'): Ideat
     ...pipeline.stageStates[stageId],
     status: 'awaiting_review',
     loopCount: 2,
-    artifact: { mock: true },
+    currentArtifact: { mock: true },
     bestArtifact: { mock: true },
     bestGrade: {
       overallScore: 80,
