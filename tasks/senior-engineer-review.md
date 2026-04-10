@@ -3053,3 +3053,188 @@ Zero FAIL items. One INFO item (E: live E2E cost bounds slightly looser than spe
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-12 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Branch:** feature/loop-engine-v2
+**Commit:** cf8bd7b feat(domain): LE-12 document pipeline proof — same engine, different scale, 15 tests
+**Purpose:** Verify engine universality proof before LE-13 (docs update + merge to main)
+
+---
+
+### Executive Summary
+
+LE-12 proves the core engine is truly domain-agnostic. The SAME `runLoop`, `processReview`, and `createInitialState` functions that power the ideation pipeline (0-100 scale, threshold 75) now power a completely different document pipeline (1-10 scale, threshold 7) — with zero changes to any core file. 15 new tests pass. Total: 641 tests, typecheck clean, build succeeds.
+
+**Verdict: LE-12 VERIFIED — Ready for LE-13**
+
+---
+
+### A. File Existence
+
+| Check | Result | Status |
+|-------|--------|--------|
+| A1. document-pipeline.ts exists | `src/lib/domain/workflows/production/document-pipeline.ts` — 342 lines | PASS |
+| A2. document-pipeline.test.ts exists | `tests/unit/domain/document-pipeline.test.ts` — 337 lines | PASS |
+| A3. Zero core changes | `git diff LE-11-e2e-pipeline..LE-12-document-pipeline-proof -- src/lib/core/` → empty | PASS |
+| A4. Only 3 files changed | document-pipeline.ts, document-pipeline.test.ts, senior-engineer-review.md | PASS |
+
+---
+
+### B. Rubric Definitions (1-10 Scale)
+
+| Rubric | Dimensions | Weights Sum | Threshold | Scale Bands | Status |
+|--------|-----------|-------------|-----------|-------------|--------|
+| DOC_RESEARCH_RUBRIC | accuracy (0.40), completeness (0.35), relevance (0.25) | 1.00 | 7 | 9-10, 7-8, 5-6, 1-4 | PASS |
+| DOC_CONTENT_RUBRIC | clarity (0.35), depth (0.35), engagement (0.30) | 1.00 | 7 | 9-10, 7-8, 5-6, 1-4 | PASS |
+| DOC_FORMAT_RUBRIC | structure (0.40), visual_design (0.30), accessibility (0.30) | 1.00 | 7 | 9-10, 7-8, 5-6, 1-4 | PASS |
+| DOC_QA_RUBRIC | accuracy (0.40), consistency (0.35), completeness (0.25) | 1.00 | 7 | 9-10, 7-8, 5-6, 1-4 | PASS |
+| DOC_REVIEW_RUBRIC | readiness (0.40), quality (0.35), alignment (0.25) | 1.00 | 7 | 9-10, 7-8, 5-6, 1-4 | PASS |
+
+All 5 rubrics: 3 dimensions each, passThreshold 7, weights sum 1.0, criteria bands reference 9-10/7-8/5-6/1-4. This is DIFFERENT from ideation's 0-100 scale (threshold 75).
+
+---
+
+### C. Stage Config
+
+| Stage | Threshold | Pattern | Dependencies | Gate Actions | Status |
+|-------|-----------|---------|-------------|-------------|--------|
+| d1-research | 7 | standard | none | 3 (approve, reject, feedback) | PASS |
+| d2-content | 7 | standard | d1-research | 3 (approve, reject, feedback) | PASS |
+| d3-format | 7 | standard | d2-content | 3 (approve, reject, feedback) | PASS |
+| d4-qa | 7 | standard | d3-format | 3 (approve, reject, feedback) | PASS |
+| d5-review | 7 | standard | d1,d2,d3,d4 | 5 (+ use_segments, mix_produce) | PASS |
+
+---
+
+### D. Engine Universality Proof (Critical)
+
+| Check | Evidence | Status |
+|-------|---------|--------|
+| D1. Tests import from core/engine | `import { createInitialState, runLoop, processReview } from '../../../src/lib/core/engine'` — SAME functions ideation uses | PASS |
+| D2. Mock judge returns 1-10 scores | `createDocMockJudge(8)` → score 8 passes threshold 7; `createDocMockJudge(5)` → score 5 fails | PASS |
+| D3. runLoop handles 1-10 scale | score >= threshold comparison works; bestArtifact tracking works; minIterations enforced (d2-content minIter=2) | PASS |
+| D4. processReview works identically | approve → approved, reject → generating (test j) | PASS |
+| D5. Pipeline orchestrator works | advancePipeline, isPipelineComplete, getPipelineProgress all function with document stages (tests j, k) | PASS |
+| D6. Zero document-specific engine code | All engine functions imported from core — no forks, no copies | PASS |
+
+---
+
+### E. Scale Agnosticism
+
+| Test | Score | Threshold | Result | Proves | Status |
+|------|-------|-----------|--------|--------|--------|
+| Test o (first half) | 6 | 7 | revising (fail) | Below-threshold correctly rejected | PASS |
+| Test o (second half) | 7 | 7 | presenting (pass) | Boundary case: exactly at threshold passes | PASS |
+| Test i (iteration 1) | 5 | 7 | revising | Low score fails, bestArtifact tracks | PASS |
+| Test i (iteration 2) | 8 | 7 | presenting | Higher score passes, bestArtifact updates to 8 | PASS |
+
+The engine never references scale — it just compares `score >= threshold`. Works identically whether threshold is 75 (ideation) or 7 (document).
+
+---
+
+### F. No Core Changes
+
+| Check | Result | Status |
+|-------|--------|--------|
+| F1. git diff core/ | `git diff LE-11-e2e-pipeline..LE-12-document-pipeline-proof -- src/lib/core/` → empty | PASS |
+| F2. Import rule | `grep -r "from.*domain/" src/lib/core/` → nothing | PASS |
+| F3. core/engine/types.ts | Zero diff — unchanged since LE-1 | PASS |
+| F4. Core awareness | core/engine/loop-engine.ts has zero awareness of document pipeline | PASS |
+
+---
+
+### G. Test Coverage
+
+15 tests across 3 describe groups:
+
+**Document Pipeline Config (6 tests):**
+- a: has exactly 5 stages
+- b: stage IDs match d1-d5
+- c: all rubrics use 1-10 scale (passThreshold 7, dim thresholds ≤ 10)
+- d: all rubric dimension weights sum to 1.0
+- e: d5-review has production gate (5 actions)
+- f: dependencies chain correctly
+
+**Engine Universality — SAME engine, DIFFERENT config (6 tests):**
+- g: createDocumentPipeline returns 5 stages, all idle
+- h: d1-research score 8 above threshold 7 → presenting
+- i: d2-content score 5 → revising, then score 8 → presenting
+- j: approve d1 + d2 via processReview, advance pipeline
+- k: full pipeline completion: all 5 stages approved → complete, 100%
+- l: engine imports identical to ideation — one engine, two domains
+
+**Scale Independence (3 tests):**
+- m: ideation threshold 75 (0-100), document threshold 7 (1-10)
+- n: same runLoop handles both: score 8/10 passes document threshold
+- o: engine never references scale — score 6 fails, score 7 passes threshold 7
+
+---
+
+### H. Coexistence
+
+| Check | Result | Status |
+|-------|--------|--------|
+| H1. Same factory | Both `createElearnIdeationPipeline` and `createDocumentPipeline` use `createPipeline` from pipeline-orchestrator | PASS |
+| H2. Different IDs | Ideation: `elearn-ideation-*`, Document: `doc-pipeline-*` — no conflicts | PASS |
+| H3. Type compatibility | `npm run typecheck` → clean (no type conflicts when both exist) | PASS |
+
+---
+
+### I. Build Verification
+
+| Check | Result | Status |
+|-------|--------|--------|
+| I1. Typecheck | `npm run typecheck` → clean, zero errors | PASS |
+| I2. Tests | `npm run test` → **641 passed**, 6 skipped (626 prior + 15 new) | PASS |
+| I3. Build | `npm run build` → success | PASS |
+
+---
+
+### J. Git State
+
+| Check | Result | Status |
+|-------|--------|--------|
+| J1. Working tree | clean | PASS |
+| J2. Latest commit | `cf8bd7b feat(domain): LE-12 document pipeline proof — same engine, different scale, 15 tests` | PASS |
+| J3. Tags | LE-0 through LE-12 all present (`LE-12-document-pipeline-proof`) | PASS |
+
+---
+
+### K. Readiness for LE-13
+
+| Check | Result | Status |
+|-------|--------|--------|
+| K1. Import rule | `grep -r "from.*domain/" src/lib/core/` → nothing | PASS |
+| K2. Total tests | 641 (626 + 15) | PASS |
+| K3. Architecture docs | Still accurate — core/domain separation now proven by two independent pipelines | PASS |
+
+---
+
+### Scorecard
+
+| Section | Checks | PASS | FAIL | INFO |
+|---------|--------|------|------|------|
+| A. File Existence | 4 | 4 | 0 | 0 |
+| B. Rubric Definitions | 5 | 5 | 0 | 0 |
+| C. Stage Config | 5 | 5 | 0 | 0 |
+| D. Engine Universality | 6 | 6 | 0 | 0 |
+| E. Scale Agnosticism | 4 | 4 | 0 | 0 |
+| F. No Core Changes | 4 | 4 | 0 | 0 |
+| G. Test Coverage | 1 | 1 | 0 | 0 |
+| H. Coexistence | 3 | 3 | 0 | 0 |
+| I. Build Verification | 3 | 3 | 0 | 0 |
+| J. Git State | 3 | 3 | 0 | 0 |
+| K. Readiness for LE-13 | 3 | 3 | 0 | 0 |
+| **TOTAL** | **41** | **41** | **0** | **0** |
+
+Zero FAIL items. Zero INFO items. 641 tests pass, typecheck clean, build succeeds. Engine universality proven: two independent domain pipelines (ideation 0-100, document 1-10) running on the exact same core engine with zero core changes.
+
+# LE-12 VERIFIED — Ready for LE-13
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
