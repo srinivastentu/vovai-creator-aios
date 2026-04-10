@@ -3,7 +3,7 @@ import { runStageSchema } from '@/lib/validations/pipeline'
 import { formatZodError } from '@/lib/validations/blueprint'
 import { loadPipelineState, savePipelineState } from '@/lib/domain/workflows/pipeline-persistence'
 import { getCurrentStage, runCurrentStage } from '@/lib/domain/workflows/pipeline-orchestrator'
-import { createMockAgentExecutor, createMockJudge } from '@/lib/domain/workflows/pipeline-mocks'
+import { getExecutorAndJudge } from '@/lib/domain/workflows/agents/agent-bridge'
 import { getOrCreateStageConversation, addMessage } from '@/lib/domain/workflows/ideation/conversation-manager'
 
 export async function POST(
@@ -51,9 +51,8 @@ export async function POST(
       )
     }
 
-    // 5. Run one iteration with mocks
-    const agentExecutor = createMockAgentExecutor()
-    const judge = createMockJudge()
+    // 5. Run one iteration (real agents if API key present, mocks otherwise)
+    const { agentExecutor, judge, getCostReport } = getExecutorAndJudge()
     const context = parsed.data.context ?? {}
 
     const { pipeline: updated, stageState: newState, gate } =
@@ -79,7 +78,8 @@ export async function POST(
     // 8. Persist
     await savePipelineState(blueprintId, updated)
 
-    // 9. Return stage state
+    // 9. Return stage state with cost report
+    const cost = getCostReport()
     return NextResponse.json({
       stageId,
       status: finalState.status,
@@ -87,6 +87,7 @@ export async function POST(
       grade: finalState.bestGrade,
       bestScore: finalState.bestGrade?.overallScore ?? null,
       gate: gate ?? null,
+      cost,
     }, { status: 200 })
   } catch (error) {
     console.error('POST /pipeline/stages/[stageId]/run error:', error)
