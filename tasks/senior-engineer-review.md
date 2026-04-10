@@ -2706,3 +2706,187 @@ Zero FAIL items. Zero INFO items. 565 tests pass, typecheck clean, build succeed
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-10 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Commit:** 88af260 feat(domain): LE-10 wire real agents — bridge, cost tracking, 14 tests
+**Tag:** LE-10-real-agents
+
+---
+
+### A. File Existence
+
+| Check | Result | Status |
+|-------|--------|--------|
+| agent-bridge.ts exists | `src/lib/domain/workflows/agents/agent-bridge.ts` — 9,641 bytes, 326 lines | **PASS** |
+| No new files in core/ | `git diff LE-9..LE-10 --name-only -- src/lib/core/` returns nothing | **PASS** |
+| pipeline-mocks.ts still exists | `src/lib/domain/workflows/pipeline-mocks.ts` exists, zero diff in LE-10 | **PASS** |
+
+### B. Bridge Functions — 3 Main Exports
+
+| Export | Signature | Status |
+|--------|-----------|--------|
+| `createRealAgentExecutor()` | Returns `AgentExecutor` (line 208) | **PASS** |
+| `createRealJudge()` | Returns `JudgeFunction` (line 273) | **PASS** |
+| `getExecutorAndJudge()` | Returns `{ agentExecutor, judge, getCostReport }` (line 310) | **PASS** |
+
+### C. Stage Mapping Completeness
+
+| Stage ID | Agent(s) | Correct? | Status |
+|----------|----------|----------|--------|
+| `brief` | `runOrchestrator` (single) | Yes | **PASS** |
+| `audience` | `runAudienceAnalyst` (single) | Yes | **PASS** |
+| `structure` | `runCurriculumStrategist` THEN `runOutcomeArchitect` (sequential) | Yes | **PASS** |
+| `components` | `runComponentRecommender` THEN `runStructureOptimizer` (sequential) | Yes | **PASS** |
+| `handoff` | Programmatic completeness checker (no LLM) | Yes | **PASS** |
+| Unknown stage | Throws `Error("Unknown stage ID: '...'")` | Yes | **PASS** |
+
+### D. Multi-Agent Sequential Pattern
+
+- **structure**: `runCurriculumStrategist` runs first. If successful, its output (`ProposedStructure`) is passed to `runOutcomeArchitect` as input (line 121-128). Returns array of both results; bridge returns the **last successful** output (line 257).
+- **components**: `runComponentRecommender` runs first. If successful, its output (`ComponentPlan`) is passed to `runStructureOptimizer` (line 148-157). Same last-successful pattern.
+- **Fallback**: If second agent fails, falls back to first agent's output (tested at line 287-301).
+
+| Check | Result | Status |
+|-------|--------|--------|
+| First agent output feeds second agent input | Yes — both structure and components stages | **PASS** |
+| Returns last successful output | Yes — `[...results].reverse().find(r => r.success)` (line 257) | **PASS** |
+| Graceful fallback tested | Yes — test at line 287-301 | **PASS** |
+
+### E. Handoff Checker
+
+| Check | Result | Status |
+|-------|--------|--------|
+| What it does | Pure programmatic check — validates 6 fields in PipelineContext. Zero LLM calls. | **PASS** |
+| Return shape | `{ ready, issues[], summary, productionReadiness }` (lines 160-202) | **PASS** |
+| Prior stage validation | Checks all outputs exist (fields only populated when stages complete) | **PASS** |
+| Tested | Both ready=true (line 245) and ready=false with incomplete context (line 256) | **PASS** |
+
+### F. Judge Implementation
+
+| Check | Result | Status |
+|-------|--------|--------|
+| Uses `createJudgeFunction` from `core/agentic/grader` | Yes (line 14, 297) | **PASS** |
+| `callJudgeModel` uses Anthropic SDK | Yes (lines 280-295) | **PASS** |
+| Model: `claude-haiku-4-5-20251001` (cross-model) | Producers use Sonnet, judge uses Haiku (line 271) | **PASS** |
+| Error handling | Throws on missing API key (line 277), throws on no text content (line 291) | **PASS** |
+
+### G. API Key Detection
+
+| Check | Result | Status |
+|-------|--------|--------|
+| Truthy check | `if (process.env.ANTHROPIC_API_KEY)` — handles undefined + empty string | **PASS** |
+| Key present → real agents | Returns `createRealAgentExecutor(tracker)` + `createRealJudge()` | **PASS** |
+| Key missing → mocks | Returns `createMockAgentExecutor()` + `createMockJudge()` with modelUsed='mock' | **PASS** |
+| Tested | Env var manipulation tests at lines 333-367 | **PASS** |
+
+### H. Cost Tracking
+
+| Check | Result | Status |
+|-------|--------|--------|
+| `CostSnapshot` captures tokensIn, tokensOut, costUSD, modelUsed | Yes (line 37-42) | **PASS** |
+| `record()` accumulates from `AgentResult` | Yes (lines 48-53) | **PASS** |
+| `getCostReport()` returns accumulated snapshot | Yes (line 54), returns copy via spread | **PASS** |
+| Route includes cost in response | `const cost = getCostReport()` included in JSON response (run/route.ts:82-91) | **PASS** |
+| Cost reset between stages | `reset()` method exists but not called between stages — cost accumulates per-request via fresh `getExecutorAndJudge()` call, which is correct behavior | **INFO** |
+
+### I. Route Changes
+
+| Check | Result | Status |
+|-------|--------|--------|
+| Imports `getExecutorAndJudge` | Yes (run/route.ts:6) | **PASS** |
+| Destructures all three | `{ agentExecutor, judge, getCostReport }` (line 55) | **PASS** |
+| Cost included in response | Yes (lines 82-91) | **PASS** |
+| Pipeline persist/conversation logic unchanged | loadPipelineState, savePipelineState, conversation manager same pattern | **PASS** |
+| start/route.ts NOT modified | Confirmed — not in LE-10 diff | **PASS** |
+| review/route.ts NOT modified | Confirmed — not in LE-10 diff | **PASS** |
+| state/route.ts NOT modified | Confirmed — not in LE-10 diff | **PASS** |
+
+### J. Backward Compatibility
+
+| Check | Result | Status |
+|-------|--------|--------|
+| pipeline-mocks.ts exists and unchanged | Zero diff in LE-10 | **PASS** |
+| 579 tests pass (up from 565) | All 579 pass, 28 files | **PASS** |
+| Ideation routes unchanged | Not in LE-10 diff | **PASS** |
+| No core files changed | Zero core files in diff | **PASS** |
+
+### K. Test Coverage — 14 Tests
+
+All in `tests/unit/domain/agent-bridge.test.ts`:
+
+| # | Test | Category |
+|---|------|----------|
+| 1 | `createRealAgentExecutor` returns function matching AgentExecutor type | Type conformance |
+| 2 | Maps brief stage to orchestrator agent | Stage mapping |
+| 3 | Maps audience stage to audience-analyst agent | Stage mapping |
+| 4 | Maps structure stage to curriculum-strategist + outcome-architect (multi-agent) | Multi-agent sequential |
+| 5 | Maps components stage to component-recommender + structure-optimizer (multi-agent) | Multi-agent sequential |
+| 6 | Maps handoff stage to programmatic completeness check | Stage mapping |
+| 7 | Handoff reports issues when context is incomplete | Handoff validation |
+| 8 | Throws meaningful error for unknown stageId | Error handling |
+| 9 | Throws when all agents in a stage fail | Error handling |
+| 10 | Returns first agent output when second agent fails in multi-agent stage | Graceful fallback |
+| 11 | `createRealJudge` returns function matching JudgeFunction type | Type conformance |
+| 12 | Accumulates cost from multiple agent calls | Cost tracking |
+| 13 | Returns mock executor/judge when ANTHROPIC_API_KEY is not set | Env var switching |
+| 14 | Returns real executor/judge when ANTHROPIC_API_KEY is set | Env var switching |
+
+All agent runners mocked via `vi.mock()` — **zero real API calls confirmed**. Anthropic SDK also mocked.
+
+### L. Build Verification
+
+| Check | Result | Status |
+|-------|--------|--------|
+| `npm run typecheck` | Clean — zero errors | **PASS** |
+| `npm run test` | 579 tests, 28 files, ALL PASS (1.39s) | **PASS** |
+| `npm run build` | Success — static + dynamic routes compiled | **PASS** |
+
+### M. Git State
+
+| Check | Result | Status |
+|-------|--------|--------|
+| `git status` | Clean working tree | **PASS** |
+| Latest commit | `88af260 feat(domain): LE-10 wire real agents — bridge, cost tracking, 14 tests` | **PASS** |
+| Tags | LE-0 through LE-10 all present | **PASS** |
+
+### N. Readiness for LE-11
+
+| Check | Result | Status |
+|-------|--------|--------|
+| `.env` and `.env.example` exist with ANTHROPIC_API_KEY | Yes | **PASS** |
+| Pipeline can be started via start route | Route exists | **PASS** |
+| Stages can be run via run route | Route exists, uses `getExecutorAndJudge()` | **PASS** |
+| Review via review route | Route exists, unchanged | **PASS** |
+| `getExecutorAndJudge()` returns real agents with key | Confirmed in code and test | **PASS** |
+
+### Scorecard
+
+| Section | Checks | PASS | FAIL | INFO |
+|---------|--------|------|------|------|
+| A. File Existence | 3 | 3 | 0 | 0 |
+| B. Bridge Functions | 3 | 3 | 0 | 0 |
+| C. Stage Mapping | 6 | 6 | 0 | 0 |
+| D. Multi-Agent Sequential | 3 | 3 | 0 | 0 |
+| E. Handoff Checker | 4 | 4 | 0 | 0 |
+| F. Judge Implementation | 4 | 4 | 0 | 0 |
+| G. API Key Detection | 4 | 4 | 0 | 0 |
+| H. Cost Tracking | 5 | 4 | 0 | 1 |
+| I. Route Changes | 7 | 7 | 0 | 0 |
+| J. Backward Compatibility | 4 | 4 | 0 | 0 |
+| K. Test Coverage | 14 | 14 | 0 | 0 |
+| L. Build Verification | 3 | 3 | 0 | 0 |
+| M. Git State | 3 | 3 | 0 | 0 |
+| N. Readiness for LE-11 | 5 | 5 | 0 | 0 |
+| **TOTAL** | **68** | **67** | **0** | **1** |
+
+Zero FAIL items. One INFO item (H.5: cost tracking resets naturally per HTTP request since `getExecutorAndJudge()` is called fresh each time — correct behavior). 579 tests pass, typecheck clean, build succeeds. Bridge correctly maps all 5 stages to their agents with multi-agent sequential chaining, graceful fallback, and cross-model judging. Core purity maintained — zero core files modified. Backward compatibility confirmed.
+
+# LE-10 VERIFIED — Ready for LE-11
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
