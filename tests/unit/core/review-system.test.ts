@@ -185,6 +185,14 @@ describe('enforceHumanSovereignty', () => {
     const next = makeState({ status: 'evaluating' })
     expect(() => enforceHumanSovereignty(prev, next)).not.toThrow()
   })
+
+  it('o. THROWS when transition is presenting → approved (must go through awaiting_review first)', () => {
+    const prev = makeState({ status: 'presenting' })
+    const next = makeState({ status: 'approved' })
+    expect(() => enforceHumanSovereignty(prev, next)).toThrow(
+      /Human sovereignty violation/
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -192,7 +200,7 @@ describe('enforceHumanSovereignty', () => {
 // ---------------------------------------------------------------------------
 
 describe('validateReviewAction', () => {
-  it('o. valid: approve when awaiting_review', () => {
+  it('p. valid: approve when awaiting_review', () => {
     const action: ReviewAction = { type: 'approve' }
     const state = makeState({ status: 'awaiting_review' })
     const gate = makeGate()
@@ -202,7 +210,7 @@ describe('validateReviewAction', () => {
     expect(result.errors).toEqual([])
   })
 
-  it('p. invalid: approve when generating', () => {
+  it('q. invalid: approve when generating', () => {
     const action: ReviewAction = { type: 'approve' }
     const state = makeState({ status: 'generating' })
     const gate = makeGate()
@@ -212,7 +220,7 @@ describe('validateReviewAction', () => {
     expect(result.errors.some(e => e.code === 'INVALID_STATE')).toBe(true)
   })
 
-  it('q. invalid: use_segments when not in allowedActions', () => {
+  it('r. invalid: use_segments when not in allowedActions', () => {
     const action: ReviewAction = { type: 'use_segments' }
     const state = makeMultiVersionState()
     const gate = makeGate({ allowedActions: ['approve', 'reject', 'feedback'] })
@@ -222,7 +230,7 @@ describe('validateReviewAction', () => {
     expect(result.errors.some(e => e.code === 'ACTION_NOT_ALLOWED')).toBe(true)
   })
 
-  it('r. invalid: use_segments when only 1 iteration', () => {
+  it('s. invalid: use_segments when only 1 iteration', () => {
     const action: ReviewAction = { type: 'use_segments' }
     const state = makeState({ status: 'awaiting_review' }) // 1 iteration
     const gate = makeGate()
@@ -232,7 +240,7 @@ describe('validateReviewAction', () => {
     expect(result.errors.some(e => e.code === 'INSUFFICIENT_VERSIONS')).toBe(true)
   })
 
-  it('s. valid: feedback with message', () => {
+  it('t. valid: feedback with message', () => {
     const action: ReviewAction = { type: 'feedback', message: 'Needs more detail' }
     const state = makeState({ status: 'awaiting_review' })
     const gate = makeGate()
@@ -242,7 +250,7 @@ describe('validateReviewAction', () => {
     expect(result.errors).toEqual([])
   })
 
-  it('t. warning: feedback without message (valid but with warning)', () => {
+  it('u. warning: feedback without message (valid but with warning)', () => {
     const action: ReviewAction = { type: 'feedback' }
     const state = makeState({ status: 'awaiting_review' })
     const gate = makeGate()
@@ -259,19 +267,19 @@ describe('validateReviewAction', () => {
 // ---------------------------------------------------------------------------
 
 describe('getAvailableActions', () => {
-  it('u. returns empty array when not awaiting_review', () => {
+  it('v. returns empty array when not awaiting_review', () => {
     const gate = makeGate()
     const state = makeState({ status: 'generating' })
     expect(getAvailableActions(gate, state)).toEqual([])
   })
 
-  it('v. returns allowedActions when awaiting_review', () => {
+  it('w. returns allowedActions when awaiting_review', () => {
     const gate = makeGate({ allowedActions: ['approve', 'reject', 'feedback'] })
     const state = makeState({ status: 'awaiting_review' })
     expect(getAvailableActions(gate, state)).toEqual(['approve', 'reject', 'feedback'])
   })
 
-  it('w. filters out use_segments when only 1 iteration', () => {
+  it('x. filters out use_segments when only 1 iteration', () => {
     const gate = makeGate() // all 5 actions
     const state = makeState({ status: 'awaiting_review' }) // 1 iteration
 
@@ -283,7 +291,7 @@ describe('getAvailableActions', () => {
     expect(available).not.toContain('mix_produce')
   })
 
-  it('x. returns all 5 for production gate with multiple iterations', () => {
+  it('y. returns all 5 for production gate with multiple iterations', () => {
     const gate = makeGate() // all 5 actions
     const state = makeMultiVersionState()
 
@@ -299,7 +307,7 @@ describe('getAvailableActions', () => {
 // ---------------------------------------------------------------------------
 
 describe('createReviewResult', () => {
-  it('y. creates complete ReviewResult with all fields', () => {
+  it('z. creates complete ReviewResult with all fields', () => {
     const action: ReviewAction = { type: 'approve' }
     const prev = makeState({ status: 'awaiting_review' })
     const next = makeState({ status: 'approved' })
@@ -313,7 +321,7 @@ describe('createReviewResult', () => {
     expect(result.newStatus).toBe('approved')
   })
 
-  it('z. timestamps are present and valid', () => {
+  it('aa. timestamps are present and valid', () => {
     const before = new Date()
     const action: ReviewAction = { type: 'feedback', message: 'Fix it' }
     const prev = makeState({ status: 'awaiting_review' })
@@ -333,13 +341,13 @@ describe('createReviewResult', () => {
 // ---------------------------------------------------------------------------
 
 describe('getDefaultGateConfig', () => {
-  it('aa. ideation returns 3 actions (approve, reject, feedback)', () => {
+  it('bb. ideation returns 3 actions (approve, reject, feedback)', () => {
     const config = getDefaultGateConfig('ideation')
     expect(config.allowedActions).toEqual(['approve', 'reject', 'feedback'])
     expect(config.allowedActions.length).toBe(3)
   })
 
-  it('bb. production returns 5 actions (all)', () => {
+  it('cc. production returns 5 actions (all)', () => {
     const config = getDefaultGateConfig('production')
     expect(config.allowedActions).toEqual([
       'approve', 'reject', 'feedback', 'use_segments', 'mix_produce',

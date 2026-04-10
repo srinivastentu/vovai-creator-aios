@@ -1731,3 +1731,179 @@ structure-rubric.ts: import type { RubricDefinition } from '../../../core/engine
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-5 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Commit:** 9d1148c feat(core): LE-5 human review system — 3 modules, 28 tests, sovereignty enforced
+
+---
+
+### A. File Existence and Structure — **PASS**
+
+- `src/lib/core/review/` exists with exactly 4 files:
+  - `types.ts` — 1,246 bytes
+  - `gate.ts` — 2,213 bytes
+  - `actions.ts` — 4,036 bytes
+  - `index.ts` — 356 bytes
+- No extra files. No subdirectories.
+- `src/lib/core/` now has exactly 3 subdirectories: `agentic/`, `engine/`, `review/`
+  (3 of 4 planned core systems now have presence)
+
+### B. Type Completeness — **PASS**
+
+3 types exported from `types.ts`:
+
+1. **ReviewGate** — `stageId`, `artifactType`, `allowedActions`, `requiresRole?`, `minReviewers?` — matches spec
+2. **ReviewResult** — `action`, `reviewerId`, `stageId`, `timestamp`, `previousStatus`, `newStatus` — matches spec
+3. **ReviewValidationError** — `code`, `message`, `action`, `currentStatus` — matches spec
+
+All fields present and correctly typed. `LoopStatus` and `ReviewAction` imported from `../engine/types`.
+
+### C. Gate Functions (gate.ts) — **PASS**
+
+3 exports verified:
+
+1. **createGate** — takes config object, returns `ReviewGate`. Defaults: `allowedActions` = all 5, `minReviewers` = 1
+2. **isGateReady** — returns `true` ONLY for `'presenting'` and `'awaiting_review'`. All other states return `false`
+3. **enforceHumanSovereignty** — throws when `newState.status === 'approved'` AND `previousState.status !== 'awaiting_review'`
+
+Sovereignty logic traced:
+- Condition: `newState.status === 'approved' && previousState.status !== 'awaiting_review'` → throw
+- This correctly blocks ALL bypass paths while allowing the one legitimate path
+
+### D. Action Functions (actions.ts) — **PASS**
+
+4 exports verified:
+
+1. **validateReviewAction** — checks state (`awaiting_review`), allowed actions, iteration count, feedback message
+2. **getAvailableActions** — returns `[]` when not `awaiting_review`; filters `use_segments`/`mix_produce` when ≤1 iteration
+3. **createReviewResult** — creates immutable record with timestamp, previous/new status
+4. **getDefaultGateConfig** — `ideation` = 3 actions, `production` = 5 actions
+
+Validation logic verified:
+- Rejects when state is not `awaiting_review` → `INVALID_STATE` error — **correct**
+- Rejects when action not in `gate.allowedActions` → `ACTION_NOT_ALLOWED` error — **correct**
+- Rejects `use_segments`/`mix_produce` when `iterations.length <= 1` → `INSUFFICIENT_VERSIONS` — **correct**
+- Feedback without message → `EMPTY_FEEDBACK` warning (valid = true, error in array) — **correct**
+- Hard errors filtered by excluding `EMPTY_FEEDBACK` — **correct**
+
+### E. Zero Domain Imports — **PASS** (Critical)
+
+- `grep -r "from.*domain/" src/lib/core/` → **only a comment** in `loop-engine.ts` line 2: `// Zero imports from domain/, agentic/, or review/` — no actual imports
+- Import audit:
+  - `types.ts`: imports from `'../engine/types'` only — **clean**
+  - `gate.ts`: imports from `'../engine/types'` and `'./types'` — **clean**
+  - `actions.ts`: imports from `'../engine/types'` and `'./types'` — **clean**
+- No Anthropic SDK, OpenAI SDK, or Prisma imports — **confirmed**
+- No domain words (`eLearning`, `curriculum`, `audience`, `SME`, `structure`) — **confirmed via grep**
+- `ideation` and `production` appear only as generic phase categories in `getDefaultGateConfig` — **acceptable**
+
+### F. Index Re-exports — **PASS**
+
+`index.ts` re-exports:
+- **3 types:** `ReviewGate`, `ReviewResult`, `ReviewValidationError` (from `./types`)
+- **3 functions:** `createGate`, `isGateReady`, `enforceHumanSovereignty` (from `./gate`)
+- **4 functions:** `validateReviewAction`, `getAvailableActions`, `createReviewResult`, `getDefaultGateConfig` (from `./actions`)
+- **Total: 10 exports** — matches spec
+
+External import `import { createGate, validateReviewAction } from '@/lib/core/review'` will resolve correctly.
+
+### G. Sovereignty Enforcement Quality — **PASS** (with 1 gap noted)
+
+Implementation: `gate.ts:51-64`
+```
+if (newState.status === 'approved' && previousState.status !== 'awaiting_review') → throw
+```
+
+Scenario trace:
+
+| # | Transition | Expected | Actual | Status |
+|---|-----------|----------|--------|--------|
+| 1 | idle → generating | no throw | no throw (newState is not approved) | **PASS** |
+| 2 | generating → evaluating | no throw | no throw (newState is not approved) | **PASS** |
+| 3 | awaiting_review → approved | no throw | no throw (previousState = awaiting_review) | **PASS** |
+| 4 | generating → approved | throw | throw (previousState is not awaiting_review) | **PASS** |
+| 5 | evaluating → approved | throw | throw (previousState is not awaiting_review) | **PASS** |
+| 6 | idle → approved | throw | throw (previousState is not awaiting_review) | **PASS** |
+| 7 | presenting → approved | throw | throw (previousState is not awaiting_review) | **PASS** |
+
+**Gap flagged:** Scenario 7 (presenting → approved) is NOT explicitly tested. The implementation correctly blocks it (presenting is not awaiting_review), but there is no dedicated test. Tests cover generating → approved (test l) and evaluating → approved (test m), but not presenting → approved. This is a **minor gap** — the logic is correct, but an explicit test would document the intent that `presenting` alone is insufficient for approval.
+
+### H. Test Coverage — **PASS**
+
+28 tests across 7 describe groups in `tests/unit/core/review-system.test.ts`:
+
+| Group | Tests | IDs |
+|-------|-------|-----|
+| createGate | 4 | a-d |
+| isGateReady | 6 | e-j |
+| enforceHumanSovereignty | 4 | k-n |
+| validateReviewAction | 6 | o-t |
+| getAvailableActions | 4 | u-x |
+| createReviewResult | 2 | y-z |
+| getDefaultGateConfig | 2 | aa-bb |
+| **Total** | **28** | |
+
+- Every exported function has test coverage — **no zero-coverage functions**
+- Edge cases covered: empty feedback warning, insufficient iterations, action not in gate
+- **1 gap:** presenting → approved not tested (see section G)
+
+### I. Integration with Engine Types — **PASS**
+
+- `ReviewAction` in review system is imported from `../engine/types` — same type, not redefined
+- `ReviewAction.type` is `'approve' | 'reject' | 'feedback' | 'use_segments' | 'mix_produce'` — all 5 types match
+- `LoopStatus` and `LoopState` imported from engine — **no type duplication**
+- `ALL_ACTIONS` constant in `gate.ts` lists all 5 types matching the engine's `ReviewAction['type']` union
+
+### J. Build Verification — **PASS**
+
+- `npm run typecheck` → **clean** (0 errors)
+- `npm run test` → **482 tests passed** (454 prior + 28 new)
+- `npm run build` → **success** (production build completes)
+
+### K. Git State — **PASS**
+
+- `git status` → clean working tree, up to date with `origin/feature/loop-engine-v2`
+- Recent commits show linear LE progression (LE-3 → LE-4 → LE-5)
+- Tags present: `LE-0-folder-restructure` through `LE-5-review-system` — **all 6 tags exist**
+- Diff `LE-4..LE-5`: 6 files changed, 834 insertions, 0 deletions — clean additive change
+
+### L. Readiness for LE-6 — **PASS**
+
+- LE-6 needs from `core/engine/`: `LoopStage`, `LoopState`, `runLoop` — all exported
+- LE-6 needs from `core/review/`: `createGate`, `isGateReady`, `validateReviewAction` — all exported
+- `domain/workflows/pipeline-orchestrator.ts` does **not** exist yet — clean slate for LE-6
+- Import paths confirmed: `@/lib/core/engine` and `@/lib/core/review` will resolve
+
+---
+
+### Summary
+
+| Check | Result |
+|-------|--------|
+| A. File Existence & Structure | **PASS** — 4 files, 3 core subdirs |
+| B. Type Completeness | **PASS** — 3 types, all fields match spec |
+| C. Gate Functions | **PASS** — 3 exports, sovereignty logic correct |
+| D. Action Functions | **PASS** — 4 exports, validation logic correct |
+| E. Zero Domain Imports | **PASS** — zero domain imports in core/ |
+| F. Index Re-exports | **PASS** — 10 exports, clean barrel |
+| G. Sovereignty Quality | **PASS** — all 7 scenarios correct, 1 test gap (presenting→approved) |
+| H. Test Coverage | **PASS** — 28 tests, all functions covered |
+| I. Engine Type Integration | **PASS** — no duplication, shared types |
+| J. Build Verification | **PASS** — typecheck clean, 482 tests, build success |
+| K. Git State | **PASS** — clean, 6 tags (LE-0 through LE-5) |
+| L. Readiness for LE-6 | **PASS** — all exports available, pipeline-orchestrator.ts absent |
+
+**Minor gap:** Add explicit test for `presenting → approved` sovereignty violation (scenario G.7).
+This is non-blocking — the implementation is correct, only the test is missing.
+
+---
+
+# LE-5 VERIFIED — Ready for LE-6
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
