@@ -1907,3 +1907,140 @@ This is non-blocking — the implementation is correct, only the test is missing
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-6 Post-Completion Verification
+
+**Date:** 2026-04-10
+**Reviewer:** Claude (Senior Engineer role)
+**Commit:** `64e839b feat(domain): LE-6 pipeline orchestrator — 8 functions, 26 tests, bridges core systems`
+**Scope:** Pipeline Orchestrator — first domain file importing from core
+
+---
+
+### A. File Existence
+
+| Check | Result | Status |
+|-------|--------|--------|
+| A1. pipeline-orchestrator.ts exists | `src/lib/domain/workflows/pipeline-orchestrator.ts` — 209 lines | PASS |
+| A2. No new files in core/ | core/ has exactly 9 files: engine/ (3), agentic/ (2), review/ (4) — unchanged from LE-5 | PASS |
+
+### B. Type Completeness
+
+| Type | Verified | Status |
+|------|----------|--------|
+| B1. `StageConfig` | Extends `LoopStage<unknown>` with `dependsOn?`, `reviewerRoles?`, `reviewGateConfig?` (lines 21-27) | PASS |
+| B2. `IdeationPipeline` | 8 fields: id, blueprintId, stages, currentStageIndex, stageStates, status (`'active'\|'complete'\|'paused'`), createdAt, updatedAt (lines 29-38) | PASS |
+| B3. `PipelineProgress` | 5 fields: total, completed, currentStageId, percent, stageStatuses (lines 40-46) | PASS |
+
+### C. Function Completeness
+
+All 8 functions exported with correct signatures:
+
+| # | Function | Signature | Status |
+|---|----------|-----------|--------|
+| C1 | `createPipeline` | `(id, blueprintId, stages) → IdeationPipeline` | PASS |
+| C2 | `getCurrentStage` | `(pipeline) → StageConfig \| null` | PASS |
+| C3 | `getCurrentState` | `(pipeline) → LoopState<unknown> \| null` | PASS |
+| C4 | `canAdvance` | `(pipeline) → boolean` | PASS |
+| C5 | `advancePipeline` | `(pipeline) → IdeationPipeline` | PASS |
+| C6 | `isPipelineComplete` | `(pipeline) → boolean` | PASS |
+| C7 | `getPipelineProgress` | `(pipeline) → PipelineProgress` | PASS |
+| C8 | `runCurrentStage` | `(pipeline, context, agentExecutor, judge) → Promise<{ pipeline, stageState, gate? }>` | PASS |
+
+### D. Core Bridge Verification (Critical)
+
+This is the first domain file importing from core. Direction: domain → core (correct).
+
+| Check | Result | Status |
+|-------|--------|--------|
+| D1. Imports from core/engine/types | `LoopStage`, `LoopState`, `LoopStatus`, `ReviewAction`, `AgentExecutor`, `JudgeFunction` | PASS |
+| D2. Imports from core/engine/ | `createInitialState`, `runLoop` (functions) | PASS |
+| D3. Imports from core/review/types | `ReviewGate` (type) | PASS |
+| D4. Imports from core/review/ | `createGate` (function) | PASS |
+| D5. Direction domain→core | Confirmed — all imports flow domain → core | PASS |
+| D6. `grep "from.*domain/" src/lib/core/` | Only a comment on line 2 of loop-engine.ts — zero actual imports | PASS |
+
+### E. Orchestration Logic
+
+| Check | Result | Status |
+|-------|--------|--------|
+| E1. createPipeline calls `createInitialState` per stage, sets index=0 | Lines 58-59, 68 | PASS |
+| E2. canAdvance checks `status === 'approved'` + all `dependsOn` approved | Lines 103, 106-109 | PASS |
+| E3. advancePipeline throws when `!canAdvance`, returns new object, sets `'complete'` past last stage | Lines 120-134 | PASS |
+| E4. runCurrentStage calls core `runLoop`, updates stageStates, creates gate when `'presenting'`, uses `reviewGateConfig` overrides | Lines 187, 189-196, 199-205 | PASS |
+
+### F. Immutability Pattern
+
+| Check | Result | Status |
+|-------|--------|--------|
+| F1. advancePipeline spreads `...pipeline`, returns new object | Line 129 | PASS |
+| F2. runCurrentStage spreads both pipeline and stageStates | Lines 189-196 | PASS |
+| F3. No direct mutation of input arguments in any function | Confirmed — all functions return new objects | PASS |
+
+### G. Test Coverage (26/26)
+
+File: `tests/unit/domain/pipeline-orchestrator.test.ts` — 334 lines
+
+| Group | Tests | Expected | Status |
+|-------|-------|----------|--------|
+| createPipeline | 4 (stage count, index=0, stageStates init, status active) | 4 | PASS |
+| getCurrentStage | 2 (returns first stage, null when complete) | 2 | PASS |
+| getCurrentState | 2 (returns state, null when complete) | 2 | PASS |
+| canAdvance | 4 (not approved, approved, dep not approved, all deps approved) | 4 | PASS |
+| advancePipeline | 4 (increments index, complete past last, throws, immutability) | 4 | PASS |
+| isPipelineComplete | 2 (false when active, true when complete) | 2 | PASS |
+| getPipelineProgress | 3 (counts+percent, all statuses, null when complete) | 3 | PASS |
+| runCurrentStage | 5 (calls runLoop, updates states, returns new pipeline, gate creation, no auto-advance) | 5 | PASS |
+
+**runLoop verification:** Test uses `vi.fn()` mocks for `agentExecutor` and `judge`, then asserts `toHaveBeenCalled()` — confirms core's `runLoop` is invoked with injected deps. **PASS**
+
+**Zero functions with zero coverage.** All 8 functions tested.
+
+### H. Build Verification
+
+| Check | Result | Status |
+|-------|--------|--------|
+| H1. typecheck | Clean — zero errors | PASS |
+| H2. test suite | **509 tests, 22 files, ALL PASS** (1.14s) | PASS |
+| H3. build | Success | PASS |
+
+### I. Git State
+
+| Check | Result | Status |
+|-------|--------|--------|
+| I1. git status | Clean working tree | PASS |
+| I2. HEAD commit | `64e839b feat(domain): LE-6 pipeline orchestrator — 8 functions, 26 tests, bridges core systems` | PASS |
+| I3. Tags LE-0 through LE-6 | All 7 tags present (LE-0 through LE-6) | PASS |
+| I4. LE-5→LE-6 diff | 4 files changed, +741/-14 lines | INFO |
+
+**Diff breakdown:**
+- `src/lib/domain/workflows/pipeline-orchestrator.ts` — +209 (new file)
+- `tests/unit/domain/pipeline-orchestrator.test.ts` — +334 (new file)
+- `tests/unit/core/review-system.test.ts` — +22/-14 (presenting→approved sovereignty test)
+- `tasks/senior-engineer-review.md` — +176 (LE-5 verification appendix)
+
+### J. Readiness for LE-7
+
+LE-7 creates `domain/workflows/ideation/pipeline-config.ts` — wiring 5 stages to rubrics + agents.
+
+| Check | Result | Status |
+|-------|--------|--------|
+| J1. `StageConfig` type exported from pipeline-orchestrator | Yes — LE-7 imports this to define stage configs | PASS |
+| J2. 5 rubrics importable from domain/workflows/rubrics/ | brief, audience, structure, component, handoff | PASS |
+| J3. Agent configs in domain/workflows/agents/ | 8 agents present | PASS |
+| J4. `ideation/pipeline-config.ts` does NOT exist yet | Confirmed — clean slate for LE-7 | PASS |
+
+---
+
+### Verdict
+
+**All 10 verification categories passed. Zero issues found.**
+
+The pipeline orchestrator correctly bridges core systems (engine + review) from the domain layer, maintains strict immutability, enforces dependency-based advancement, and has complete test coverage across all 8 functions.
+
+# LE-6 VERIFIED — Ready for LE-7
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
