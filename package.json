@@ -12,7 +12,9 @@
     "test:unit": "vitest run tests/unit",
     "test:watch": "vitest watch",
     "db:seed:pc": "npx tsx scripts/seed-project-component.ts",
-    "test:e2e": "npx tsx scripts/test-e2e-project-component.ts"
+    "test:e2e": "npx tsx scripts/test-e2e-project-component.ts",
+    "pipeline:walk": "tsx scripts/pipeline-walkthrough.ts",
+    "pipeline:walk:interactive": "tsx scripts/pipeline-walkthrough.ts --interactive"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
