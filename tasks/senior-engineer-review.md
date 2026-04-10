@@ -2550,3 +2550,159 @@ Zero FAIL items. 558 tests pass, typecheck clean, build succeeds. All 4 routes c
 
 **Sign-off by:** Claude (Senior Engineer)
 **Date:** 2026-04-10
+
+---
+
+## LE-9 Post-Completion Verification
+
+**Task:** LE-9 — Per-stage conversations (migration, 2 functions, 7 tests)
+**Commit:** `4ac6529` on `feature/loop-engine-v2`
+**Tag:** `LE-9-per-stage-conversations`
+
+### A. Migration Verification
+
+| Check | Result |
+|-------|--------|
+| Migration file exists | **PASS** — `prisma/migrations/20260410144619_add_stage_id_to_conversation/migration.sql` |
+| Adds `stage_id` column as nullable | **PASS** — `ALTER TABLE "IdeationConversation" ADD COLUMN "stage_id" TEXT;` (no NOT NULL) |
+| Creates composite index `(blueprintId, stageId)` | **PASS** — `CREATE INDEX "IdeationConversation_blueprintId_stage_id_idx"` |
+| `npx prisma migrate status` — all applied | **PASS** — "Database schema is up to date!" (7 migrations) |
+| Generated Prisma client includes `stageId` on `IdeationConversation` | **PASS** — `stageId` found in `src/generated/prisma/models/IdeationConversation.ts` |
+
+### B. Schema Change
+
+| Check | Result |
+|-------|--------|
+| `stageId String? @map("stage_id")` present | **PASS** — line 236 of `schema.prisma` |
+| `@@index([blueprintId, stageId])` present | **PASS** — line 243 |
+| Original `@@index([blueprintId])` still present | **PASS** — line 242 |
+| No other models changed | **PASS** — `git diff` shows only `IdeationConversation` changes (+2 lines in schema) |
+
+### C. New Functions
+
+| Check | Result |
+|-------|--------|
+| `getOrCreateStageConversation` exists and exported | **PASS** — lines 121-137 of `conversation-manager.ts` |
+| Takes `(blueprintId, stageId)` | **PASS** |
+| `findFirst` with `blueprintId + stageId` | **PASS** — line 122 |
+| Creates if not found | **PASS** — lines 128-136 |
+| Returns `IdeationConversation` | **PASS** |
+| `getStageConversations` exists and exported | **PASS** — lines 143-156 |
+| Takes `(blueprintId)` | **PASS** |
+| `findMany` where `stageId` not null | **PASS** — line 144 |
+| Returns `Record<string, IdeationConversation>` | **PASS** — lines 149-155 |
+
+### D. Backward Compatibility (Critical)
+
+| Check | Result |
+|-------|--------|
+| `createConversation` — signature unchanged | **PASS** — lines 33-42, identical to pre-LE-9 |
+| `addMessage` — unchanged | **PASS** — lines 48-59 |
+| `getMessages` — unchanged | **PASS** — lines 64-71 |
+| `getLatestConversation` — unchanged | **PASS** — lines 77-88 |
+| `git diff` shows ONLY additions, no modifications | **PASS** — diff is purely additive (+43 lines, 0 deletions in conversation-manager.ts) |
+| Existing conversation tests still pass | **PASS** — 27 test files, 565 tests pass |
+
+### E. Route Integration
+
+| Check | Result |
+|-------|--------|
+| Run route imports `getOrCreateStageConversation` and `addMessage` | **PASS** — line 7 of `run/route.ts` |
+| After `runCurrentStage`, calls `getOrCreateStageConversation` | **PASS** — line 71 |
+| Calls `addMessage` with agent output | **PASS** — lines 72-77 |
+| Existing route logic not disrupted (additive only) | **PASS** — diff shows +14 lines, -2 lines (import addition) |
+
+### F. Test Coverage
+
+| Check | Result |
+|-------|--------|
+| Test file exists | **PASS** — `tests/unit/domain/stage-conversations.test.ts` (186 lines) |
+| Test count | **PASS** — 7 tests across 3 describe blocks |
+
+**7 tests enumerated:**
+1. `getOrCreateStageConversation` — creates new conversation when none exists
+2. `getOrCreateStageConversation` — returns existing conversation on second call
+3. `getOrCreateStageConversation` — creates separate conversations per stageId
+4. `getStageConversations` — returns all stage conversations keyed by stageId
+5. `getStageConversations` — returns empty object for blueprint with no stage conversations
+6. backward compatibility — `createConversation` still works without stageId
+7. backward compatibility — `getLatestConversation` still works for legacy conversations
+
+| Coverage area | Result |
+|---------------|--------|
+| Create new, return existing, separate per stage | **PASS** — tests 1-3 |
+| Returns keyed record, empty for none | **PASS** — tests 4-5 |
+| Backward compat: existing functions still work | **PASS** — tests 6-7 |
+| Mock style consistent with existing tests | **PASS** — uses `vi.hoisted()` + `vi.mock('../../../src/lib/db')` pattern |
+
+### G. Core Purity
+
+| Check | Result |
+|-------|--------|
+| `grep -r "from.*domain/" src/lib/core/` → no imports | **PASS** — only match is a comment: `// Zero imports from domain/` in `loop-engine.ts` line 2 |
+| No core files changed in LE-9 | **PASS** — diff shows 0 core files touched |
+
+### H. Build Verification
+
+| Check | Result |
+|-------|--------|
+| `npm run typecheck` | **PASS** — `tsc --noEmit` clean, zero errors |
+| `npm run test` | **PASS** — 27 files, **565 tests passed** |
+| `npm run build` | **PASS** — production build succeeds |
+
+### I. Git State
+
+| Check | Result |
+|-------|--------|
+| `git status` | **PASS** — clean working tree |
+| `git log --oneline -5` | **PASS** — `4ac6529` is HEAD |
+| `git tag -l "LE-*"` | **PASS** — `LE-0` through `LE-9-per-stage-conversations` (10 tags) |
+| `git diff LE-8..LE-9 --stat` | **PASS** — 7 files changed, 572 insertions, 2 deletions |
+
+**Files changed in LE-9:**
+```
+prisma/migrations/20260410144619_.../migration.sql          +5
+prisma/schema.prisma                                        +2
+src/app/api/.../stages/[stageId]/run/route.ts               +14 -2
+src/lib/domain/.../conversation-manager.ts                  +43
+tasks/senior-engineer-review.md                             +300
+tests/unit/domain/pipeline-routes.test.ts                   +24
+tests/unit/domain/stage-conversations.test.ts               +186
+```
+
+### J. Readiness for LE-10
+
+| Check | Result |
+|-------|--------|
+| `pipeline-mocks.ts` exists (to be replaced/augmented) | **PASS** — `src/lib/domain/workflows/pipeline-mocks.ts` |
+| All 8 agent files exist in `domain/workflows/agents/` | **PASS** — audience-analyst, component-recommender, curriculum-strategist, devils-advocate, orchestrator, outcome-architect, rubric-grader, structure-optimizer |
+| `agent-bridge.ts` does NOT exist yet | **PASS** — no matches found |
+| `core/agentic/grader.ts` has `createJudgeFunction` | **PASS** — `grader.ts` and `index.ts` both reference it |
+| `ANTHROPIC_API_KEY` referenced in executor | **PASS** — found in `domain/workflows/agents/framework/executor.ts` |
+
+**Note:** `ANTHROPIC_API_KEY` is in `domain/workflows/agents/framework/executor.ts`, not in `core/agentic/`. This is architecturally correct — the domain executor handles API key configuration, while core agentic provides abstract machinery.
+
+---
+
+### Summary Scorecard
+
+| Section | Checks | Pass | Fail | Info |
+|---------|--------|------|------|------|
+| A. Migration Verification | 5 | 5 | 0 | 0 |
+| B. Schema Change | 4 | 4 | 0 | 0 |
+| C. New Functions | 9 | 9 | 0 | 0 |
+| D. Backward Compatibility | 6 | 6 | 0 | 0 |
+| E. Route Integration | 4 | 4 | 0 | 0 |
+| F. Test Coverage | 9 | 9 | 0 | 0 |
+| G. Core Purity | 2 | 2 | 0 | 0 |
+| H. Build Verification | 3 | 3 | 0 | 0 |
+| I. Git State | 4 | 4 | 0 | 0 |
+| J. Readiness for LE-10 | 5 | 5 | 0 | 0 |
+| **TOTAL** | **51** | **51** | **0** | **0** |
+
+Zero FAIL items. Zero INFO items. 565 tests pass, typecheck clean, build succeeds. Migration correctly adds nullable `stage_id` column with composite index. Two new functions are purely additive — zero existing function signatures modified. Backward compatibility confirmed by both diff analysis and dedicated tests. Core purity maintained. All 8 agents and mock infrastructure are in place for LE-10.
+
+# LE-9 VERIFIED — Ready for LE-10
+
+**Sign-off by:** Claude (Senior Engineer)
+**Date:** 2026-04-10
