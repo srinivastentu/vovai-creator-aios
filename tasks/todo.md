@@ -1,6 +1,22 @@
 # VOVAI eLearn AIOS — Task Tracker
 
-## Current Focus: LE-0 Folder Restructure
+## Current Focus: Phase 3.1 — Text Producer Adapter
+
+Plan: `/Users/srinivastentu/.claude/plans/memoized-prancing-lobster.md`
+
+- [ ] Create `src/lib/core/agentic/adapters/types.ts` (`Artifact`, `ProducerAdapter`, `ProduceArgs`, `ReviseArgs`)
+- [ ] Create `src/lib/core/agentic/adapters/text-adapter.ts` (`createClaudeTextAdapter`)
+- [ ] PRESERVE/IMPROVE prompt builder as pure function (unit-tested)
+- [ ] Cost tracking via `calculateCost` (or inline helper in `core/agentic/pricing.ts` if framework import feels domain-y)
+- [ ] `text-adapter.test.ts` — 6 unit tests (mocked SDK) + 1 gated live test (`RUN_LIVE_TESTS=1`)
+- [ ] Re-export from `src/lib/core/agentic/index.ts`
+- [ ] `npm run typecheck && npm run test -- --bail` pass
+- [ ] `grep -r "from.*domain/" src/lib/core/` returns nothing
+- [ ] Commit + push: `feat(core): text producer adapter with PRESERVE/IMPROVE revise (Phase 3.1)`
+
+---
+
+## Previous Focus: LE-0 Folder Restructure
 
 Move `src/lib/project-component/` → `src/lib/domain/workflows/`.
 Pure mechanical move — zero logic changes. 29 files, ~122 import paths.
