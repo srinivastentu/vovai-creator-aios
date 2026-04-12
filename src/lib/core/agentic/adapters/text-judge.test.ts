@@ -13,16 +13,46 @@ type MockClient = {
   }
 }
 
-function mockClient(content: string | ((prompt: string) => string)): MockClient {
+function mockClient(content: string | ((userMessage: string) => string)): MockClient {
   return {
     chat: {
       completions: {
         create: async (args: unknown) => {
-          const prompt =
-            (args as { messages: { content: string }[] }).messages[0]?.content ?? ''
-          const out = typeof content === 'function' ? content(prompt) : content
+          const messages = (args as { messages: { role: string; content: string }[] })
+            .messages
+          const userMsg = messages.find((m) => m.role === 'user')?.content ?? ''
+          const out = typeof content === 'function' ? content(userMsg) : content
           return {
             choices: [{ message: { content: out } }],
+            usage: { prompt_tokens: 500, completion_tokens: 200 },
+          }
+        },
+      },
+    },
+  }
+}
+
+class HttpError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.status = status
+  }
+}
+
+function mockClientSequence(
+  responders: Array<() => Promise<{ content: string }> | never>
+): MockClient {
+  let i = 0
+  return {
+    chat: {
+      completions: {
+        create: async () => {
+          const r = responders[Math.min(i, responders.length - 1)]
+          i++
+          const out = await r()
+          return {
+            choices: [{ message: { content: out.content } }],
             usage: { prompt_tokens: 500, completion_tokens: 200 },
           }
         },
@@ -145,6 +175,88 @@ describe('createOpenAITextJudge', () => {
     expect(event.tokensIn).toBe(500)
     expect(event.tokensOut).toBe(200)
     expect(event.costUSD).toBeGreaterThan(0)
+  })
+
+  it('falls back to mini on 5xx and reports fallback model in onCost', async () => {
+    const onCost = vi.fn()
+    const client = mockClientSequence([
+      () => {
+        throw new HttpError(500, 'internal')
+      },
+      async () => ({ content: GOOD_JSON }),
+    ])
+    const judge = createOpenAITextJudge({ client: client as never, onCost })
+    const grade = await judge('x', TEXT_RUBRIC)
+    expect(grade.passesThreshold).toBe(true)
+    expect(onCost).toHaveBeenCalledOnce()
+    const event = onCost.mock.calls[0][0] as JudgeCostEvent
+    expect(event.model).toBe('gpt-4o-mini')
+  })
+
+  it('rethrows on 4xx (non-429) without hitting fallback', async () => {
+    const onCost = vi.fn()
+    const create = vi.fn(async () => {
+      throw new HttpError(400, 'bad request')
+    })
+    const client = { chat: { completions: { create } } }
+    const judge = createOpenAITextJudge({ client: client as never, onCost })
+    await expect(judge('x', TEXT_RUBRIC)).rejects.toThrow('bad request')
+    expect(create).toHaveBeenCalledOnce()
+    expect(onCost).not.toHaveBeenCalled()
+  })
+
+  it('returns synthetic failing grade when both primary and fallback fail', async () => {
+    const onCost = vi.fn()
+    const client = mockClientSequence([
+      () => {
+        throw new HttpError(503, 'unavailable')
+      },
+      () => {
+        throw new HttpError(503, 'unavailable')
+      },
+    ])
+    const judge = createOpenAITextJudge({ client: client as never, onCost })
+    const grade = await judge('x', TEXT_RUBRIC)
+    expect(grade.overallScore).toBe(4)
+    expect(grade.passesThreshold).toBe(false)
+    expect(grade.dimensionScores).toHaveLength(5)
+    expect(onCost).toHaveBeenCalledOnce()
+    const event = onCost.mock.calls[0][0] as JudgeCostEvent
+    expect(event.tokensIn).toBe(0)
+    expect(event.tokensOut).toBe(0)
+    expect(event.costUSD).toBe(0)
+  })
+
+  it('backfills score=4 for any dimension missing from the response', async () => {
+    const partial = JSON.stringify({
+      reasoning: 'partial response',
+      dimensionScores: [
+        { dimensionId: 'clarity', score: 9, feedback: 'clear' },
+        { dimensionId: 'depth', score: 9, feedback: 'deep' },
+        { dimensionId: 'engagement', score: 9, feedback: 'engaging' },
+        { dimensionId: 'accuracy', score: 9, feedback: 'accurate' },
+        // structure_completeness missing
+      ],
+      recommendation: 'partial',
+      improvementPriorities: [],
+    })
+    const judge = createOpenAITextJudge({ client: mockClient(partial) as never })
+    const grade = await judge('x', TEXT_RUBRIC)
+    expect(grade.dimensionScores).toHaveLength(5)
+    const missing = grade.dimensionScores.find(
+      (d) => d.dimensionId === 'structure_completeness'
+    )
+    expect(missing?.score).toBe(4)
+    expect(missing?.feedback).toContain('No score returned')
+  })
+
+  it('throws at eval time when rubric is invalid (fail fast)', async () => {
+    const bad = {
+      ...TEXT_RUBRIC,
+      dimensions: TEXT_RUBRIC.dimensions.map((d) => ({ ...d, weight: 0.1 })),
+    }
+    const judge = createOpenAITextJudge({ client: mockClient(GOOD_JSON) as never })
+    await expect(judge('x', bad)).rejects.toThrow(/invalid rubric/)
   })
 
   const liveIt = process.env.RUN_LIVE_TESTS ? it : it.skip
