@@ -27,6 +27,7 @@ src/lib/core/                            <- CORE: Machinery (portable)
 ├── engine/                              <- System 1: Loop Engine
 ├── agentic/                             <- System 2: Agentic System
 ├── review/                              <- System 3: Human Review System
+├── models/                              <- System 5: Model Management System (MMS)
 ├── tools/                               <- (future) Tool System
 ├── prompts/                             <- (future) Prompt System
 ├── context/                             <- (future) Context System
@@ -64,6 +65,14 @@ Pipeline orchestration, stage sequencing, archetypes, component registry, agent 
 6 phases: Phase 0 (ideation, runs once) -> Phases 1-5 (production per-component).
 Order: Documents -> Assessments -> Videos -> Activities -> Capstone -> Meta.
 8 human gates. See `docs/architecture/elearn-pipeline.md`.
+
+**System 5 — Model Management System (`src/lib/core/models/`):**
+Centralized gateway for ALL AI model calls. Model catalog, provider registry,
+cost ledger, routing, rate limiting, health monitoring. Every AI call goes
+through the gateway — no component talks directly to an AI provider.
+Provider clients: fal-ai (Flux), OpenAI (DALL-E 3, GPT-4o vision),
+Google Gemini (NanoBanana, Imagen 4), Freepik (Mystic).
+See `docs/architecture/VOVAI_MMS_Architecture_v1.md`.
 
 ### Tech Stack
 

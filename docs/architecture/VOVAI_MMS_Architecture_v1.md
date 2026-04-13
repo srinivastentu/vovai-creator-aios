@@ -692,3 +692,15 @@ Not done now. Future task: create an Anthropic provider client in MMS, register 
 7. **The gateway is the boundary.** Everything outside the MMS calls the gateway. Everything inside the MMS is internal implementation. Only types and gateway functions are exported.
 
 8. **Same model, multiple providers is supported.** NanoBanana 2 can be accessed via Google direct AND Freepik. They are separate model entries with different IDs (`nanobanan-2` vs `freepik-nanobanan-2`) but the router can compare their costs/performance.
+---
+
+## 13. Current State (as of Phase 4.1E)
+
+- 4 providers registered: fal-ai, openai, google-gemini, freepik
+- 11 active models, 2 disabled (NB via Freepik — use google-gemini instead)
+- Provider clients: all 4 implemented and tested
+- Gateway: operational with timeout, abort signal, cost tracking, health monitoring
+- Shared utilities: fetchWithTimeout, downloadAndSave, saveBase64ToDisk, pollUntilComplete, failure, readErrorDetail, maskApiKey
+- Tests: ~60 MMS-specific unit tests plus an end-to-end integration suite in `tests/unit/mms-integration.test.ts`
+- Manual live-API script: `scripts/test-mms-live.ts` (run with real env keys)
+- Ready for: Phase 4.2 (Image Judge), Phase 4.4 (Tournament via requestMultiple)
