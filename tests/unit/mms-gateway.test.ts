@@ -255,18 +255,32 @@ describe('ModelGateway', () => {
     expect(res.error).toMatch(/boom/)
   })
 
+  const signalHonoringClient = (): ProviderClient => ({
+    providerId: 'p',
+    async execute(_modelApiId, _capability, params) {
+      const signal = params.abortSignal as AbortSignal | undefined
+      return new Promise<ProviderResult>((resolve) => {
+        if (!signal) return
+        const onAbort = (): void => {
+          resolve({
+            success: false,
+            rawResponse: {},
+            durationMs: 0,
+            error: 'Timeout (aborted)',
+          })
+        }
+        if (signal.aborted) onAbort()
+        else signal.addEventListener('abort', onAbort, { once: true })
+      })
+    },
+    async checkHealth() {
+      return { providerId: 'p', state: 'healthy', latencyMs: 0, checkedAt: '' }
+    },
+  })
+
   it('enforces preferences.timeoutMs when provider execute hangs', async () => {
-    const hangingClient: ProviderClient = {
-      providerId: 'p',
-      async execute() {
-        return new Promise<ProviderResult>(() => {})
-      },
-      async checkHealth() {
-        return { providerId: 'p', state: 'healthy', latencyMs: 0, checkedAt: '' }
-      },
-    }
     const { gateway } = buildGateway(
-      { p: hangingClient },
+      { p: signalHonoringClient() },
       [makeModel({ id: 'm', providerId: 'p' })],
     )
     const t0 = Date.now()
@@ -281,22 +295,34 @@ describe('ModelGateway', () => {
   })
 
   it('records timeout as failure in ledger and health', async () => {
-    const hangingClient: ProviderClient = {
-      providerId: 'p',
-      async execute() {
-        return new Promise<ProviderResult>(() => {})
-      },
-      async checkHealth() {
-        return { providerId: 'p', state: 'healthy', latencyMs: 0, checkedAt: '' }
-      },
-    }
     const { gateway, costLedger, healthMonitor } = buildGateway(
-      { p: hangingClient },
+      { p: signalHonoringClient() },
       [makeModel({ id: 'm', providerId: 'p' })],
     )
     await gateway.request({ ...baseRequest, preferences: { timeoutMs: 60 } })
     expect(costLedger.getTotal().failureCount).toBe(1)
     expect(healthMonitor.getHealth('p').successRate).toBe(0)
+  })
+
+  it('passes timeoutMs and abortSignal to provider client params', async () => {
+    let capturedParams: Record<string, unknown> | undefined
+    const capturingClient: ProviderClient = {
+      providerId: 'p',
+      async execute(_m, _c, params) {
+        capturedParams = params
+        return successResult
+      },
+      async checkHealth() {
+        return { providerId: 'p', state: 'healthy', latencyMs: 0, checkedAt: '' }
+      },
+    }
+    const { gateway } = buildGateway(
+      { p: capturingClient },
+      [makeModel({ id: 'm', providerId: 'p' })],
+    )
+    await gateway.request({ ...baseRequest, preferences: { timeoutMs: 500 } })
+    expect(capturedParams?.timeoutMs).toBe(500)
+    expect(capturedParams?.abortSignal).toBeInstanceOf(AbortSignal)
   })
 
   it('default-inventory provider without real client returns Provider client not available', async () => {

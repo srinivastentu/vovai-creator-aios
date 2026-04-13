@@ -1,7 +1,10 @@
-import { randomUUID } from 'node:crypto'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import type { Capability } from '../types'
+import {
+  downloadAndSave,
+  failure as sharedFailure,
+  fetchWithTimeout,
+  readErrorDetail,
+} from './shared'
 import type { HealthCheckResult, ProviderClient, ProviderResult } from './types'
 
 const PROVIDER_ID = 'fal-ai'
@@ -15,19 +18,8 @@ const ENDPOINTS: Record<string, { url: string; slug: string }> = {
   },
 }
 
-const EXT_BY_MIME: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/jpg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-}
-
-const failure = (error: string, startedAt: number): ProviderResult => ({
-  success: false,
-  rawResponse: {},
-  durationMs: Date.now() - startedAt,
-  error,
-})
+const failure = (error: string, startedAt: number): ProviderResult =>
+  sharedFailure(PROVIDER_ID, Date.now() - startedAt, error)
 
 interface FalImage {
   url: string
@@ -45,34 +37,6 @@ interface FalResponse {
 
 const buildPrompt = (prompt: string, negativePrompt?: string): string =>
   negativePrompt ? `${prompt}\n\nAvoid: ${negativePrompt}` : prompt
-
-const fetchWithTimeout = async (
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    return await fetch(url, { ...init, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-const readErrorDetail = async (res: Response): Promise<string> => {
-  try {
-    const body = (await res.json()) as { detail?: unknown }
-    if (body && typeof body.detail === 'string') return body.detail
-    return JSON.stringify(body)
-  } catch {
-    try {
-      return await res.text()
-    } catch {
-      return ''
-    }
-  }
-}
 
 export const createFalAiClient = (): ProviderClient => {
   const execute = async (
@@ -107,6 +71,8 @@ export const createFalAiClient = (): ProviderClient => {
       typeof params.outputDir === 'string' ? params.outputDir : './output/images'
     const timeoutMs =
       typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
+    const abortSignal =
+      params.abortSignal instanceof AbortSignal ? params.abortSignal : undefined
 
     const finalPrompt = buildPrompt(prompt, negativePrompt)
     const body: Record<string, unknown> = {
@@ -129,6 +95,7 @@ export const createFalAiClient = (): ProviderClient => {
           body: JSON.stringify(body),
         },
         timeoutMs,
+        abortSignal,
       )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -167,46 +134,33 @@ export const createFalAiClient = (): ProviderClient => {
     if (!image.url) return failure('Image URL missing in response', startedAt)
 
     const remaining = Math.max(1, timeoutMs - (Date.now() - startedAt))
-    let dlRes: Response
+    const mimeTypeHint = image.content_type ?? 'image/png'
     try {
-      dlRes = await fetchWithTimeout(image.url, { method: 'GET' }, remaining)
+      const saved = await downloadAndSave(
+        image.url,
+        outputDir,
+        `fal-ai-${endpoint.slug}`,
+        { timeoutMs: remaining, externalSignal: abortSignal, mimeTypeHint },
+      )
+      return {
+        success: true,
+        rawResponse: parsed as Record<string, unknown>,
+        filePath: saved.filePath,
+        dimensions: {
+          width: image.width ?? width,
+          height: image.height ?? height,
+        },
+        mimeType: saved.mimeType,
+        fileSizeBytes: saved.fileSizeBytes,
+        revisedPrompt: parsed.prompt ?? finalPrompt,
+        durationMs: Date.now() - startedAt,
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (err instanceof Error && err.name === 'AbortError') {
         return failure(`Image download timeout after ${remaining}ms`, startedAt)
       }
-      return failure(`Image download failed: ${msg}`, startedAt)
-    }
-    if (!dlRes.ok) {
-      return failure(`Image download failed: HTTP ${dlRes.status}`, startedAt)
-    }
-
-    const mimeType = image.content_type ?? 'image/png'
-    const ext = EXT_BY_MIME[mimeType] ?? 'png'
-    const filename = `fal-ai-${endpoint.slug}-${randomUUID()}.${ext}`
-    const filePath = join(outputDir, filename)
-
-    const buffer = Buffer.from(await dlRes.arrayBuffer())
-    try {
-      await mkdir(outputDir, { recursive: true })
-      await writeFile(filePath, buffer)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return failure(`Failed to save image: ${msg}`, startedAt)
-    }
-
-    return {
-      success: true,
-      rawResponse: parsed as Record<string, unknown>,
-      filePath,
-      dimensions: {
-        width: image.width ?? width,
-        height: image.height ?? height,
-      },
-      mimeType,
-      fileSizeBytes: buffer.byteLength,
-      revisedPrompt: parsed.prompt ?? finalPrompt,
-      durationMs: Date.now() - startedAt,
+      return failure(msg, startedAt)
     }
   }
 

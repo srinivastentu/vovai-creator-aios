@@ -23,6 +23,12 @@ export interface HealthCheckResult {
   error?: string
 }
 
+/**
+ * Conventional keys passed through `params` by the gateway:
+ * - `timeoutMs: number` — per-request timeout the client should use for its fetches.
+ * - `abortSignal: AbortSignal` — cancellation signal; clients SHOULD forward to
+ *   internal fetch calls so the gateway can cancel in-flight work on timeout.
+ */
 export interface ProviderClient {
   providerId: string
   execute(

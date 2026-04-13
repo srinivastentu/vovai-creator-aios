@@ -92,6 +92,7 @@ const loadDefaultInventory = (
 }
 
 const DEFAULT_GATEWAY_TIMEOUT_MS = 120_000
+const GATEWAY_SAFETY_NET_MS = 5_000
 
 const executeWithTimeout = async (
   client: ProviderClient,
@@ -100,24 +101,37 @@ const executeWithTimeout = async (
   params: Record<string, unknown>,
   timeoutMs: number,
 ): Promise<ProviderResult> => {
-  let timer: NodeJS.Timeout | undefined
+  const controller = new AbortController()
+  const augmentedParams: Record<string, unknown> = {
+    ...params,
+    timeoutMs,
+    abortSignal: controller.signal,
+  }
+
+  const raceTimeoutMs = timeoutMs + GATEWAY_SAFETY_NET_MS
+  let raceTimer: NodeJS.Timeout | undefined
+  let clientTimer: NodeJS.Timeout | undefined
+
   const timeoutPromise = new Promise<ProviderResult>((resolve) => {
-    timer = setTimeout(() => {
+    clientTimer = setTimeout(() => controller.abort(), timeoutMs)
+    raceTimer = setTimeout(() => {
       resolve({
         success: false,
         rawResponse: {},
-        durationMs: timeoutMs,
-        error: `Gateway timeout after ${timeoutMs}ms`,
+        durationMs: raceTimeoutMs,
+        error: `Gateway timeout after ${raceTimeoutMs}ms`,
       })
-    }, timeoutMs)
+    }, raceTimeoutMs)
   })
+
   try {
     return await Promise.race([
-      client.execute(modelApiId, capability, params),
+      client.execute(modelApiId, capability, augmentedParams),
       timeoutPromise,
     ])
   } finally {
-    if (timer) clearTimeout(timer)
+    if (clientTimer) clearTimeout(clientTimer)
+    if (raceTimer) clearTimeout(raceTimer)
   }
 }
 
