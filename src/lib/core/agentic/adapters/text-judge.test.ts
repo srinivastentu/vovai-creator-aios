@@ -167,6 +167,7 @@ describe('createOpenAITextJudge', () => {
     const judge = createOpenAITextJudge({
       client: mockClient(GOOD_JSON) as never,
       onCost,
+      disableAccuracyCritic: true,
     })
     await judge('x', TEXT_RUBRIC)
     expect(onCost).toHaveBeenCalledOnce()
@@ -185,7 +186,7 @@ describe('createOpenAITextJudge', () => {
       },
       async () => ({ content: GOOD_JSON }),
     ])
-    const judge = createOpenAITextJudge({ client: client as never, onCost })
+    const judge = createOpenAITextJudge({ client: client as never, onCost, disableAccuracyCritic: true })
     const grade = await judge('x', TEXT_RUBRIC)
     expect(grade.passesThreshold).toBe(true)
     expect(onCost).toHaveBeenCalledOnce()
@@ -257,6 +258,135 @@ describe('createOpenAITextJudge', () => {
     }
     const judge = createOpenAITextJudge({ client: mockClient(GOOD_JSON) as never })
     await expect(judge('x', bad)).rejects.toThrow(/invalid rubric/)
+  })
+
+  it('snaps scores to nearest 0.25', async () => {
+    const payload = JSON.stringify({
+      reasoning: 'x',
+      dimensionScores: [
+        { dimensionId: 'clarity', score: 7.1, feedback: 'f' },
+        { dimensionId: 'depth', score: 7.37, feedback: 'f' },
+        { dimensionId: 'engagement', score: 7.88, feedback: 'f' },
+        { dimensionId: 'accuracy', score: 8.12, feedback: 'f' },
+        { dimensionId: 'structure_completeness', score: 8.67, feedback: 'f' },
+      ],
+      recommendation: '',
+      improvementPriorities: [],
+    })
+    const judge = createOpenAITextJudge({
+      client: mockClient(payload) as never,
+      disableAccuracyCritic: true,
+    })
+    const grade = await judge('x', TEXT_RUBRIC)
+    const scores = grade.dimensionScores.map((d) => d.score)
+    for (const s of scores) {
+      expect((s * 4) % 1).toBe(0)
+    }
+    expect(scores).toContain(7.25)
+    expect(scores).toContain(8.75)
+  })
+
+  it('caps accuracy at 6.5 when fact auditor flags likely-wrong claims', async () => {
+    const auditor = async () => ({
+      claims: [
+        {
+          text: 'CRISPR 2021 approval',
+          kind: 'date' as const,
+          verdict: 'likely-wrong' as const,
+          reason: 'Casgevy was 2023.',
+        },
+      ],
+      likelyWrongCount: 1,
+      unverifiableRatio: 0,
+    })
+    const judge = createOpenAITextJudge({
+      client: mockClient(GOOD_JSON) as never,
+      factAuditor: auditor,
+      disableAccuracyCritic: true,
+    })
+    const grade = await judge('x', TEXT_RUBRIC)
+    const acc = grade.dimensionScores.find((d) => d.dimensionId === 'accuracy')
+    expect(acc?.score).toBe(6.5)
+    expect(acc?.feedback).toContain('capped')
+  })
+
+  it('adversarial critic lowers accuracy when it finds a worse score', async () => {
+    const criticPayload = JSON.stringify({ accuracyScore: 5, evidence: 'claim X is false' })
+    const client = mockClientSequence([
+      async () => ({ content: GOOD_JSON }),
+      async () => ({ content: criticPayload }),
+    ])
+    const judge = createOpenAITextJudge({ client: client as never })
+    const grade = await judge('some article', TEXT_RUBRIC)
+    const acc = grade.dimensionScores.find((d) => d.dimensionId === 'accuracy')
+    expect(acc?.score).toBe(5)
+    expect(acc?.feedback).toContain('critic')
+  })
+
+  it('skips critic when auditor already capped accuracy', async () => {
+    const onCost = vi.fn()
+    const auditor = async () => ({
+      claims: [
+        {
+          text: 'fake',
+          kind: 'number' as const,
+          verdict: 'likely-wrong' as const,
+          reason: 'nope',
+        },
+      ],
+      likelyWrongCount: 1,
+      unverifiableRatio: 0,
+    })
+    const judge = createOpenAITextJudge({
+      client: mockClient(GOOD_JSON) as never,
+      factAuditor: auditor,
+      onCost,
+    })
+    await judge('x', TEXT_RUBRIC)
+    // Only primary judge call → one cost event; critic must NOT fire.
+    expect(onCost).toHaveBeenCalledOnce()
+  })
+
+  it('proceeds without audit when fact auditor throws (graceful degradation)', async () => {
+    const auditor = async () => {
+      throw new Error('auditor API down')
+    }
+    const judge = createOpenAITextJudge({
+      client: mockClient(GOOD_JSON) as never,
+      factAuditor: auditor,
+      disableAccuracyCritic: true,
+    })
+    const grade = await judge('some article', TEXT_RUBRIC)
+    // Judge must succeed with the primary response untouched.
+    const acc = grade.dimensionScores.find((d) => d.dimensionId === 'accuracy')
+    expect(acc?.score).toBe(8)
+    expect(acc?.feedback).not.toContain('capped')
+  })
+
+  it('snapQuarter holds at boundaries (6.0 → 6.0, 10.0 → 10.0) and snaps 7.13 / 7.37 to nearest 0.25', async () => {
+    const payload = JSON.stringify({
+      reasoning: 'boundary test',
+      dimensionScores: [
+        { dimensionId: 'clarity', score: 6.0, feedback: 'f' },
+        { dimensionId: 'depth', score: 10.0, feedback: 'f' },
+        { dimensionId: 'engagement', score: 7.13, feedback: 'f' },
+        { dimensionId: 'accuracy', score: 7.37, feedback: 'f' },
+        { dimensionId: 'structure_completeness', score: 8.0, feedback: 'f' },
+      ],
+      recommendation: '',
+      improvementPriorities: [],
+    })
+    const judge = createOpenAITextJudge({
+      client: mockClient(payload) as never,
+      disableAccuracyCritic: true,
+    })
+    const grade = await judge('x', TEXT_RUBRIC)
+    const byId = (id: string) =>
+      grade.dimensionScores.find((d) => d.dimensionId === id)!.score
+    expect(byId('clarity')).toBe(6.0)
+    expect(byId('depth')).toBe(10.0)
+    expect(byId('engagement')).toBe(7.25)
+    expect(byId('accuracy')).toBe(7.25)
   })
 
   const liveIt = process.env.RUN_LIVE_TESTS ? it : it.skip

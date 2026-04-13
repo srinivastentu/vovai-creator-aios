@@ -3,6 +3,8 @@ import type Anthropic from '@anthropic-ai/sdk'
 import {
   buildRevisePrompt,
   createClaudeTextAdapter,
+  CITATION_HYGIENE,
+  OPENING_DE_TEMPLATING,
 } from './text-adapter'
 import type { Artifact } from './types'
 import type { GradeReport } from '../../engine/types'
@@ -92,6 +94,16 @@ describe('buildRevisePrompt', () => {
     expect(improveBlock).toContain('Tone (7/10)')
   })
 
+  it('includes PROTECT CANONICAL FACTS block in revise prompt', () => {
+    const prompt = buildRevisePrompt({
+      goal: 'Explain renewables',
+      previous: { ...prevArtifact, content: 'Solar costs fell 90% since 2010.' },
+      grade,
+    })
+    expect(prompt).toContain('PROTECT CANONICAL FACTS')
+    expect(prompt).toContain('hedge it')
+  })
+
   it('includes humanFeedback when provided', () => {
     const prompt = buildRevisePrompt({
       goal: 'g',
@@ -152,6 +164,32 @@ describe('createClaudeTextAdapter', () => {
     expect(sent).toContain('IMPROVE')
     expect(sent).toContain('Depth (5/10)')
     expect(sent).toContain('Human reviewer also said: More depth please.')
+  })
+
+  it('appends CITATION_HYGIENE + OPENING_DE_TEMPLATING to the producer system prompt by default (produce + revise)', async () => {
+    const { client, calls } = makeFakeClient(() => ({ text: 'ok' }))
+    const adapter = createClaudeTextAdapter({ client })
+    await adapter.produce({ goal: 'g', systemPrompt: 'BASE_SYS' })
+    await adapter.revise({
+      goal: 'g',
+      systemPrompt: 'BASE_SYS',
+      previous: prevArtifact,
+      grade,
+    })
+    expect(calls).toHaveLength(2)
+    for (const c of calls) {
+      expect(c.system).toContain('BASE_SYS')
+      expect(c.system).toContain(CITATION_HYGIENE)
+      expect(c.system).toContain(OPENING_DE_TEMPLATING)
+    }
+  })
+
+  it('skipDefaultAddons:true opts OUT of the default addons', async () => {
+    const { client, calls } = makeFakeClient(() => ({ text: 'ok' }))
+    const adapter = createClaudeTextAdapter({ client, skipDefaultAddons: true })
+    await adapter.produce({ goal: 'g', systemPrompt: 'BASE_SYS' })
+    expect(calls[0].system).toBe('BASE_SYS')
+    expect(calls[0].system).not.toContain(CITATION_HYGIENE)
   })
 
   it('throws a clear error when ANTHROPIC_API_KEY is missing and no client injected', () => {
