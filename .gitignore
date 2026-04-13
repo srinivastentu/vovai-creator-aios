@@ -45,3 +45,4 @@ tsconfig.tsbuildinfo
 
 # Local scratch output (live script runs, generated artifacts)
 tmp/
+.claude/scheduled_tasks.lock

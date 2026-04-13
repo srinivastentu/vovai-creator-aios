@@ -17,6 +17,12 @@ export interface RunTextLoopArgs {
   stage: TextGenerationStage
   context: TextStageContext
   onIteration?: (event: IterationEvent) => void
+  // Optional cancel hook. If it returns true between iterations, the loop
+  // exits early and returns current state. Non-breaking: omitted = never cancel.
+  onShouldCancel?: () => boolean
+  // Optional starting state. Defaults to createInitialState. Used by the
+  // review route to resume a loop after human feedback.
+  initialState?: LoopState<string>
 }
 
 export interface RunTextLoopResult {
@@ -29,15 +35,16 @@ export interface RunTextLoopResult {
 }
 
 export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopResult> {
-  const { stage, context, onIteration } = args
+  const { stage, context, onIteration, onShouldCancel, initialState } = args
 
-  let state = createInitialState<string>(stage.stage.id)
+  let state = initialState ?? createInitialState<string>(stage.stage.id)
   // Safety net: the engine already clamps at maxIterations, but bound the outer
   // loop too so a bug can't spin forever.
   const hardCap = stage.stage.maxIterations * 2 + 4
 
   let error: { iteration: number; message: string } | undefined
   for (let i = 0; i < hardCap; i++) {
+    if (onShouldCancel?.()) break
     try {
       state = await runLoop<string>(
         stage.stage,
@@ -82,6 +89,7 @@ export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopRes
     }
     if (state.status === 'presenting' || state.status === 'approved') break
     if (state.status !== 'revising') break
+    if (onShouldCancel?.()) break
   }
 
   return {
