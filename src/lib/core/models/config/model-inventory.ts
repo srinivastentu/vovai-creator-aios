@@ -93,46 +93,9 @@ export const getDefaultModels = (): ModelDefinition[] => [
     apiModelId: 'gemini-3-pro-image',
     metadata: {},
   },
-  {
-    id: 'imagen-4-fast',
-    name: 'Imagen 4 Fast',
-    providerId: 'google-gemini',
-    capabilities: ['image-generation'],
-    qualityTier: 'budget',
-    pricing: {
-      'image-generation': { costPerUnit: 0.02, unit: 'image' },
-    },
-    supportedParams: {
-      resolutions: ['1024x1024'],
-      supportsNegativePrompt: true,
-      supportsSeed: true,
-    },
-    // Disabled: Google's v1beta API rejects `imagen-4-fast` with 404 (not supported for predict).
-    // Correct Imagen model IDs on the Gemini API are versioned (e.g. `imagen-4.0-*-001`) and
-    // may require a paid tier. Re-enable once the exact apiModelId is verified against Google docs.
-    status: 'disabled',
-    apiModelId: 'imagen-4-fast',
-    metadata: {},
-  },
-  {
-    id: 'imagen-4-standard',
-    name: 'Imagen 4 Standard',
-    providerId: 'google-gemini',
-    capabilities: ['image-generation'],
-    qualityTier: 'standard',
-    pricing: {
-      'image-generation': { costPerUnit: 0.04, unit: 'image' },
-    },
-    supportedParams: {
-      resolutions: ['1024x1024', '2048x2048'],
-      supportsNegativePrompt: true,
-      supportsSeed: true,
-    },
-    // Disabled: same issue as imagen-4-fast — apiModelId does not match Google's v1beta API.
-    status: 'disabled',
-    apiModelId: 'imagen-4-standard',
-    metadata: {},
-  },
+  // Imagen 4 (fast/standard) intentionally omitted: Google's v1beta API rejects
+  // `imagen-4-fast` / `imagen-4-standard` with 404 (not supported for predict).
+  // Re-add with verified apiModelId (e.g. `imagen-4.0-*-001`) and paid-tier key.
 
   // fal.ai
   {
