@@ -1,4 +1,5 @@
 import { createFalAiClient } from '../providers/fal-ai'
+import { createFreepikClient } from '../providers/freepik'
 import { createGoogleGeminiClient } from '../providers/google-gemini'
 import { createOpenAiClient } from '../providers/openai'
 import type { ProviderClient } from '../providers/types'
@@ -13,6 +14,9 @@ export const createDefaultClients = (): Map<string, ProviderClient> => {
   }
   if (process.env.GOOGLE_GEMINI_API_KEY) {
     map.set('google-gemini', createGoogleGeminiClient())
+  }
+  if (process.env.FREEPIK_API_KEY) {
+    map.set('freepik', createFreepikClient())
   }
   return map
 }

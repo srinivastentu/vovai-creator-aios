@@ -241,6 +241,7 @@ export const getDefaultModels = (): ModelDefinition[] => [
   },
 
   // Freepik
+  // NanoBanana-via-Freepik: not exposed via Freepik REST API; use google-gemini client for NanoBanana.
   {
     id: 'freepik-nanobanan-2',
     name: 'NanoBanana 2 via Freepik',
@@ -255,7 +256,7 @@ export const getDefaultModels = (): ModelDefinition[] => [
       supportsNegativePrompt: false,
       supportsSeed: true,
     },
-    status: 'active',
+    status: 'disabled',
     apiModelId: 'nanobanana-2',
     metadata: {},
   },
@@ -273,7 +274,7 @@ export const getDefaultModels = (): ModelDefinition[] => [
       supportsNegativePrompt: false,
       supportsSeed: true,
     },
-    status: 'active',
+    status: 'disabled',
     apiModelId: 'nanobanana-pro',
     metadata: {},
   },

@@ -10,6 +10,7 @@ export type {
 } from './providers/types'
 export { getDefaultProviders, getDefaultModels } from './config/model-inventory'
 export { createFalAiClient } from './providers/fal-ai'
+export { createFreepikClient } from './providers/freepik'
 export { createGoogleGeminiClient } from './providers/google-gemini'
 export { createOpenAiClient } from './providers/openai'
 export { createCostLedger } from './cost-ledger'

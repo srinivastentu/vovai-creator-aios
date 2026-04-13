@@ -118,6 +118,199 @@ export const downloadAndSave = async (
   return { filePath, fileSizeBytes: buffer.byteLength, mimeType }
 }
 
+export interface PollOptions {
+  pollUrl: string
+  headers: Record<string, string>
+  isComplete: (body: unknown) => boolean
+  isFailed: (body: unknown) => boolean
+  extractResult: (body: unknown) => unknown
+  intervalMs?: number
+  maxIntervalMs?: number
+  backoffMultiplier?: number
+  maxAttempts?: number
+  timeoutMs?: number
+  signal?: AbortSignal
+  fetchTimeoutMs?: number
+  delay?: (ms: number, signal?: AbortSignal) => Promise<void>
+}
+
+export interface PollResult {
+  success: boolean
+  result?: unknown
+  error?: string
+  attempts: number
+  totalMs: number
+  lastBody?: unknown
+}
+
+const defaultDelay = (ms: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('Aborted'))
+      return
+    }
+    const timer = setTimeout(() => {
+      if (signal) signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      reject(new Error('Aborted'))
+    }
+    if (signal) signal.addEventListener('abort', onAbort, { once: true })
+  })
+
+export const pollUntilComplete = async (
+  opts: PollOptions,
+): Promise<PollResult> => {
+  const {
+    pollUrl,
+    headers,
+    isComplete,
+    isFailed,
+    extractResult,
+    intervalMs = 2000,
+    maxIntervalMs = 10_000,
+    backoffMultiplier = 1.5,
+    maxAttempts = 60,
+    timeoutMs,
+    signal,
+    fetchTimeoutMs = 30_000,
+    delay = defaultDelay,
+  } = opts
+
+  const startedAt = Date.now()
+  let attempts = 0
+  let currentInterval = intervalMs
+  let lastBody: unknown
+
+  if (signal?.aborted) {
+    return { success: false, error: 'Aborted', attempts: 0, totalMs: 0 }
+  }
+
+  while (attempts < maxAttempts) {
+    if (attempts > 0) {
+      try {
+        await delay(currentInterval, signal)
+      } catch {
+        return {
+          success: false,
+          error: 'Aborted',
+          attempts,
+          totalMs: Date.now() - startedAt,
+          lastBody,
+        }
+      }
+      currentInterval = Math.min(
+        Math.round(currentInterval * backoffMultiplier),
+        maxIntervalMs,
+      )
+    }
+
+    if (signal?.aborted) {
+      return {
+        success: false,
+        error: 'Aborted',
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody,
+      }
+    }
+
+    if (timeoutMs !== undefined && Date.now() - startedAt >= timeoutMs) {
+      return {
+        success: false,
+        error: `Poll timeout after ${timeoutMs}ms`,
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody,
+      }
+    }
+
+    attempts += 1
+
+    let res: Response
+    try {
+      res = await fetchWithTimeout(
+        pollUrl,
+        { method: 'GET', headers },
+        fetchTimeoutMs,
+        signal,
+      )
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return {
+          success: false,
+          error: 'Aborted',
+          attempts,
+          totalMs: Date.now() - startedAt,
+          lastBody,
+        }
+      }
+      return {
+        success: false,
+        error: `Network error: ${err instanceof Error ? err.message : String(err)}`,
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody,
+      }
+    }
+
+    if (!res.ok) {
+      const detail = await readErrorDetail(res)
+      return {
+        success: false,
+        error: `HTTP ${res.status}: ${detail}`,
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody,
+      }
+    }
+
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch (err) {
+      return {
+        success: false,
+        error: `Invalid JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody,
+      }
+    }
+    lastBody = body
+
+    if (isFailed(body)) {
+      return {
+        success: false,
+        error: 'Task failed',
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody: body,
+      }
+    }
+
+    if (isComplete(body)) {
+      return {
+        success: true,
+        result: extractResult(body),
+        attempts,
+        totalMs: Date.now() - startedAt,
+        lastBody: body,
+      }
+    }
+  }
+
+  return {
+    success: false,
+    error: 'Max attempts reached',
+    attempts,
+    totalMs: Date.now() - startedAt,
+    lastBody,
+  }
+}
+
 export const saveBase64ToDisk = async (
   base64Data: string,
   outputDir: string,
