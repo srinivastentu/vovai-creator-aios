@@ -157,10 +157,13 @@ export function createTournamentRunner(
       }
 
       // 1. Generate in parallel.
+      const dimParams: Record<string, unknown> = {}
+      if (typeof config.width === 'number') dimParams.width = config.width
+      if (typeof config.height === 'number') dimParams.height = config.height
       const responses = await gateway.requestMultiple(
         {
           capability: 'image-generation',
-          params: { prompt: currentPrompt },
+          params: { prompt: currentPrompt, ...dimParams },
           preferences: { timeoutMs: config.timeoutPerModelMs },
           context: { ...mergedContext, tournamentRound: round },
         },

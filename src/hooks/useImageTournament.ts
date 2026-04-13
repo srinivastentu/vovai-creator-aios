@@ -29,6 +29,8 @@ export interface TournamentConfigInput {
   maxRounds?: number
   threshold?: number
   topN?: number
+  width?: number
+  height?: number
 }
 
 export interface FeedEntry {

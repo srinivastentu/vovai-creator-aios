@@ -15,6 +15,22 @@ import {
   useImageTournament,
   type ClientEntry,
 } from '@/hooks/useImageTournament'
+import { pickClosestResolution, resolutionsEqual } from '@/lib/core/models/resolution-utils'
+
+interface FormatPreset {
+  id: string
+  name: string
+  width: number
+  height: number
+}
+
+const FORMAT_PRESETS: FormatPreset[] = [
+  { id: 'square', name: 'Square', width: 1024, height: 1024 },
+  { id: 'landscape-hd', name: 'Landscape HD', width: 1792, height: 1024 },
+  { id: 'full-hd', name: 'Full HD', width: 1920, height: 1080 },
+  { id: 'portrait', name: 'Portrait', width: 1024, height: 1792 },
+  { id: 'widescreen', name: 'Widescreen', width: 1280, height: 720 }
+]
 
 function slugifyPrompt(s: string): string {
   return (
@@ -45,6 +61,7 @@ interface AvailableModel {
   providerId: string
   qualityTier: string
   status: string
+  resolutions: string[]
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -67,6 +84,7 @@ export default function ImageGeneratePage() {
   const [maxRounds, setMaxRounds] = useState(2)
   const [threshold, setThreshold] = useState(7.5)
   const [topN, setTopN] = useState(2)
+  const [formatId, setFormatId] = useState<string>('square')
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
@@ -100,15 +118,22 @@ export default function ImageGeneratePage() {
   const canGenerate =
     prompt.trim().length > 0 && selected.size > 0 && !running
 
+  const format =
+    FORMAT_PRESETS.find((p) => p.id === formatId) ?? FORMAT_PRESETS[0]
+
+  const generateOpts = () => ({
+    modelIds: Array.from(selected),
+    maxRounds,
+    threshold,
+    topN,
+    width: format.width,
+    height: format.height,
+  })
+
   const onGenerate = () => {
     if (!canGenerate) return
     setExpandedEntry(null)
-    generate(prompt, {
-      modelIds: Array.from(selected),
-      maxRounds,
-      threshold,
-      topN,
-    })
+    generate(prompt, generateOpts())
   }
 
   const onRegenerateWithFeedback = () => {
@@ -119,12 +144,7 @@ export default function ImageGeneratePage() {
     setFeedback('')
     setShowFeedback(false)
     setExpandedEntry(null)
-    generate(newPrompt, {
-      modelIds: Array.from(selected),
-      maxRounds,
-      threshold,
-      topN,
-    })
+    generate(newPrompt, generateOpts())
   }
 
   const toggleModel = (id: string) => {
@@ -227,6 +247,16 @@ export default function ImageGeneratePage() {
           <div className="flex flex-wrap gap-2">
             {models.map((m) => {
               const on = selected.has(m.id)
+              const closest = pickClosestResolution(m.resolutions, {
+                width: format.width,
+                height: format.height,
+              })
+              const downgraded =
+                closest !== null &&
+                !resolutionsEqual(closest, {
+                  width: format.width,
+                  height: format.height,
+                })
               return (
                 <button
                   key={m.id}
@@ -238,7 +268,11 @@ export default function ImageGeneratePage() {
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border hover:bg-muted'
                   }`}
-                  title={`${m.providerId} · ${m.qualityTier}`}
+                  title={
+                    downgraded
+                      ? `${m.providerId} · ${m.qualityTier} — will produce ${closest!.width}×${closest!.height} (closest supported)`
+                      : `${m.providerId} · ${m.qualityTier}`
+                  }
                 >
                   <span className="font-medium">{m.name}</span>
                   <span className="ml-2 text-muted-foreground">
@@ -247,6 +281,11 @@ export default function ImageGeneratePage() {
                   <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
                     {m.qualityTier}
                   </span>
+                  {downgraded && (
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                      ↓ {closest!.width}×{closest!.height}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -265,7 +304,42 @@ export default function ImageGeneratePage() {
           </button>
         </CardHeader>
         {advanced && (
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <CardContent className="space-y-4">
+            <div>
+              <div className="mb-2 text-sm font-medium">Format</div>
+              <div className="flex flex-wrap gap-2">
+                {FORMAT_PRESETS.map((p) => {
+                  const on = p.id === formatId
+                  const ratio = p.width / p.height
+                  const w = ratio >= 1 ? 28 : Math.round(28 * ratio)
+                  const h = ratio >= 1 ? Math.round(28 / ratio) : 28
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setFormatId(p.id)}
+                      disabled={running}
+                      className={`flex min-w-[120px] flex-col items-center gap-1.5 rounded-md border px-3 py-2 text-xs transition-colors ${
+                        on
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border hover:bg-muted'
+                      }`}
+                    >
+                      <div
+                        aria-hidden
+                        className={`rounded-sm border ${on ? 'border-primary bg-primary/30' : 'border-foreground/40 bg-foreground/10'}`}
+                        style={{ width: `${w}px`, height: `${h}px` }}
+                      />
+                      <div className="font-medium">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {p.width}×{p.height}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <label className="flex flex-col gap-1 text-sm">
               <span>Max rounds</span>
               <input
@@ -303,6 +377,7 @@ export default function ImageGeneratePage() {
                 className="rounded border border-border bg-background px-2 py-1"
               />
             </label>
+            </div>
           </CardContent>
         )}
       </Card>
@@ -402,14 +477,7 @@ export default function ImageGeneratePage() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() =>
-                  generate(prompt, {
-                    modelIds: Array.from(selected),
-                    maxRounds,
-                    threshold,
-                    topN,
-                  })
-                }
+                onClick={() => generate(prompt, generateOpts())}
               >
                 Regenerate (same prompt)
               </Button>

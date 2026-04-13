@@ -13,6 +13,7 @@ import { getDefaultGateway } from '@/lib/core/models/default-gateway'
 import { createImageJudge } from '@/lib/core/agentic/judges/image-judge'
 import { imageRubric } from '@/lib/core/agentic/judges/image-rubric'
 import { createImageValidators } from '@/lib/core/agentic/validators/image-validators'
+import { pickClosestResolution, resolutionsEqual } from '@/lib/core/models/resolution-utils'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,6 +25,8 @@ const bodySchema = z.object({
   threshold: z.number().min(5).max(10).optional(),
   topN: z.number().int().min(1).max(3).optional(),
   timeoutPerModelMs: z.number().int().min(10_000).max(300_000).optional(),
+  width: z.number().int().min(256).max(4096).optional(),
+  height: z.number().int().min(256).max(4096).optional(),
 })
 
 const DEFAULTS = {
@@ -112,12 +115,39 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(`Unknown model IDs: ${invalid.join(', ')}`, 400)
   }
 
+  const targetWidth = parsed.data.width ?? 1024
+  const targetHeight = parsed.data.height ?? 1024
+  const target = { width: targetWidth, height: targetHeight }
+
+  const requestedModels = available.filter((m) => requested.includes(m.id))
+  const resolutionPlan = requestedModels.map((m) => {
+    const closest = pickClosestResolution(m.supportedParams.resolutions, target)
+    const effective = closest ?? target
+    return {
+      modelId: m.id,
+      requested: target,
+      effective,
+      downgraded: closest !== null && !resolutionsEqual(effective, target),
+    }
+  })
+
+  const minWidth = Math.min(
+    ...resolutionPlan.map((p) => p.effective.width),
+    targetWidth,
+  )
+  const minHeight = Math.min(
+    ...resolutionPlan.map((p) => p.effective.height),
+    targetHeight,
+  )
+
   const config: TournamentConfig = {
     modelIds: requested,
     maxRounds: parsed.data.maxRounds ?? DEFAULTS.maxRounds,
     threshold: parsed.data.threshold ?? DEFAULTS.threshold,
     topN: parsed.data.topN ?? DEFAULTS.topN,
     timeoutPerModelMs: parsed.data.timeoutPerModelMs ?? DEFAULTS.timeoutPerModelMs,
+    width: targetWidth,
+    height: targetHeight,
   }
 
   let judgeCostUsd = 0
@@ -126,7 +156,12 @@ export async function POST(request: Request): Promise<Response> {
       judgeCostUsd += e.costUsd
     },
   })
-  const validators = createImageValidators()
+  const validators = createImageValidators({
+    minWidth,
+    minHeight,
+    minWidescreenWidth: minWidth,
+    minWidescreenHeight: minHeight,
+  })
 
   const sse = createSSEStream()
 
@@ -140,7 +175,7 @@ export async function POST(request: Request): Promise<Response> {
     })
   }
 
-  sse.send('session', { prompt: parsed.data.prompt, config })
+  sse.send('session', { prompt: parsed.data.prompt, config, resolutionPlan })
 
   ;(async () => {
     try {

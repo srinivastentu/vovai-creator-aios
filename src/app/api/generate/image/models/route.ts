@@ -11,6 +11,7 @@ export async function GET(): Promise<Response> {
     providerId: m.providerId,
     qualityTier: m.qualityTier,
     status: m.status,
+    resolutions: m.supportedParams.resolutions ?? [],
   }))
 
   return new Response(

@@ -18,6 +18,8 @@ export interface TournamentConfig {
   threshold: number
   topN: number
   timeoutPerModelMs: number
+  width?: number
+  height?: number
 }
 
 export interface ValidatorOutcome {
