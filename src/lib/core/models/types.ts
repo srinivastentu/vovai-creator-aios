@@ -165,6 +165,8 @@ export interface CostSummary {
   callCount: number
   successCount: number
   failureCount: number
+  avgCostUsd: number
+  successRate: number
   totalTokensIn: number
   totalTokensOut: number
   totalDurationMs: number
@@ -182,7 +184,7 @@ export interface ModelCostSummary {
 
 export interface HealthStatus {
   providerId: string
-  state: HealthState
+  status: HealthState
   successRate: number
   avgLatencyMs: number
   sampleSize: number

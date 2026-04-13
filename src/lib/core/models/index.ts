@@ -9,3 +9,13 @@ export type {
   HealthCheckResult,
 } from './providers/types'
 export { getDefaultProviders, getDefaultModels } from './config/model-inventory'
+export { createCostLedger } from './cost-ledger'
+export type { CostLedger, CostLedgerFilter, CostLedgerOptions } from './cost-ledger'
+export { createRateLimiter } from './rate-limiter'
+export type { RateLimiter } from './rate-limiter'
+export { createHealthMonitor } from './health-monitor'
+export type { HealthMonitor, HealthMonitorOptions } from './health-monitor'
+export { createModelRouter } from './router'
+export type { ModelRouter, ModelRouterDeps, ResolvedModel } from './router'
+export { createModelGateway } from './gateway'
+export type { ModelGateway, ModelGatewayDeps } from './gateway'

@@ -32,17 +32,24 @@ export const createModelCatalog = (): ModelCatalog => {
     models.set(definition.id, definition)
   }
 
-  const getModel = (id: string): ModelDefinition | undefined => models.get(id)
+  const clone = (m: ModelDefinition): ModelDefinition => structuredClone(m)
+
+  const getModel = (id: string): ModelDefinition | undefined => {
+    const m = models.get(id)
+    return m ? clone(m) : undefined
+  }
 
   const findModels = (filter: CatalogFilter): ModelDefinition[] => {
     const all = Array.from(models.values())
-    return all.filter((m) => {
-      if (filter.capability && !m.capabilities.includes(filter.capability)) return false
-      if (filter.providerId && m.providerId !== filter.providerId) return false
-      if (filter.qualityTier && m.qualityTier !== filter.qualityTier) return false
-      if (filter.status && m.status !== filter.status) return false
-      return true
-    })
+    return all
+      .filter((m) => {
+        if (filter.capability && !m.capabilities.includes(filter.capability)) return false
+        if (filter.providerId && m.providerId !== filter.providerId) return false
+        if (filter.qualityTier && m.qualityTier !== filter.qualityTier) return false
+        if (filter.status && m.status !== filter.status) return false
+        return true
+      })
+      .map(clone)
   }
 
   const getModelsForCapability = (capability: Capability): ModelDefinition[] =>
@@ -51,7 +58,7 @@ export const createModelCatalog = (): ModelCatalog => {
   const getModelsForProvider = (providerId: string): ModelDefinition[] =>
     findModels({ providerId })
 
-  const listAll = (): ModelDefinition[] => Array.from(models.values())
+  const listAll = (): ModelDefinition[] => Array.from(models.values()).map(clone)
 
   const updateStatus = (modelId: string, status: ModelStatus): void => {
     const existing = models.get(modelId)
