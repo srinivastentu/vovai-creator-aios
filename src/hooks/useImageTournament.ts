@@ -99,10 +99,13 @@ function describeEvent(ev: TournamentEvent): string {
   }
 }
 
+type GenerateOpts = { modelIds?: string[] } & TournamentConfigInput
+
 export function useImageTournament() {
   const [state, setState] = useState<ImageTournamentState>(INITIAL)
   const abortRef = useRef<AbortController | null>(null)
   const gotResultRef = useRef(false)
+  const lastRunRef = useRef<{ prompt: string; opts: GenerateOpts } | null>(null)
 
   const handle = useCallback((eventName: string, data: unknown) => {
     if (eventName === 'session') {
@@ -219,13 +222,11 @@ export function useImageTournament() {
   )
 
   const generate = useCallback(
-    async (
-      prompt: string,
-      opts: { modelIds?: string[] } & TournamentConfigInput = {}
-    ) => {
+    async (prompt: string, opts: GenerateOpts = {}) => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
+      lastRunRef.current = { prompt, opts }
       setState({ ...INITIAL, status: 'starting', prompt })
       try {
         const response = await fetch('/api/generate/image', {
@@ -272,5 +273,32 @@ export function useImageTournament() {
     setState((p) => ({ ...p, status: 'approved' }))
   }, [])
 
-  return { state, generate, cancel, reset, approve }
+  const regenerate = useCallback(async () => {
+    const last = lastRunRef.current
+    if (!last) return
+    await generate(last.prompt, last.opts)
+  }, [generate])
+
+  const regenerateWithFeedback = useCallback(
+    async (feedback: string) => {
+      const last = lastRunRef.current
+      if (!last) return
+      const trimmed = feedback.trim()
+      const nextPrompt = trimmed
+        ? `${last.prompt}\n\nUser guidance: ${trimmed}`
+        : last.prompt
+      await generate(nextPrompt, last.opts)
+    },
+    [generate]
+  )
+
+  return {
+    state,
+    generate,
+    cancel,
+    reset,
+    approve,
+    regenerate,
+    regenerateWithFeedback,
+  }
 }

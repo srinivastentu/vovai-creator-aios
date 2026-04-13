@@ -74,7 +74,15 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 export default function ImageGeneratePage() {
-  const { state, generate, cancel, reset, approve } = useImageTournament()
+  const {
+    state,
+    generate,
+    cancel,
+    reset,
+    approve,
+    regenerate,
+    regenerateWithFeedback,
+  } = useImageTournament()
   const [prompt, setPrompt] = useState('')
   const [models, setModels] = useState<AvailableModel[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -138,13 +146,10 @@ export default function ImageGeneratePage() {
 
   const onRegenerateWithFeedback = () => {
     const trimmed = feedback.trim()
-    const newPrompt = trimmed
-      ? `${prompt}\n\nUser guidance: ${trimmed}`
-      : prompt
     setFeedback('')
     setShowFeedback(false)
     setExpandedEntry(null)
-    generate(newPrompt, generateOpts())
+    regenerateWithFeedback(trimmed)
   }
 
   const onNewSession = () => {
@@ -500,7 +505,7 @@ export default function ImageGeneratePage() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => generate(prompt, generateOpts())}
+                    onClick={() => regenerate()}
                   >
                     Regenerate (same prompt)
                   </Button>
@@ -794,13 +799,21 @@ function FullscreenDialog({
         </DialogDescription>
         {entry && url && (
           <div className="flex max-h-[90vh] flex-col">
-            <div className="flex items-center justify-center bg-black/90 p-2">
+            <div className="relative flex items-center justify-center bg-black/90 p-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={url}
                 alt={`${entry.modelId} round ${entry.round}`}
                 className="max-h-[65vh] max-w-full object-contain"
               />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/70 text-white ring-1 ring-white/20 hover:bg-black/90 focus:outline-none focus:ring-2 focus:ring-white/60"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
             </div>
             <div className="max-h-[25vh] overflow-y-auto p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -861,6 +874,25 @@ function DownloadIcon({ className }: { className?: string }) {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  )
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   )
 }
