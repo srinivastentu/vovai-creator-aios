@@ -6,9 +6,38 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
   useImageTournament,
   type ClientEntry,
 } from '@/hooks/useImageTournament'
+
+function slugifyPrompt(s: string): string {
+  return (
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 30)
+      .replace(/-+$/g, '') || 'image'
+  )
+}
+
+function extFromUrl(url: string): string {
+  const last = decodeURIComponent(url.split('/').pop() ?? '')
+  const m = /\.([a-z0-9]+)$/i.exec(last)
+  return m ? m[1].toLowerCase() : 'png'
+}
+
+function downloadFilename(entry: ClientEntry): string {
+  const slug = slugifyPrompt(entry.artifact?.prompt ?? '')
+  const ext = entry.imageUrl ? extFromUrl(entry.imageUrl) : 'png'
+  return `${slug}-${entry.modelId}-r${entry.round}.${ext}`
+}
 
 interface AvailableModel {
   id: string
@@ -41,6 +70,7 @@ export default function ImageGeneratePage() {
   const [showFeedback, setShowFeedback] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
+  const [fullscreen, setFullscreen] = useState<ClientEntry | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -330,6 +360,7 @@ export default function ImageGeneratePage() {
                 onToggle={() =>
                   setExpandedEntry((prev) => (prev === key ? null : key))
                 }
+                onOpenFullscreen={() => setFullscreen(entry)}
               />
             )
           })}
@@ -349,6 +380,19 @@ export default function ImageGeneratePage() {
               >
                 Approve winner
               </Button>
+              {(() => {
+                const w = state.result.winner ?? state.result.bestEntry
+                if (!w || !w.imageUrl) return null
+                return (
+                  <a
+                    href={w.imageUrl}
+                    download={downloadFilename(w)}
+                    className="inline-flex items-center gap-1 rounded-md border border-primary bg-primary/5 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
+                  >
+                    <DownloadIcon className="h-4 w-4" /> Download winner
+                  </a>
+                )
+              })()}
               <Button
                 variant="outline"
                 onClick={() => setShowFeedback((v) => !v)}
@@ -414,6 +458,11 @@ export default function ImageGeneratePage() {
         </Card>
       )}
 
+      <FullscreenDialog
+        entry={fullscreen}
+        onClose={() => setFullscreen(null)}
+      />
+
       {state.status === 'failed' && (
         <Card className="border-destructive">
           <CardContent className="pt-6 space-y-2">
@@ -438,11 +487,13 @@ function ImageCard({
   isWinner,
   expanded,
   onToggle,
+  onOpenFullscreen,
 }: {
   entry: ClientEntry
   isWinner: boolean
   expanded: boolean
   onToggle: () => void
+  onOpenFullscreen: () => void
 }) {
   const url = entry.imageUrl
   const genOk = entry.gatewayResponse?.success && !!url
@@ -464,12 +515,19 @@ function ImageCard({
     >
       <div className="relative aspect-square w-full bg-muted">
         {url && genOk ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={url}
-            alt={`${entry.modelId} round ${entry.round}`}
-            className="h-full w-full object-cover"
-          />
+          <button
+            type="button"
+            onClick={onOpenFullscreen}
+            aria-label="View full size"
+            className="group block h-full w-full cursor-zoom-in"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt={`${entry.modelId} round ${entry.round}`}
+              className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
+            />
+          </button>
         ) : (
           <div className="flex h-full w-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
             {errorReason ?? 'No image'}
@@ -479,6 +537,18 @@ function ImageCard({
           <div className="absolute left-2 top-2 rounded bg-green-600 px-2 py-0.5 text-xs font-semibold text-white">
             Winner
           </div>
+        )}
+        {url && genOk && (
+          <a
+            href={url}
+            download={downloadFilename(entry)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Download image"
+            title="Download"
+            className="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-md bg-black/50 text-white backdrop-blur-sm transition-colors hover:bg-black/70"
+          >
+            <DownloadIcon className="h-4 w-4" />
+          </a>
         )}
       </div>
       <CardContent className="space-y-2 pt-4">
@@ -548,5 +618,98 @@ function ImageCard({
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+function FullscreenDialog({
+  entry,
+  onClose,
+}: {
+  entry: ClientEntry | null
+  onClose: () => void
+}) {
+  const open = entry !== null
+  const url = entry?.imageUrl ?? null
+  const grade = entry?.grade ?? null
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose() }}>
+      <DialogContent className="max-h-[90vh] max-w-[90vw] w-auto overflow-hidden p-0 gap-0">
+        <DialogTitle className="sr-only">
+          {entry ? `${entry.modelId} — round ${entry.round}` : 'Image preview'}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Full-size generated image with grade breakdown.
+        </DialogDescription>
+        {entry && url && (
+          <div className="flex max-h-[90vh] flex-col">
+            <div className="flex items-center justify-center bg-black/90 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={url}
+                alt={`${entry.modelId} round ${entry.round}`}
+                className="max-h-[65vh] max-w-full object-contain"
+              />
+            </div>
+            <div className="max-h-[25vh] overflow-y-auto p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold">{entry.modelId}</div>
+                  <div className="text-xs text-muted-foreground">
+                    Round {entry.round}
+                    {grade && ` · score ${grade.overallScore.toFixed(2)}/10`}
+                  </div>
+                </div>
+                <a
+                  href={url}
+                  download={downloadFilename(entry)}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <DownloadIcon className="h-4 w-4" /> Download
+                </a>
+              </div>
+              {grade && (
+                <div className="space-y-1 text-xs">
+                  {grade.dimensionScores.map((d) => (
+                    <div key={d.dimensionId} className="flex justify-between">
+                      <span className="font-medium">{d.name}</span>
+                      <span className="font-mono">
+                        {d.score.toFixed(2)} · w{d.weight}
+                      </span>
+                    </div>
+                  ))}
+                  {grade.recommendation && (
+                    <div className="pt-1">
+                      <span className="font-medium">Verdict:</span>{' '}
+                      {grade.recommendation}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
   )
 }
