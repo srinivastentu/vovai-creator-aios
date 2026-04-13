@@ -83,7 +83,7 @@ export const TEXT_RUBRIC: RubricDefinition = {
         'Incomplete or poorly organized.',
         'Competent structure; covers the ask.',
         'Professional organization; nothing missing.',
-        'Exceptional structure; every section earns its place.'
+        'Structure fits the topic (timeline for historical, mechanism-flow for process, comparison-structure for vs-articles, claim-evidence for argumentative) — not a generic H2 skeleton.'
       ),
     },
   ],

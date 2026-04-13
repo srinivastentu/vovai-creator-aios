@@ -15,6 +15,8 @@ import type { Artifact, ProducerAdapter } from '../adapters/types'
 import { createClaudeTextAdapter } from '../adapters/text-adapter'
 import { createOpenAITextJudge } from '../adapters/text-judge'
 import type { JudgeCostEvent } from '../adapters/text-judge'
+import { createTextFactAuditor } from '../adapters/text-fact-auditor'
+import type { FactAuditorCostEvent } from '../adapters/text-fact-auditor'
 import { TEXT_RUBRIC } from '../rubrics/text-rubric'
 import { createTextValidators, toStageValidator } from '../validators'
 import type { TextValidatorOptions, Validator } from '../validators'
@@ -35,7 +37,7 @@ export interface ProducerCostEvent {
 }
 
 export interface TextStageCostEvent {
-  source: 'producer' | 'judge'
+  source: 'producer' | 'judge' | 'auditor'
   model: string
   tokensIn: number
   tokensOut: number
@@ -54,6 +56,12 @@ export interface TextGenerationStageOptions {
   validatorOptions?: TextValidatorOptions
   agents?: AgentConfig[]
   onCost?: (event: TextStageCostEvent) => void
+  /** Run a GPT-4o-mini fact auditor before the judge. Default true. */
+  factAudit?: boolean
+  /** If v ≥ threshold but any dimension < elevateThreshold, force one more iteration. */
+  elevateThreshold?: number
+  /** Cumulative cost ceiling (USD). If next iteration would exceed, skip elevate. */
+  costCeilingUSD?: number
 }
 
 export interface TextGenerationStage {
@@ -95,9 +103,25 @@ export function createTextGenerationStage(
 
   const producer: ProducerAdapter<string> = opts.producer ?? createClaudeTextAdapter()
 
+  const factAuditEnabled = opts.factAudit ?? true
+  const auditorFn =
+    !opts.judge && factAuditEnabled
+      ? createTextFactAuditor({
+          onCost: (e: FactAuditorCostEvent) =>
+            emit({
+              source: 'auditor',
+              model: e.model,
+              tokensIn: e.tokensIn,
+              tokensOut: e.tokensOut,
+              costUSD: e.costUSD,
+            }),
+        })
+      : undefined
+
   const judgeFn: JudgeFunction =
     opts.judge ??
     createOpenAITextJudge({
+      factAuditor: auditorFn,
       onCost: (e: JudgeCostEvent) =>
         emit({
           source: 'judge',
@@ -166,6 +190,23 @@ export function createTextGenerationStage(
     return fresh.content
   }
 
+  const elevateThreshold = opts.elevateThreshold
+  const costCeilingUSD = opts.costCeilingUSD
+
+  const shouldContinue = (state: LoopState<string>): boolean => {
+    if (elevateThreshold === undefined) return false
+    const last = state.iterations[state.iterations.length - 1]
+    const grade = last?.grade
+    if (!grade) return false
+    // Only elevate if overall already passed threshold but some dim is below elevate.
+    const minDim = Math.min(...grade.dimensionScores.map((d) => d.score))
+    if (minDim >= elevateThreshold) return false
+    // Budget check: skip elevate only if we've already hit the ceiling.
+    // Accept one overrun rather than forfeit the elevate at the boundary.
+    if (costCeilingUSD !== undefined && totalCostUSD >= costCeilingUSD) return false
+    return true
+  }
+
   const stage: LoopStage<string> = {
     id,
     agents,
@@ -175,6 +216,7 @@ export function createTextGenerationStage(
     minIterations,
     loopPattern: 'standard',
     validator: toStageValidator<string>(validators as Validator<string>[]),
+    shouldContinue,
   }
 
   return {

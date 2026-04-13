@@ -104,6 +104,13 @@ export interface LoopStage<T> {
   minIterations: number
   loopPattern: 'standard' | 'strategic' | 'tournament' | 'nested'
   validator?: (artifact: T) => ValidationResult
+  /**
+   * Optional hook: called after the standard threshold check when the engine
+   * is about to transition to 'presenting'. Returning true forces another
+   * iteration (still bounded by maxIterations). Returning false or undefined
+   * preserves default behavior. Domain-agnostic — the stage decides the rule.
+   */
+  shouldContinue?: (state: LoopState<T>) => boolean
 }
 
 export interface LoopState<T> {
@@ -138,7 +145,15 @@ export type AgentExecutor = (
   state: LoopState<unknown>
 ) => Promise<unknown>
 
+export interface JudgeContext {
+  previous?: {
+    artifact: unknown
+    grade: GradeReport
+  }
+}
+
 export type JudgeFunction = (
   artifact: unknown,
-  rubric: RubricDefinition
+  rubric: RubricDefinition,
+  context?: JudgeContext
 ) => Promise<GradeReport>

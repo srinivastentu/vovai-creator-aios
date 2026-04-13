@@ -1,0 +1,10 @@
+{
+  "topic": "The history of the printing press and its impact on society",
+  "facts": [
+    { "claim": "Gutenberg Bible year", "value": "1455", "tolerance": "exact" },
+    { "claim": "Total books printed in Europe 1450-1500 (incunabula)", "value": "8-20 million", "tolerance": "range" },
+    { "claim": "Gutenberg operating in Mainz", "value": "Mainz", "tolerance": "exact" },
+    { "claim": "Movable type (earlier, China — Bi Sheng)", "value": "c.1040", "tolerance": "exact" },
+    { "claim": "95 Theses posted year", "value": "1517", "tolerance": "exact" }
+  ]
+}

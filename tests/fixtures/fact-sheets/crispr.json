@@ -1,0 +1,10 @@
+{
+  "topic": "How CRISPR gene editing works and its ethical implications",
+  "facts": [
+    { "claim": "Casgevy approval year", "value": "2023", "tolerance": "exact" },
+    { "claim": "Doudna/Charpentier Nobel year", "value": "2020", "tolerance": "exact" },
+    { "claim": "He Jiankui prison sentence", "value": "3 years", "tolerance": "exact" },
+    { "claim": "Prime editing announcement year", "value": "2019", "tolerance": "exact" },
+    { "claim": "Original CRISPR-Cas9 paper year", "value": "2012", "tolerance": "exact" }
+  ]
+}

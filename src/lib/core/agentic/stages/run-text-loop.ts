@@ -10,6 +10,7 @@ export interface IterationEvent {
   score: number
   dimensionScores: { dimensionId: string; name: string; score: number }[]
   validationFailed: boolean
+  artifact: string | null
 }
 
 export interface RunTextLoopArgs {
@@ -24,6 +25,7 @@ export interface RunTextLoopResult {
   iterations: IterationRecord[]
   totalCostUSD: number
   finalState: LoopState<string>
+  error?: { iteration: number; message: string }
 }
 
 export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopResult> {
@@ -34,14 +36,26 @@ export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopRes
   // loop too so a bug can't spin forever.
   const hardCap = stage.stage.maxIterations * 2 + 4
 
+  let error: { iteration: number; message: string } | undefined
   for (let i = 0; i < hardCap; i++) {
-    state = await runLoop<string>(
-      stage.stage,
-      state,
-      context,
-      stage.executor,
-      stage.judge
-    )
+    try {
+      state = await runLoop<string>(
+        stage.stage,
+        state,
+        context,
+        stage.executor,
+        stage.judge
+      )
+    } catch (err) {
+      // Preserve best artifact from prior iterations; escalate to human.
+      error = {
+        iteration: state.iterations.length + 1,
+        message: err instanceof Error ? err.message : String(err),
+      }
+      if (state.bestArtifact === null) throw err
+      state = { ...state, status: 'presenting' }
+      break
+    }
     const latest = state.iterations[state.iterations.length - 1]
     if (latest) {
       onIteration?.({
@@ -54,6 +68,7 @@ export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopRes
             score: d.score,
           })) ?? [],
         validationFailed: false,
+        artifact: (state.currentArtifact as string | null) ?? null,
       })
     } else {
       // Validator failed — no iteration recorded, but status is revising.
@@ -62,6 +77,7 @@ export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopRes
         score: 0,
         dimensionScores: [],
         validationFailed: true,
+        artifact: (state.currentArtifact as string | null) ?? null,
       })
     }
     if (state.status === 'presenting' || state.status === 'approved') break
@@ -74,5 +90,6 @@ export async function runTextLoop(args: RunTextLoopArgs): Promise<RunTextLoopRes
     iterations: state.iterations,
     totalCostUSD: stage.getTotalCostUSD(),
     finalState: state,
+    ...(error ? { error } : {}),
   }
 }

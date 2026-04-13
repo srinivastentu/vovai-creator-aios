@@ -184,7 +184,7 @@ describe('evaluate', () => {
     await evaluate(mockArtifact, rubric, judgeSpy)
 
     expect(judgeSpy).toHaveBeenCalledOnce()
-    expect(judgeSpy).toHaveBeenCalledWith(mockArtifact, rubric)
+    expect(judgeSpy).toHaveBeenCalledWith(mockArtifact, rubric, undefined)
   })
 
   it('b. returns GradeReport from judge', async () => {
@@ -326,6 +326,36 @@ describe('runLoop', () => {
     expect(record.version).toBe(1)
     expect(record.grade).not.toBeNull()
     expect(record.grade?.overallScore).toBe(80)
+  })
+
+  it('shouldContinue hook forces another iteration even when threshold met', async () => {
+    const stage = createTestStage({
+      threshold: 75,
+      minIterations: 1,
+      maxIterations: 3,
+      shouldContinue: (s) => s.loopCount < 2,
+    })
+    let state = createInitialState<TestArtifact>('stage-1')
+    state = await runLoop(stage, state, {}, mockAgentExecutor, createMockJudge(90))
+    // loopCount=1, threshold met, but shouldContinue says keep going.
+    expect(state.status).toBe('revising')
+    state = await runLoop(stage, state, {}, mockAgentExecutor, createMockJudge(90))
+    // loopCount=2, shouldContinue now returns false → presenting.
+    expect(state.status).toBe('presenting')
+  })
+
+  it('shouldContinue still respects maxIterations', async () => {
+    const stage = createTestStage({
+      threshold: 75,
+      minIterations: 1,
+      maxIterations: 2,
+      shouldContinue: () => true, // always wants more
+    })
+    let state = createInitialState<TestArtifact>('stage-1')
+    state = await runLoop(stage, state, {}, mockAgentExecutor, createMockJudge(90))
+    state = await runLoop(stage, state, {}, mockAgentExecutor, createMockJudge(90))
+    // Max hit → presenting regardless.
+    expect(state.status).toBe('presenting')
   })
 })
 

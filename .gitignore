@@ -42,3 +42,6 @@ tsconfig.tsbuildinfo
 
 # Superpowers brainstorming sessions
 .superpowers/
+
+# Local scratch output (live script runs, generated artifacts)
+tmp/

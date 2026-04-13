@@ -59,9 +59,10 @@ export async function produce<T>(
 export async function evaluate<T>(
   artifact: T,
   rubric: RubricDefinition,
-  judge: JudgeFunction
+  judge: JudgeFunction,
+  previous?: { artifact: unknown; grade: GradeReport }
 ): Promise<GradeReport> {
-  return judge(artifact, rubric)
+  return judge(artifact, rubric, previous ? { previous } : undefined)
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,14 @@ export async function runLoop<T>(
   judge: JudgeFunction
 ): Promise<LoopState<T>> {
   let current = { ...state }
+
+  // Capture prior artifact + grade before overwriting — for comparative judging
+  const priorArtifact = current.currentArtifact
+  const lastGraded = [...current.iterations].reverse().find((it) => it.grade !== null)
+  const priorForJudge =
+    priorArtifact !== null && lastGraded?.grade
+      ? { artifact: priorArtifact as unknown, grade: lastGraded.grade }
+      : undefined
 
   // a. Set status to generating
   current.status = 'generating'
@@ -98,7 +107,7 @@ export async function runLoop<T>(
 
   // d. Evaluate
   current.status = 'evaluating'
-  const grade = await evaluate(artifact, stage.rubric, judge)
+  const grade = await evaluate(artifact, stage.rubric, judge, priorForJudge)
 
   // f. Create iteration record
   const version = current.iterations.length + 1
@@ -146,7 +155,11 @@ export async function runLoop<T>(
     // Rule 1: force minimum iterations even if score passes
     current.status = 'revising'
   } else if (meetsThreshold) {
-    current.status = 'presenting'
+    if (stage.shouldContinue && stage.shouldContinue(current)) {
+      current.status = 'revising'
+    } else {
+      current.status = 'presenting'
+    }
   } else {
     current.status = 'revising'
   }

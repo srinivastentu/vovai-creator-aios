@@ -1,0 +1,10 @@
+{
+  "topic": "The economics of renewable energy vs fossil fuels in 2025",
+  "facts": [
+    { "claim": "Utility-scale solar LCOE decline since 2010", "value": "~90%", "tolerance": "range" },
+    { "claim": "Onshore wind LCOE decline since 2010", "value": "~70%", "tolerance": "range" },
+    { "claim": "IRA enacted", "value": "2022", "tolerance": "exact" },
+    { "claim": "IEA net-zero pathway publication", "value": "2021", "tolerance": "exact" },
+    { "claim": "Global fossil fuel subsidies (IMF 2022 estimate, explicit+implicit)", "value": "~$7 trillion", "tolerance": "range" }
+  ]
+}

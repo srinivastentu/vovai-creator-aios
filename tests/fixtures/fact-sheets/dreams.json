@@ -1,0 +1,9 @@
+{
+  "topic": "Why do we dream? Current theories in neuroscience",
+  "facts": [
+    { "claim": "REM sleep discovery (Aserinsky/Kleitman)", "value": "1953", "tolerance": "exact" },
+    { "claim": "Typical nightly REM time (adult)", "value": "~90-120 min", "tolerance": "range" },
+    { "claim": "Activation-synthesis hypothesis (Hobson & McCarley)", "value": "1977", "tolerance": "exact" },
+    { "claim": "Threat simulation theory (Revonsuo)", "value": "2000", "tolerance": "exact" }
+  ]
+}

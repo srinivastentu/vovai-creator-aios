@@ -1,0 +1,10 @@
+{
+  "topic": "How solar panels convert sunlight to electricity",
+  "facts": [
+    { "claim": "Typical silicon panel efficiency range", "value": "15-22%", "tolerance": "range" },
+    { "claim": "Shockley-Queisser single-junction limit", "value": "~33%", "tolerance": "range" },
+    { "claim": "Photon energy (Einstein 1905)", "value": "1905", "tolerance": "exact" },
+    { "claim": "Cost decline in utility-scale solar since 2010", "value": "~90%", "tolerance": "range" },
+    { "claim": "Bell Labs first practical PV cell year", "value": "1954", "tolerance": "exact" }
+  ]
+}
