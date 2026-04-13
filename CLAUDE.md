@@ -121,6 +121,7 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 6. **Autonomous** — given a bug, just fix it. Zero hand-holding.
 7. **Visual-first** — mock data -> static UI -> API routes -> wire together.
 8. **Approval gate** — before changing 3+ files, explain plan and get approval.
+9. **New stage kickoff** — before implementing a new production stage (image, audio, video, code, design, etc.), read `docs/decisions/` and `tasks/lessons.md` first. Apply the operating principles captured there, and add new entries as you discover them.
 
 ### Coding Standards
 
@@ -184,3 +185,5 @@ When compacting, ALWAYS preserve:
 - Pipeline stages: `docs/architecture/elearn-pipeline.md`
 - Agent persona template: `docs/agents/persona-template.md`
 - Rubric schemas: `docs/rubrics/structure-rubric-schema.json`, `docs/rubrics/production-rubric-schema.json`
+- Project learnings (retrospectives): `docs/decisions/` — read before any new production stage
+- Accumulated lessons: `tasks/lessons.md` — read and extend as work proceeds
