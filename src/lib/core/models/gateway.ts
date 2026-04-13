@@ -237,6 +237,11 @@ export const createModelGateway = (deps: ModelGatewayDeps = {}): ModelGateway =>
         )
       }
 
+      // Reserve the rate-limit slot before yielding to await, so concurrent
+      // callers (e.g. requestMultiple) see the updated count and can't all
+      // pass canRequest against the same pre-call state.
+      rateLimiter.recordRequest(resolved.providerId)
+
       const timeoutMs = req.preferences.timeoutMs ?? DEFAULT_GATEWAY_TIMEOUT_MS
       const result = await executeWithTimeout(
         entry.client,
@@ -274,7 +279,6 @@ export const createModelGateway = (deps: ModelGatewayDeps = {}): ModelGateway =>
         durationMs,
         result.error,
       )
-      rateLimiter.recordRequest(resolved.providerId)
 
       return {
         success: result.success,
