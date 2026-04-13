@@ -188,18 +188,18 @@ describe('MMS integration', () => {
       const gateway = setupGateway()
       await gateway.request({ ...imageRequest, preferences: { modelId: 'flux-dev' } })
       await gateway.request({ ...imageRequest, preferences: { modelId: 'dall-e-3-standard' } })
-      await gateway.request({ ...imageRequest, preferences: { modelId: 'nanobanan-2' } })
+      await gateway.request({ ...imageRequest, preferences: { modelId: 'nanobanan-pro' } })
       const summary = gateway.getCostSummary()
       expect(summary.callCount).toBe(3)
       expect(summary.successCount).toBe(3)
-      expect(summary.totalCostUsd).toBeCloseTo(0.025 + 0.04 + 0.067, 5)
+      expect(summary.totalCostUsd).toBeCloseTo(0.025 + 0.04 + 0.134, 5)
     })
 
     it('getCostTable returns one row per model', async () => {
       const gateway = setupGateway()
       await gateway.request({ ...imageRequest, preferences: { modelId: 'flux-dev' } })
       await gateway.request({ ...imageRequest, preferences: { modelId: 'dall-e-3-standard' } })
-      await gateway.request({ ...imageRequest, preferences: { modelId: 'nanobanan-2' } })
+      await gateway.request({ ...imageRequest, preferences: { modelId: 'nanobanan-pro' } })
       const table = gateway.getCostTable()
       expect(table).toHaveLength(3)
       const flux = table.find((r) => r.modelId === 'flux-dev')
@@ -258,7 +258,7 @@ describe('MMS integration', () => {
   describe('requestMultiple (tournament)', () => {
     it('returns 3 responses in order, all successful, parallel execution', async () => {
       const gateway = setupGateway()
-      const modelIds = ['flux-dev', 'dall-e-3-standard', 'nanobanan-2']
+      const modelIds = ['flux-dev', 'dall-e-3-standard', 'nanobanan-pro']
       const results = await gateway.requestMultiple(imageRequest, modelIds)
       expect(results).toHaveLength(3)
       expect(results.map((r) => r.modelId)).toEqual(modelIds)
@@ -269,7 +269,7 @@ describe('MMS integration', () => {
       const gateway = setupGateway({
         openai: { success: false, error: 'openai down' },
       })
-      const modelIds = ['flux-dev', 'dall-e-3-standard', 'nanobanan-2']
+      const modelIds = ['flux-dev', 'dall-e-3-standard', 'nanobanan-pro']
       const results = await gateway.requestMultiple(imageRequest, modelIds)
       expect(results).toHaveLength(3)
       expect(results[0].success).toBe(true)

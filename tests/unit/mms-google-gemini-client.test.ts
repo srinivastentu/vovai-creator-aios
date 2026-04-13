@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { createGoogleGeminiClient } from '../../src/lib/core/models/providers/google-gemini'
 
 const NANOBANAN_2 = 'gemini-3.1-flash-image-preview'
-const NANOBANAN_PRO = 'gemini-3-pro-image'
+const NANOBANAN_PRO = 'nano-banana-pro-preview'
 const IMAGEN_FAST = 'imagen-4-fast'
 const IMAGEN_STD = 'imagen-4-standard'
 
@@ -84,7 +84,8 @@ describe('createGoogleGeminiClient', () => {
     expect(res.success).toBe(true)
     const calledUrl = String(fetchMock.mock.calls[0][0])
     expect(calledUrl).toContain(`${NANOBANAN_2}:generateContent`)
-    expect(calledUrl).toContain('key=test-key-abc')
+    const calledHeaders = (fetchMock.mock.calls[0][1] as RequestInit).headers as Record<string, string>
+    expect(calledHeaders['x-goog-api-key']).toBe('test-key-abc')
     expect(res.filePath).toMatch(/google-nanobanana-2-.+\.png$/)
     const onDisk = await readFile(res.filePath!)
     expect(onDisk.byteLength).toBeGreaterThan(0)

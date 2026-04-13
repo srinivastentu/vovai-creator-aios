@@ -24,6 +24,7 @@ const ASPECT_DIMS: Record<AspectRatio, { width: number; height: number }> = {
 const PREFIX_SLUGS: Array<{ match: string; slug: string }> = [
   { match: 'gemini-3.1-flash-image', slug: 'google-nanobanana-2' },
   { match: 'gemini-3-pro-image', slug: 'google-nanobanana-pro' },
+  { match: 'nano-banana-pro', slug: 'google-nanobanana-pro' },
   { match: 'imagen-4-fast', slug: 'google-imagen-4-fast' },
   { match: 'imagen-4-standard', slug: 'google-imagen-4-standard' },
   { match: 'imagen-4.0-fast', slug: 'google-imagen-4-fast' },
@@ -113,7 +114,7 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     const abortSignal =
       params.abortSignal instanceof AbortSignal ? params.abortSignal : undefined
 
-    const url = `${BASE_URL}/${encodeURIComponent(modelApiId)}:generateContent?key=${encodeURIComponent(apiKey)}`
+    const url = `${BASE_URL}/${encodeURIComponent(modelApiId)}:generateContent`
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
@@ -128,7 +129,10 @@ export const createGoogleGeminiClient = (): ProviderClient => {
         url,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
           body: JSON.stringify(body),
         },
         timeoutMs,
@@ -209,7 +213,7 @@ export const createGoogleGeminiClient = (): ProviderClient => {
       params.abortSignal instanceof AbortSignal ? params.abortSignal : undefined
 
     const aspectRatio = mapAspectRatio(width, height)
-    const url = `${BASE_URL}/${encodeURIComponent(modelApiId)}:predict?key=${encodeURIComponent(apiKey)}`
+    const url = `${BASE_URL}/${encodeURIComponent(modelApiId)}:predict`
     const body = {
       instances: [{ prompt }],
       parameters: {
@@ -225,7 +229,10 @@ export const createGoogleGeminiClient = (): ProviderClient => {
         url,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
           body: JSON.stringify(body),
         },
         timeoutMs,
@@ -295,7 +302,7 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     const apiKey = process.env.GOOGLE_GEMINI_API_KEY
     if (!apiKey) return failure('GOOGLE_GEMINI_API_KEY not set', startedAt)
 
-    if (modelApiId.startsWith('gemini-')) {
+    if (modelApiId.startsWith('gemini-') || modelApiId.startsWith('nano-banana-')) {
       return callGeminiNative(modelApiId, params, apiKey, startedAt)
     }
     if (modelApiId.startsWith('imagen-')) {

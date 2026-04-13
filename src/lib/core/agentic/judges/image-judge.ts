@@ -96,19 +96,44 @@ export function buildImageJudgeSystemPrompt(rubric: RubricDefinition): string {
     '',
     dimBlock,
     '',
+    '## SCORING CALIBRATION — CRITICAL',
+    '',
+    '1. COMPARE AGAINST THE PROMPT, NOT AGAINST "GOOD IMAGES IN GENERAL."',
+    '   A beautiful image that doesn\'t match the prompt should score LOW on Prompt Alignment.',
+    '   An ugly image that perfectly matches the prompt should score HIGH on Prompt Alignment.',
+    '',
+    '2. USE THE FULL SCORING RANGE. Scores of 6, 7, 8, 9 are all valid and expected.',
+    '   If every dimension scores 8-9, you are not evaluating critically enough.',
+    '   Expect most images to have at least one dimension below 8.',
+    '',
+    '3. LOOK FOR SPECIFIC FLAWS before scoring each dimension:',
+    '   - Prompt Alignment: List each element requested in the prompt. Is each one present? Correctly depicted? Score based on match percentage, not overall impression.',
+    '   - Visual Clarity: Check focal point, depth of field, visual noise, readability of key elements. A blurry subject or cluttered composition should score 6-7, not 8.',
+    '   - Style Quality: Is the style internally consistent? Do all elements look like they belong in the same image? Style breaks between foreground and background should lower the score.',
+    '   - Technical Quality: Zoom in mentally on hands, faces, text, edges. AI artifacts (extra fingers, warped text, seam lines) should drop this to 5-6.',
+    '   - Completeness: Are elements cut off at edges? Missing from the prompt? Each missing element reduces the score by 1 point.',
+    '',
+    '4. YOUR REASONING MUST CITE SPECIFIC OBSERVATIONS, NOT GENERAL PRAISE.',
+    '   BAD: "The image effectively captures the prompt with strong alignment."',
+    '   GOOD: "The prompt requests a pregnant woman in a white saree — present. A man watching from behind — present but face not visible. Terrace wall — present. Full moon — present and prominent. Hair blowing in wind — present. Score: 8.5 (all elements present, minor composition issue with man\'s positioning)."',
+    '',
+    '5. DIFFERENT IMAGES SHOULD GET DIFFERENT SCORES. If you are scoring two images identically across all dimensions, you are not looking closely enough. Find the differences.',
+    '',
     '## Output format',
     'Return ONLY a JSON object (no markdown, no prose outside JSON):',
     '{',
     '  "reasoning": "<your per-dimension reasoning, written BEFORE the scores>",',
-    `  "dimensionScores": [ { "dimensionId": <one of ${dimIds.map((x) => `"${x}"`).join(', ')}>, "score": <1-10>, "feedback": "..." }, ... one per dimension ],`,
-    '  "recommendation": "<one-sentence overall verdict>",',
-    '  "improvementPriorities": ["...", "..."]',
+    `  "dimensionScores": [ { "dimensionId": <one of ${dimIds.map((x) => `"${x}"`).join(', ')}>, "score": <1-10>, "feedback": "<cite what you specifically observed in THIS image for THIS dimension — name the elements, artifacts, or composition details you saw. Generic text like \\"good alignment\\" or \\"high quality\\" is NOT acceptable>" }, ... one per dimension ],`,
+    '  "overallAssessment": "Write 2-3 sentences citing SPECIFIC elements from this particular image. Name what the image got right and wrong compared to the prompt. Example: \'The terrace setting and full moon are accurately rendered. However, the man in the foreground lacks visible fear expression, and the saree appears grey rather than white as specified. The cinematic lighting is excellent with strong backlight silhouettes.\' Generic praise like \'strong alignment and high-quality execution\' is NOT acceptable.",',
+    '  "recommendation": "<one-sentence verdict: approve | revise | restructure | reject>",',
+    '  "improvementPriorities": ["<specific fix>", "<specific fix>"]',
     '}',
   ].join('\n')
 }
 
 interface RawJudgeResponse {
   dimensionScores: { dimensionId: string; score: number; feedback: string }[]
+  overallAssessment?: string
   recommendation?: string
   improvementPriorities?: string[]
 }
@@ -232,7 +257,8 @@ export function createImageJudge(
       overallScore,
       passesThreshold: false,
       dimensionScores,
-      recommendation: parsed.recommendation ?? fallbackRecommendation(overallScore),
+      recommendation:
+        parsed.overallAssessment ?? parsed.recommendation ?? fallbackRecommendation(overallScore),
       improvementPriorities: priorities,
     }
     draft.passesThreshold = checkThresholds(draft, targetRubric).passes

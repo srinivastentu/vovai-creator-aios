@@ -21,9 +21,9 @@ export const imageRubric: RubricDefinition = {
         '4-6':
           'Image loosely matches the prompt. Some elements present but composition or details diverge significantly. Viewer could identify the topic but key specifics are off.',
         '7-8':
-          'Image clearly matches the prompt. All major elements present in the right arrangement; minor details may differ but nothing important is wrong.',
+          'All major named elements from the prompt are present and identifiable. At most one secondary attribute (color, pose, relative position) is off. Arrangement matches the prompt\'s spatial description.',
         '9-10':
-          'Image is a precise visual translation of the prompt. Every described element rendered exactly as specified, with no additions or omissions.',
+          'Every single element named in the prompt is present AND depicted with the exact specified attributes (color, pose, expression, position, count). No additions, no omissions, no substitutions. Reserved for zero-flaw matches.',
       },
     },
     {
@@ -39,9 +39,9 @@ export const imageRubric: RubricDefinition = {
         '4-6':
           'Focal point exists but composition is weak. Some visual noise or awkward framing distracts from the subject. Legible but not strong.',
         '7-8':
-          'Clear focal point, good composition, clean framing. Important areas are sharp. Easy to read at a glance.',
+          'Single clear focal point sharp and unambiguous within 1 second of viewing. Background elements recede and do not compete. No distracting clutter or awkward crops. Eye travels naturally through the image.',
         '9-10':
-          'Exceptional composition — deliberate, balanced, immediately legible. Focal point, supporting elements, and negative space work together.',
+          'Intentional composition using leading lines, rule of thirds, or deliberate negative space. Focal point, mid-ground, and background form a clear visual hierarchy. Could appear in a professional portfolio without edits. Reserved for images with zero compositional weaknesses.',
       },
     },
     {
@@ -57,9 +57,9 @@ export const imageRubric: RubricDefinition = {
         '4-6':
           'Style is mostly consistent but has visible breaks or mismatches between elements. Tone and treatment are uneven.',
         '7-8':
-          'Style is appropriate and consistent throughout. All elements render in the same visual language with matching treatment.',
+          'All elements share the same rendering treatment (same lighting logic, same level of detail, same color treatment). Foreground and background feel like one scene. No element looks pasted in.',
         '9-10':
-          'Distinctive, cohesive artistic style executed with precision. Every element reinforces the intended aesthetic.',
+          'Style is not just consistent but distinctive and purposeful — the aesthetic choice (film stock, illustration technique, lighting mood) is readable and every element reinforces it. Could be attributed to a specific artist or medium. Reserved for images with a clear signature look.',
       },
     },
     {
@@ -75,9 +75,9 @@ export const imageRubric: RubricDefinition = {
         '4-6':
           'Minor artifacts visible on close inspection (small anatomy issues, slight text distortion). Resolution and lighting are adequate but not clean.',
         '7-8':
-          'No obvious AI artifacts. Anatomy, text, and geometry look right. Resolution, color, and lighting are production quality.',
+          'Hands have correct finger counts. Faces are symmetric with matching eyes. Any text is legible and spelled correctly. Edges and geometry (architecture, horizons, reflections) are clean. Lighting direction is consistent across the scene.',
         '9-10':
-          'Technically flawless. No artifacts at any inspection level. Resolution, color, and lighting are professional-grade.',
+          'Survives close inspection at every region — hands, faces, text, hair strands, fabric folds, reflections, shadows. No seams, no warps, no color fringing. Lighting is physically plausible. Reserved for images where you cannot find a single technical flaw after deliberate searching.',
       },
     },
     {
@@ -93,9 +93,9 @@ export const imageRubric: RubricDefinition = {
         '4-6':
           'Most elements present but at least one requested component is missing, cropped, or only partially rendered.',
         '7-8':
-          'All requested elements are present and fully contained within the frame. Nothing important is cropped.',
+          'Every noun named in the prompt is visible and fully inside the frame. No subject is cut off at head, hands, or feet. No requested element had to be omitted.',
         '9-10':
-          'Every element from the prompt is present, complete, and well-placed. Composition uses the frame fully without cropping anything important.',
+          'Every element named in the prompt is present, whole, and given room within the frame — no awkward crops, no element crammed against an edge. Frame usage is deliberate. Reserved for images where the composition could not fit another required element without rework.',
       },
     },
   ],

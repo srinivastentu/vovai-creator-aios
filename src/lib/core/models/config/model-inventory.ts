@@ -67,7 +67,10 @@ export const getDefaultModels = (): ModelDefinition[] => [
       supportsNegativePrompt: false,
       supportsSeed: true,
     },
-    status: 'active',
+    // Disabled: free-tier Gemini API for gemini-3.1-flash-image-preview returns
+    // 503 UNAVAILABLE on every image-generation call. NanoBanana Pro works; keep it.
+    // Re-enable when the preview model stabilizes or with paid-tier access.
+    status: 'disabled',
     apiModelId: 'gemini-3.1-flash-image-preview',
     metadata: {},
   },
@@ -90,7 +93,7 @@ export const getDefaultModels = (): ModelDefinition[] => [
       supportsSeed: true,
     },
     status: 'active',
-    apiModelId: 'gemini-3-pro-image',
+    apiModelId: 'nano-banana-pro-preview',
     metadata: {},
   },
   // Imagen 4 (fast/standard) intentionally omitted: Google's v1beta API rejects

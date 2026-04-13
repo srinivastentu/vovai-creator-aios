@@ -159,15 +159,6 @@ export async function POST(request: Request): Promise<Response> {
     }
   })
 
-  const minWidth = Math.min(
-    ...resolutionPlan.map((p) => p.effective.width),
-    targetWidth,
-  )
-  const minHeight = Math.min(
-    ...resolutionPlan.map((p) => p.effective.height),
-    targetHeight,
-  )
-
   const config: TournamentConfig = {
     modelIds: requested,
     maxRounds: parsed.data.maxRounds ?? DEFAULTS.maxRounds,
@@ -184,12 +175,7 @@ export async function POST(request: Request): Promise<Response> {
       judgeCostUsd += e.costUsd
     },
   })
-  const validators = createImageValidators({
-    minWidth,
-    minHeight,
-    minWidescreenWidth: minWidth,
-    minWidescreenHeight: minHeight,
-  })
+  const validators = createImageValidators()
 
   const sse = createSSEStream()
 

@@ -39,10 +39,10 @@ export const fetchWithTimeout = async (
   try {
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (err) {
-    if (err instanceof Error) {
-      err.message = maskApiKey(err.message)
-    }
-    throw err
+    const message = maskApiKey(err instanceof Error ? err.message : String(err))
+    const wrapped = new Error(message)
+    if (err instanceof Error && err.name) wrapped.name = err.name
+    throw wrapped
   } finally {
     clearTimeout(timer)
     if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)
