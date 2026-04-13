@@ -182,6 +182,13 @@ export const createOpenAiClient = (): ProviderClient => {
     let messages: ChatMessage[]
     if (Array.isArray(params.messages)) {
       messages = params.messages as ChatMessage[]
+      if (
+        typeof params.systemPrompt === 'string' &&
+        params.systemPrompt.length > 0 &&
+        !messages.some((m) => m.role === 'system')
+      ) {
+        messages = [{ role: 'system', content: params.systemPrompt }, ...messages]
+      }
     } else if (
       typeof params.systemPrompt === 'string' ||
       params.userContent !== undefined
