@@ -7,7 +7,10 @@ import type {
   TournamentResult,
 } from '@/lib/core/engine/tournament-types'
 
-export type ClientEntry = TournamentEntry & { imageUrl: string | null }
+export type ClientEntry = TournamentEntry & {
+  imageUrl: string | null
+  errorShort?: string | null
+}
 
 export type ClientResult = Omit<TournamentResult, 'winner' | 'bestEntry' | 'allEntries' | 'rounds'> & {
   winner: ClientEntry | null

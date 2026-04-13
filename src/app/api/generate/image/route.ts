@@ -50,8 +50,36 @@ function imageUrlFromPath(imagePath: string | undefined | null): string | null {
   return `/api/images/${encodeURIComponent(name)}`
 }
 
-function enrichEntry(entry: TournamentEntry): TournamentEntry & { imageUrl: string | null } {
-  return { ...entry, imageUrl: imageUrlFromPath(entry.artifact?.imagePath) }
+const MAX_SHORT_ERROR = 120
+
+function humanizeError(raw: string | undefined | null): string | null {
+  if (!raw) return null
+  const text = String(raw)
+  const lower = text.toLowerCase()
+  if (lower.includes('quota') || lower.includes('rate limit') || lower.includes('429')) {
+    const retryMatch = text.match(/retry[^\d]*(\d+)\s*s/i)
+    const suffix = retryMatch ? ` Retry in ~${retryMatch[1]}s or upgrade API plan.` : ' Upgrade API plan or retry later.'
+    return `Rate limited — provider quota exceeded.${suffix}`
+  }
+  if (lower.includes('not found') || lower.includes('404')) {
+    return 'Model not found on provider API (check model ID or availability).'
+  }
+  if (lower.includes('timeout') || lower.includes('timed out')) {
+    return 'Provider timed out. Try again.'
+  }
+  if (lower.includes('api key') || lower.includes('unauthorized') || lower.includes('401')) {
+    return 'Provider auth failed (check API key).'
+  }
+  if (text.length <= MAX_SHORT_ERROR) return text
+  return text.slice(0, MAX_SHORT_ERROR - 1).trimEnd() + '…'
+}
+
+function enrichEntry(entry: TournamentEntry): TournamentEntry & { imageUrl: string | null; errorShort: string | null } {
+  return {
+    ...entry,
+    imageUrl: imageUrlFromPath(entry.artifact?.imagePath),
+    errorShort: humanizeError(entry.gatewayResponse?.error),
+  }
 }
 
 function enrichEvent(event: TournamentEvent): TournamentEvent {

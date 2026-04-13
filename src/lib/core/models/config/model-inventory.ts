@@ -107,7 +107,10 @@ export const getDefaultModels = (): ModelDefinition[] => [
       supportsNegativePrompt: true,
       supportsSeed: true,
     },
-    status: 'active',
+    // Disabled: Google's v1beta API rejects `imagen-4-fast` with 404 (not supported for predict).
+    // Correct Imagen model IDs on the Gemini API are versioned (e.g. `imagen-4.0-*-001`) and
+    // may require a paid tier. Re-enable once the exact apiModelId is verified against Google docs.
+    status: 'disabled',
     apiModelId: 'imagen-4-fast',
     metadata: {},
   },
@@ -125,7 +128,8 @@ export const getDefaultModels = (): ModelDefinition[] => [
       supportsNegativePrompt: true,
       supportsSeed: true,
     },
-    status: 'active',
+    // Disabled: same issue as imagen-4-fast — apiModelId does not match Google's v1beta API.
+    status: 'disabled',
     apiModelId: 'imagen-4-standard',
     metadata: {},
   },
