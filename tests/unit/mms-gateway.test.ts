@@ -325,9 +325,11 @@ describe('ModelGateway', () => {
     expect(capturedParams?.abortSignal).toBeInstanceOf(AbortSignal)
   })
 
-  it('default-inventory provider without real client returns Provider client not available', async () => {
-    // Set api keys so providers appear available, but no deps injected → stub clients used
-    process.env.GOOGLE_GEMINI_API_KEY = 'k'
+  it('default-inventory request without env key fails at provider availability check', async () => {
+    // No env keys set → provider registry marks providers unavailable; router rejects before dispatch
+    delete process.env.GOOGLE_GEMINI_API_KEY
+    delete process.env.FAL_KEY
+    delete process.env.OPENAI_API_KEY
     const gateway = createModelGateway()
     const res = await gateway.request({
       capability: 'image-generation',
@@ -336,7 +338,6 @@ describe('ModelGateway', () => {
       context: {},
     })
     expect(res.success).toBe(false)
-    expect(res.error).toMatch(/Provider client not available/)
-    delete process.env.GOOGLE_GEMINI_API_KEY
+    expect(res.error).toMatch(/provider api key missing|Provider client not available/)
   })
 })

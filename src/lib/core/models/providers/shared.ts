@@ -38,11 +38,19 @@ export const fetchWithTimeout = async (
 
   try {
     return await fetch(url, { ...init, signal: controller.signal })
+  } catch (err) {
+    if (err instanceof Error) {
+      err.message = maskApiKey(err.message)
+    }
+    throw err
   } finally {
     clearTimeout(timer)
     if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)
   }
 }
+
+export const maskApiKey = (s: string): string =>
+  s.replace(/([?&])key=[^&\s]+/g, '$1key=***')
 
 export const readErrorDetail = async (res: Response): Promise<string> => {
   try {
@@ -107,5 +115,30 @@ export const downloadAndSave = async (
   await mkdir(outputDir, { recursive: true })
   await writeFile(filePath, buffer)
 
+  return { filePath, fileSizeBytes: buffer.byteLength, mimeType }
+}
+
+export const saveBase64ToDisk = async (
+  base64Data: string,
+  outputDir: string,
+  filePrefix: string,
+  mimeType = 'image/png',
+): Promise<DownloadResult> => {
+  let buffer: Buffer
+  try {
+    buffer = Buffer.from(base64Data, 'base64')
+  } catch (err) {
+    throw new Error(
+      `Base64 decode failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+  if (buffer.byteLength === 0) {
+    throw new Error('Base64 decode produced empty buffer')
+  }
+  const ext = EXT_BY_MIME[mimeType] ?? 'png'
+  const filename = `${filePrefix}-${randomUUID()}.${ext}`
+  const filePath = join(outputDir, filename)
+  await mkdir(outputDir, { recursive: true })
+  await writeFile(filePath, buffer)
   return { filePath, fileSizeBytes: buffer.byteLength, mimeType }
 }
