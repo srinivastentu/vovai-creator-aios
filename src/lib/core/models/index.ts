@@ -9,6 +9,7 @@ export type {
   HealthCheckResult,
 } from './providers/types'
 export { getDefaultProviders, getDefaultModels } from './config/model-inventory'
+export { createFalAiClient } from './providers/fal-ai'
 export { createCostLedger } from './cost-ledger'
 export type { CostLedger, CostLedgerFilter, CostLedgerOptions } from './cost-ledger'
 export { createRateLimiter } from './rate-limiter'

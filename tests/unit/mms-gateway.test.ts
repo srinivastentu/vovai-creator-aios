@@ -255,6 +255,50 @@ describe('ModelGateway', () => {
     expect(res.error).toMatch(/boom/)
   })
 
+  it('enforces preferences.timeoutMs when provider execute hangs', async () => {
+    const hangingClient: ProviderClient = {
+      providerId: 'p',
+      async execute() {
+        return new Promise<ProviderResult>(() => {})
+      },
+      async checkHealth() {
+        return { providerId: 'p', state: 'healthy', latencyMs: 0, checkedAt: '' }
+      },
+    }
+    const { gateway } = buildGateway(
+      { p: hangingClient },
+      [makeModel({ id: 'm', providerId: 'p' })],
+    )
+    const t0 = Date.now()
+    const res = await gateway.request({
+      ...baseRequest,
+      preferences: { timeoutMs: 80 },
+    })
+    const elapsed = Date.now() - t0
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/timeout/i)
+    expect(elapsed).toBeLessThan(500)
+  })
+
+  it('records timeout as failure in ledger and health', async () => {
+    const hangingClient: ProviderClient = {
+      providerId: 'p',
+      async execute() {
+        return new Promise<ProviderResult>(() => {})
+      },
+      async checkHealth() {
+        return { providerId: 'p', state: 'healthy', latencyMs: 0, checkedAt: '' }
+      },
+    }
+    const { gateway, costLedger, healthMonitor } = buildGateway(
+      { p: hangingClient },
+      [makeModel({ id: 'm', providerId: 'p' })],
+    )
+    await gateway.request({ ...baseRequest, preferences: { timeoutMs: 60 } })
+    expect(costLedger.getTotal().failureCount).toBe(1)
+    expect(healthMonitor.getHealth('p').successRate).toBe(0)
+  })
+
   it('default-inventory provider without real client returns Provider client not available', async () => {
     // Set api keys so providers appear available, but no deps injected → stub clients used
     process.env.GOOGLE_GEMINI_API_KEY = 'k'

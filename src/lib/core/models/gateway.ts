@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createModelCatalog, type ModelCatalog } from './catalog'
+import { createDefaultClients } from './config/default-clients'
 import { getDefaultModels, getDefaultProviders } from './config/model-inventory'
 import { createCostLedger, type CostLedger } from './cost-ledger'
 import { createHealthMonitor, type HealthMonitor } from './health-monitor'
@@ -82,8 +83,42 @@ const loadDefaultInventory = (
   registry: ProviderRegistry,
 ): void => {
   const providers: ProviderDefinition[] = getDefaultProviders()
-  for (const def of providers) registry.registerProvider(def, createStubClient(def.id))
+  const realClients = createDefaultClients()
+  for (const def of providers) {
+    const client = realClients.get(def.id) ?? createStubClient(def.id)
+    registry.registerProvider(def, client)
+  }
   for (const model of getDefaultModels()) catalog.registerModel(model)
+}
+
+const DEFAULT_GATEWAY_TIMEOUT_MS = 120_000
+
+const executeWithTimeout = async (
+  client: ProviderClient,
+  modelApiId: string,
+  capability: Capability,
+  params: Record<string, unknown>,
+  timeoutMs: number,
+): Promise<ProviderResult> => {
+  let timer: NodeJS.Timeout | undefined
+  const timeoutPromise = new Promise<ProviderResult>((resolve) => {
+    timer = setTimeout(() => {
+      resolve({
+        success: false,
+        rawResponse: {},
+        durationMs: timeoutMs,
+        error: `Gateway timeout after ${timeoutMs}ms`,
+      })
+    }, timeoutMs)
+  })
+  try {
+    return await Promise.race([
+      client.execute(modelApiId, capability, params),
+      timeoutPromise,
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 export const createModelGateway = (deps: ModelGatewayDeps = {}): ModelGateway => {
@@ -188,10 +223,13 @@ export const createModelGateway = (deps: ModelGatewayDeps = {}): ModelGateway =>
         )
       }
 
-      const result = await entry.client.execute(
+      const timeoutMs = req.preferences.timeoutMs ?? DEFAULT_GATEWAY_TIMEOUT_MS
+      const result = await executeWithTimeout(
+        entry.client,
         resolved.modelDefinition.apiModelId,
         req.capability,
         req.params,
+        timeoutMs,
       )
       const durationMs = result.durationMs || Date.now() - startedAt
 
