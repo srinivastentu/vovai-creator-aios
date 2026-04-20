@@ -45,6 +45,17 @@ export const getDefaultProviders = (): ProviderDefinition[] => [
     rateLimits: { requestsPerMinute: 30, requestsPerDay: 5000 },
     metadata: {},
   },
+  {
+    id: 'elevenlabs',
+    name: 'ElevenLabs',
+    authType: 'api-key',
+    authEnvVar: 'ELEVENLABS_API_KEY',
+    baseUrl: 'https://api.elevenlabs.io',
+    apiPattern: 'sync',
+    status: 'available',
+    rateLimits: { requestsPerMinute: 120, requestsPerDay: 20000 },
+    metadata: { authHeaderName: 'xi-api-key' },
+  },
 ]
 
 export const getDefaultModels = (): ModelDefinition[] => [
@@ -264,6 +275,74 @@ export const getDefaultModels = (): ModelDefinition[] => [
     },
     status: 'active',
     apiModelId: 'mystic',
+    metadata: {},
+  },
+
+  // ── ElevenLabs (voice-synthesis) ─────────────────────────────────────
+  // Per-character pricing below is a conservative default. ElevenLabs bills
+  // in credits with per-plan multipliers (see https://elevenlabs.io/pricing).
+  // ParamSchema supports only primitive types; `voiceSettings` is a nested
+  // object handled by the client at runtime and omitted from customParams.
+  {
+    id: 'eleven-turbo-v2-5',
+    name: 'Eleven Turbo v2.5',
+    providerId: 'elevenlabs',
+    capabilities: ['voice-synthesis'],
+    qualityTier: 'budget',
+    pricing: {
+      'voice-synthesis': { costPerUnit: 0.00005, unit: 'character' },
+    },
+    supportedParams: {
+      customParams: {
+        voiceId: { type: 'string', required: true, description: 'ElevenLabs voice_id' },
+        outputFormat: { type: 'string', description: 'e.g. mp3_44100_128' },
+        languageCode: { type: 'string' },
+      },
+    },
+    status: 'active',
+    apiModelId: 'eleven_turbo_v2_5',
+    metadata: {},
+  },
+  {
+    id: 'eleven-multilingual-v2',
+    name: 'Eleven Multilingual v2',
+    providerId: 'elevenlabs',
+    capabilities: ['voice-synthesis'],
+    qualityTier: 'standard',
+    pricing: {
+      'voice-synthesis': { costPerUnit: 0.0001, unit: 'character' },
+    },
+    supportedParams: {
+      customParams: {
+        voiceId: { type: 'string', required: true, description: 'ElevenLabs voice_id' },
+        outputFormat: { type: 'string', description: 'e.g. mp3_44100_128' },
+        languageCode: { type: 'string' },
+      },
+    },
+    status: 'active',
+    apiModelId: 'eleven_multilingual_v2',
+    metadata: {},
+  },
+  // eleven_v3 availability not verified live as of Phase 5.1A planning.
+  // Shipping disabled until 5.1E smoke-test confirms GA status for this account.
+  {
+    id: 'eleven-v3',
+    name: 'Eleven v3 (alpha)',
+    providerId: 'elevenlabs',
+    capabilities: ['voice-synthesis'],
+    qualityTier: 'premium',
+    pricing: {
+      'voice-synthesis': { costPerUnit: 0.0002, unit: 'character' },
+    },
+    supportedParams: {
+      customParams: {
+        voiceId: { type: 'string', required: true, description: 'ElevenLabs voice_id' },
+        outputFormat: { type: 'string', description: 'e.g. mp3_44100_128' },
+        languageCode: { type: 'string' },
+      },
+    },
+    status: 'disabled',
+    apiModelId: 'eleven_v3',
     metadata: {},
   },
 ]
