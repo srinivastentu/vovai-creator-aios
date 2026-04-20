@@ -57,6 +57,21 @@ Mirrors the Phase 4 cadence. Same tournament engine, same MMS gateway, same SSE 
 
 ---
 
+## Technical Debt
+
+Captured from the pre-Phase-5 readiness review (2026-04-20). Non-blocking for Phase 5.1 unless noted; schedule during the 5.0 pre-flight window where they slot in naturally.
+
+- [ ] **Demote `dall-e-3-hd` from tournament default** — 2× the cost of `dall-e-3-standard` for marginal quality gain on the image rubric; same underlying model. Keep available as opt-in; remove from the default `modelIds` mix.
+- [ ] **Central `OUTPUT_DIRS` constant** — every image provider hardcodes `'./output/images'`; wire a shared `src/lib/core/models/output-paths.ts` during Phase 5.0 before the ElevenLabs adapter picks its own voice path ad-hoc.
+- [ ] **Gateway singleton hardening** — add `resetGateway()` export for test/env-refresh paths in `src/lib/core/models/default-gateway.ts`; document in CLAUDE.md that adding provider env vars requires a dev-server restart (Next.js HMR appears to catch `.env.local` changes but don't rely on it).
+- [ ] **Persist cost ledger** — `cost-ledger.ts` is in-memory only; every restart loses history. Append to `output/cost-ledger.jsonl` on each `record()` (opt-out via env). Blocker for Phase 6 video budget caps, not Phase 5.
+- [ ] **Extract `src/app/generate/_shared/` layout primitives** — `PromptInputPanel`, `CostReadout`, `EventLog`, and an SSE-consumer hook helper. Factor during 5.3B before `/generate/audio` copy-pastes a third instance.
+- [ ] **Replace placeholder `ELEVENLABS_API_KEY`** — the 5-char value in `.env.local` is a stub; get the real key before 5.1D "verify live" or the ElevenLabs adapter ships with no integration proof.
+
+Source: pre-Phase-5 readiness review, 2026-04-20. If this review becomes a retrospective doc under `docs/decisions/` later, link it here.
+
+---
+
 ## Completed since LE-13
 
 ### Phase 3 — Text Generation (complete)
