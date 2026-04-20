@@ -1,6 +1,7 @@
 # Where You Are — Master Action Plan Progress Map
 
-**Current state:** 641 tests, 14 steps shipped, feature/loop-engine-v2 ready to merge
+**Current state (2026-04-20):** 988 tests (979 + 9 gated-live), Phase 4.5 shipped, on `main`.
+**Last update:** Post-Phase-4.5 sync (tournament + image UI complete; 5 models live, 2 disabled).
 
 ---
 
@@ -10,6 +11,8 @@
 |---|---|---|
 | Phase 1: Project foundation | ✅ DONE | LE-0: folders, Prisma, core/domain split |
 | Phase 2: Core loop engine | ✅ DONE | LE-1 + LE-2 + LE-3: all 4 functions, types, rubric grader, validators |
+| Phase 3: Text generation | ✅ DONE | 3.1–3.5: adapter, judge, validators, loop proof, `/generate/text` UI. Retrospective: `docs/decisions/001-project-learnings-phase-3.md` |
+| Phase 4: Image generation | ✅ DONE | 4.0–4.5: MMS (4 providers, 5 live models), image judge, validators, tournament engine, `/generate/image` UI with SSE. Retrospective: `docs/decisions/002-image-pipeline-learnings.md` · Pattern spec: `docs/architecture/tournament-pattern.md` |
 | Phase 7.1: Human review core | ✅ DONE | LE-5: 5 actions, gate enforcement, sovereignty checks |
 | Phase 8.1: Pipeline orchestrator core | ✅ DONE | LE-6: 8 functions, stage sequencing |
 | Phase 9: eLearning domain setup | ✅ MOSTLY DONE | LE-4 + LE-7 + LE-10: archetypes, components, 4 rubrics, real agents |
@@ -21,9 +24,7 @@
 
 | Master Plan Phase | Status | What's Missing |
 |---|---|---|
-| **Phase 3: Text generation** | 🟡 PARTIAL | Engine works with mocks + CLI. Missing: real iterative quality testing on 10+ topics, text generation UI at /generate/text, PRESERVE/IMPROVE quality verification |
-| **Phase 4: Image generation** | 🔴 NOT STARTED | No image producer adapters (Flux/DALL-E), no tournament implementation, no image judge with vision, no image UI |
-| **Phase 5: Audio generation** | 🔴 NOT STARTED | No TTS adapter (ElevenLabs), no music adapter (Suno), no audio evaluation |
+| **Phase 5: Audio generation** | 🔴 NOT STARTED | No TTS adapter (ElevenLabs), no music adapter (Suno), no audio judge/rubric/validators, no `/generate/audio` UI. See `tasks/todo.md` for the breakdown. |
 | **Phase 6: Video generation** | 🔴 NOT STARTED | No video adapter (Runway/Kling), no FFmpeg assembly, no video evaluation |
 | **Phase 7.2: Review UI** | 🔴 NOT STARTED | Core review logic exists but no unified review UI for text/image/audio/video |
 | **Phase 8.2-8.4: Demo pipelines** | 🔴 NOT STARTED | Orchestrator exists but no multi-artifact pipeline demo (text→image→voice→video→assembly), no style anchor |
@@ -31,46 +32,35 @@
 | **Phase 11.2-11.7: Production** | 🔴 NOT STARTED | Only document pipeline proof exists. Video (16 stages), assessment, activity, capstone pipelines not built |
 | **Phase 12: MVP launch** | 🔴 NOT STARTED | Dashboard, client review portal, batch processing, polish |
 
+### Pre-flight hardening that blocks further media work
+
+- 🟡 **Pre-call budget check** in `gateway.request()` — open tension from Phase 4 (`002` §3.2). Mandatory before Phase 6 video; recommended before Phase 5 audio.
+- 🟡 **Tier-3 media auditor pattern** — text has a fact-auditor; images/audio/video do not. Design before building Phase 5.
+- 🟡 **Structured provider error codes** — replace heuristic string-matching in `humanizeError()` with `{ code, category, retryable, userMessage }` on `ProviderResult`.
+
 ---
 
-## YOUR STARTING SEQUENCE
-
-### Step 0: Merge (do this NOW)
-```
-git checkout main
-git merge feature/loop-engine-v2
-git tag v2.0.0-loop-engine
-git push origin main --tags
-```
-
-### Then follow this exact order:
+## Your starting sequence
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  STAGE 1: PROVE THE ENGINE ON STANDALONE ARTIFACTS      │
 │                                                         │
-│  You START HERE                                         │
+│  ✅ Phase 3: TEXT GENERATION                            │
+│  ✅ Phase 4: IMAGE GENERATION                           │
 │  ↓                                                      │
-│  Phase 3: TEXT GENERATION                               │
-│  ├── 3.1 Text producer adapter (connect real Claude)    │
-│  ├── 3.2 Text judge (connect real GPT-4o as judge)      │
-│  ├── 3.3 Text rubric + validators                       │
-│  ├── 3.4 First real loop — run 10 topics, verify        │
-│  │        quality improves from ~6/10 to ~8/10          │
-│  └── 3.5 Text generation UI at /generate/text           │
-│       ⏸️  STOP: Are articles genuinely good?             │
-│  ↓                                                      │
-│  Phase 4: IMAGE GENERATION                              │
-│  ├── 4.1 Image adapters (Flux + DALL-E)                 │
-│  ├── 4.2 Image judge (vision model)                     │
-│  ├── 4.3 Image validators (file exists, dimensions)     │
-│  ├── 4.4 Tournament loop (parallel models → rank)       │
-│  └── 4.5 Image generation UI at /generate/image         │
-│       ⏸️  STOP: Does tournament pick good images?        │
-│  ↓                                                      │
-│  Phase 5: AUDIO GENERATION                              │
-│  ├── 5.1 Voice adapter (ElevenLabs) + voice rubric      │
-│  └── 5.2 Music adapter (Suno) + music rubric            │
+│  Phase 5: AUDIO GENERATION  ← YOU ARE HERE              │
+│  ├── 5.0 Pre-flight: pre-call budget check, structured  │
+│  │        provider errors, Tier-3 auditor design        │
+│  ├── 5.1 Voice: ElevenLabs adapter + rubric + judge     │
+│  │        + validators                                  │
+│  ├── 5.2 Music: Suno adapter + rubric + judge +         │
+│  │        validators                                    │
+│  ├── 5.3 Generalise tournament runner for audio         │
+│  │        (parameterise Artifact type)                  │
+│  ├── 5.4 UI: /generate/audio page + useAudioTournament  │
+│  │        hook (mirror the image pattern)               │
+│  └── 5.5 Retrospective: docs/decisions/003-*.md         │
 │       ⏸️  STOP: Voice clear? Music fits mood?            │
 │  ↓                                                      │
 │  Phase 6: VIDEO GENERATION                              │
@@ -121,13 +111,15 @@ git push origin main --tags
 
 ---
 
-## First Action Item Right Now
+## First action item right now
 
 ```
-1. Merge feature/loop-engine-v2 → main
-2. Open Claude Code
-3. Start Phase 3, Micro Phase 3.1: Text producer adapter
-   (Connect real Claude API to your existing engine)
+1. Verify Phase 4 on representative prompts and capture findings as an
+   appendix to docs/decisions/002-image-pipeline-learnings.md
+2. Read docs/decisions/001-*.md AND 002-*.md + tasks/lessons.md before
+   starting Phase 5 (every new stage inherits these rules)
+3. Start Phase 5, Micro 5.0: pre-flight hardening (pre-call budget check,
+   Tier-3 audio auditor design). Then 5.1A: ElevenLabs voice adapter.
 ```
 
-Your engine WORKS with mocks. Phase 3 is about connecting real AI and proving the quality loop genuinely improves output. This is the moment of truth — if articles get better across iterations, everything else will too.
+The engine works with mocks, text (Phase 3), and images (Phase 4). Phase 5 is the third proof that the tournament pattern and MMS gateway carry cleanly across artifact types. If voice + music land as cleanly as images did, we're on trajectory for Phase 6 (video) and the full multi-artifact scene pipeline.

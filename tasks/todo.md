@@ -1,22 +1,105 @@
 # VOVAI eLearn AIOS — Task Tracker
 
-## Current Focus: Phase 3.1 — Text Producer Adapter
+## Current Focus
 
-Plan: `/Users/srinivastentu/.claude/plans/memoized-prancing-lobster.md`
+- **Status (2026-04-20):** Phase 4.5 shipped. Image generation end-to-end works at `/generate/image` with tournament + SSE streaming. 988 tests passing (up from 641 at LE-13). On `main`.
+- **Retrospective:** [docs/decisions/002-image-pipeline-learnings.md](../docs/decisions/002-image-pipeline-learnings.md)
+- **Tournament pattern spec:** [docs/architecture/tournament-pattern.md](../docs/architecture/tournament-pattern.md)
 
-- [ ] Create `src/lib/core/agentic/adapters/types.ts` (`Artifact`, `ProducerAdapter`, `ProduceArgs`, `ReviseArgs`)
-- [ ] Create `src/lib/core/agentic/adapters/text-adapter.ts` (`createClaudeTextAdapter`)
-- [ ] PRESERVE/IMPROVE prompt builder as pure function (unit-tested)
-- [ ] Cost tracking via `calculateCost` (or inline helper in `core/agentic/pricing.ts` if framework import feels domain-y)
-- [ ] `text-adapter.test.ts` — 6 unit tests (mocked SDK) + 1 gated live test (`RUN_LIVE_TESTS=1`)
-- [ ] Re-export from `src/lib/core/agentic/index.ts`
-- [ ] `npm run typecheck && npm run test -- --bail` pass
-- [ ] `grep -r "from.*domain/" src/lib/core/` returns nothing
-- [ ] Commit + push: `feat(core): text producer adapter with PRESERVE/IMPROVE revise (Phase 3.1)`
+### Immediate gate before Phase 5 begins
+
+- [ ] **Verify Phase 4 on representative prompts.** Run 5–10 prompts through `/generate/image`, score whether the judge's winner matches human pick. The 8 untracked `output/images/*.png` suggest hand-testing happened — record the findings as an appendix to `002-image-pipeline-learnings.md`.
+- [ ] **Commit the doc updates from this session** (002 decisions doc, tournament-pattern spec, lesson entries, todo+CLAUDE+progress-map syncs).
 
 ---
 
-## Previous Focus: LE-0 Folder Restructure
+## Next — Phase 5: Audio Generation
+
+Mirrors the Phase 4 cadence. Same tournament engine, same MMS gateway, same SSE UI pattern — only the artifacts and rubrics are new.
+
+### 5.0 Pre-flight hardening (lessons from Phase 4)
+
+- [ ] Pre-call budget check in the gateway (address open tension `002` §3.2 and `lessons.md` 2026-04-13 "one overrun"). Block at `gateway.request()` once project or stage budget ceiling is hit. Non-blocking for Phase 5 audio (cheap) but mandatory before Phase 6 video.
+- [ ] Structured provider error codes (address open tension `002` §3.3). Replace heuristic string-matching in `humanizeError()` with a `{ code, category, retryable, userMessage }` shape on `ProviderResult`.
+- [ ] Design the Tier-3 domain auditor pattern for media. For voice: pronunciation correctness + intelligibility. For music: copyright / mood-drift guard. Phase 4 left this as an open tension.
+
+### 5.1 Voice (ElevenLabs)
+
+- [ ] 5.1A ElevenLabs provider client under `src/lib/core/models/providers/elevenlabs.ts` — reuse `shared.ts` helpers (`fetchWithTimeout`, `downloadAndSave`, `maskApiKey`); sandbox-verify every `voice_id` before catalog entry
+- [ ] 5.1B Voice rubric (5 dims: prosody, clarity, pacing, pronunciation, emotional fit) + judge — decide whether to transcribe before scoring (Whisper) or score directly from audio URL
+- [ ] 5.1C Deterministic voice validators: duration bounds, sample rate, silence %, peak-clipping
+- [ ] 5.1D Register ElevenLabs in `model-inventory.ts`; verify live
+- [ ] 5.1E Tournament dry-run with voice via a throwaway CLI script before UI
+
+### 5.2 Music (Suno)
+
+- [ ] 5.2A Suno provider client (likely async-poll; reuse `pollUntilComplete`)
+- [ ] 5.2B Music rubric (mood fit, composition, production quality, loopability) + judge
+- [ ] 5.2C Music validators: duration, bitrate, loudness (LUFS), format
+- [ ] 5.2D Register Suno in `model-inventory.ts`
+
+### 5.3 Tournament generalisation
+
+- [ ] 5.3A Parameterise `TournamentRunner<T extends MediaArtifact>` (see `tournament-pattern.md` §10) OR widen `ImageArtifact` to a discriminated union — decide before writing the audio page
+- [ ] 5.3B Factor the SSE streaming helper in `api/generate/image/route.ts` into a shared utility before `api/generate/audio/route.ts` copies it
+
+### 5.4 UI
+
+- [ ] 5.4A `/generate/audio/page.tsx` — mirror `/generate/image/page.tsx` two-column layout
+- [ ] 5.4B `useAudioTournament` hook — mirror `useImageTournament` shape; orchestration stays in the hook (Phase 4 lesson)
+- [ ] 5.4C Add an `<audio>` preview with waveform; download winner
+
+### 5.5 Phase 5 retrospective
+
+- [ ] 5.5A Write `docs/decisions/003-audio-pipeline-learnings.md` before Phase 6 starts
+- [ ] 5.5B Append new lesson entries to `tasks/lessons.md`
+- [ ] 5.5C Tag `v2.2.0-audio-generation`
+
+---
+
+## Completed since LE-13
+
+### Phase 3 — Text Generation (complete)
+
+| Phase | Commit | Headline |
+|---|---|---|
+| 3.1 | `8a39502` | Text producer adapter with PRESERVE/IMPROVE revise |
+| 3.2 | `52788a8` | OpenAI text judge + 5-dim rubric |
+| 3.3 | `7e88a05` | Deterministic text validators |
+| 3.4 | `6ac8bb9` | First real end-to-end text loop + hardening |
+| 3.5 | `8ce29a6` | Text generation proving-interface UI |
+
+Retrospective: [docs/decisions/001-project-learnings-phase-3.md](../docs/decisions/001-project-learnings-phase-3.md)
+
+### Phase 4 — Image Generation (complete)
+
+| Phase | Commit | Headline |
+|---|---|---|
+| 4.0A | `dde45b4` | MMS foundation — types, catalog, provider registry |
+| 4.0B | `96d85d4` | MMS plumbing — cost ledger, router, rate limiter, health, gateway |
+| 4.1A | `b555df5` | fal.ai Flux provider + gateway timeout |
+| 4.1-prep | `534d159` | Shared provider utilities, abort signal, timeout unification |
+| 4.1C-fix | `49debd6` | URL encoding + API-key masking |
+| 4.1D | `29c3fc3` | Freepik provider + `pollUntilComplete` |
+| 4.1E | `05da6f3` | MMS integration tests + rate-limiter race fix |
+| 4.2 | `7814ef9` | Image judge (vision-based via MMS) |
+| 4.3 | `37a0bfa` | Image validators (file-exists, size, dimensions) |
+| 4.4 | `bb29d35` | Tournament loop (parallel multi-model ranking) |
+| 4.5 | `db195b9` | `/generate/image` UI with SSE streaming |
+| fixes | `d40e787`, `6923435`, `314d29e`, `3e41b50` | Disabled unverified Imagen 4 & NanoBanana-2; humanized errors; judge calibration; two-column UI; regenerate moved to hook |
+
+Retrospective: [docs/decisions/002-image-pipeline-learnings.md](../docs/decisions/002-image-pipeline-learnings.md)
+Pattern spec: [docs/architecture/tournament-pattern.md](../docs/architecture/tournament-pattern.md)
+
+---
+
+## Archive — earlier work (preserved for historical reference)
+
+Everything below this line is completed work kept as a record. Do not treat as active tasks.
+
+---
+
+## LE-0 (archived): Folder Restructure
 
 Move `src/lib/project-component/` → `src/lib/domain/workflows/`.
 Pure mechanical move — zero logic changes. 29 files, ~122 import paths.

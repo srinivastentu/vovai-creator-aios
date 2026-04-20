@@ -191,12 +191,21 @@ stage (ideation), discovery (V1), activity design (T1), capstone design (C1).
 Produce xN (parallel models) → Evaluate ALL → Rank →
   Winner >= threshold? →
     YES → Present to human
-    NO  → Round 2: top models retry → Evaluate all rounds → Present best
+    NO  → Round 2: top models retry (with PRESERVE/IMPROVE prompt refinement)
+         → Evaluate all rounds → Present best
 ```
 
 Multiple AI models compete in parallel. Judge evaluates all entries
-across all rounds. Used for: image generation (V5), video generation (V9),
-music and SFX (V10).
+across all rounds. Used for any artifact that cannot be iteratively
+revised — image generation (V5, **shipped Phase 4.4**), audio/music (V10),
+video (V9).
+
+**As-built reference:** [src/lib/core/engine/tournament.ts](../../src/lib/core/engine/tournament.ts)
+**Full pattern spec:** [tournament-pattern.md](./tournament-pattern.md) — types, execution flow, event taxonomy, cost model, UI consumption pattern.
+
+The runner is dependency-injected (gateway + judge + validators + rubric) and
+imports nothing from `core/agentic/`, `core/review/`, or `domain/` — the same
+Core vs Domain discipline as the iterative-revise patterns.
 
 ### Pattern 4: Nested Inner Loop (agent-level)
 

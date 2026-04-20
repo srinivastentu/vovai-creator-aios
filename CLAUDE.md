@@ -95,11 +95,14 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 
 ---
 
-## Build Progress — Loop Engine v2
+## Build Progress
 
-**Branch:** `feature/loop-engine-v2` (14 steps, all complete, ready for merge to main)
-**Tests:** 641 | **Architectural contract:** `grep -r "from.*domain/" src/lib/core/` returns nothing
+**Branch:** `main`
+**Tests:** 988 (979 passing + 9 gated-live skipped) across 57 files
+**Architectural contract:** `grep -r "from.*domain/" src/lib/core/` returns nothing
 **Action plan:** `docs/implementation-guides/loop-engine-action-plan.md`
+
+### Loop Engine v2 (merged — 14 steps)
 
 | Step | Tag | What Was Built |
 |------|-----|----------------|
@@ -117,6 +120,40 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 | LE-11 | `LE-11-e2e-pipeline` | Full 5-stage pipeline E2E. 47 mock tests + 6 live tests, all 4 systems integrated. 626 total. |
 | LE-12 | `LE-12-document-pipeline-proof` | Document pipeline proof — same engine, different domain config. 15 tests, 641 total. Engine universality proven. |
 | LE-13 | `LE-13-docs-complete` | Final docs update, verification, merge to main. |
+
+### Phase 3 — Text Generation (complete)
+
+First real end-to-end production stage. Retrospective: [docs/decisions/001-project-learnings-phase-3.md](docs/decisions/001-project-learnings-phase-3.md).
+
+| Phase | Commit | What Was Built |
+|---|---|---|
+| 3.1 | `8a39502` | Text producer adapter — PRESERVE/IMPROVE revise rule (dimensions ≥8 preserved, <8 targeted) |
+| 3.2 | `52788a8` | OpenAI text judge + 5-dim rubric; cross-family producer/judge (Claude produces, GPT-4o judges) |
+| 3.3 | `7e88a05` | Deterministic text validators — Tier-1 structural gates run before the judge |
+| 3.4 | `6ac8bb9` | First real end-to-end text loop; best-version tracking separated from latest-version |
+| 3.5 | `8ce29a6` | Text generation proving-interface UI at `/generate/text` |
+
+### Phase 4 — Image Generation (complete)
+
+Tournament pattern proven on a second artifact type. Retrospective: [docs/decisions/002-image-pipeline-learnings.md](docs/decisions/002-image-pipeline-learnings.md). Pattern spec: [docs/architecture/tournament-pattern.md](docs/architecture/tournament-pattern.md).
+
+| Phase | Commit | What Was Built |
+|---|---|---|
+| 4.0A | `dde45b4` | MMS foundation — types, catalog, provider registry |
+| 4.0B | `96d85d4` | MMS plumbing — cost ledger, router, rate limiter, health, gateway |
+| 4.1A | `b555df5` | fal.ai Flux provider (Dev + Pro 1.1) + gateway timeout |
+| 4.1-prep | `534d159` | Shared provider utilities, abort signal threading, timeout unification |
+| 4.1C-fix | `49debd6` | URL-encode `modelApiId`; move API keys from query strings to headers; mask keys in errors |
+| 4.1D | `29c3fc3` | Freepik Mystic provider + async-poll `pollUntilComplete` utility |
+| 4.1E | `05da6f3` | MMS end-to-end integration tests + rate-limiter race fix (synchronous slot reservation) |
+| 4.2 | `7814ef9` | Image judge — vision-based (GPT-4o) scoring via MMS gateway |
+| 4.2 | — | Image rubric — 5 dimensions (prompt-alignment, visual-clarity, style-quality, technical-quality, completeness) |
+| 4.3 | `37a0bfa` | Deterministic image validators — fileExists, fileSize, imageDimensions (Tier-1 pre-judge) |
+| 4.4 | `bb29d35` | Tournament runner — parallel multi-model competition with judge ranking + PRESERVE/IMPROVE refinement |
+| 4.5 | `db195b9` | `/generate/image` UI — tournament-powered, SSE streaming, two-column (current round + best-so-far) |
+| 4.5-fix | `d40e787`, `6923435` | Disabled unverified Imagen 4 + `nanobanan-2`; humanised provider errors |
+| 4.5-fix | `314d29e` | Judge calibration prompt (7 = competent, 8 = professional, 9+ = rare); validator threshold tuning |
+| 4.5-refactor | `3e41b50` | Regenerate + feedback prompt augmentation moved from page component into `useImageTournament` hook |
 
 ---
 
@@ -142,7 +179,7 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 ### Testing
 
 - `npm run typecheck && npm run test -- --bail` before every commit
-- 641+ tests must pass. `grep -r "from.*domain/" src/lib/core/` must return nothing.
+- 988+ tests must pass (979 + 9 gated-live). `grep -r "from.*domain/" src/lib/core/` must return nothing.
 
 ### Core Principles
 
@@ -190,9 +227,13 @@ When compacting, ALWAYS preserve:
 
 - Architecture overview: `docs/architecture/system-overview.md`
 - Loop engine spec: `docs/architecture/recursive-loop-engine.md`
+- Tournament pattern spec: `docs/architecture/tournament-pattern.md` (media artifacts — image, audio, video)
+- Model Management System spec: `docs/architecture/VOVAI_MMS_Architecture_v1.md`
 - Core vs domain framework: `docs/architecture/core-domain-framework.md`
 - Pipeline stages: `docs/architecture/elearn-pipeline.md`
 - Agent persona template: `docs/agents/persona-template.md`
 - Rubric schemas: `docs/rubrics/structure-rubric-schema.json`, `docs/rubrics/production-rubric-schema.json`
-- Project learnings (retrospectives): `docs/decisions/` — read before any new production stage
+- Project learnings (retrospectives):
+  - `docs/decisions/001-project-learnings-phase-3.md` — text stage (through Phase 3.5)
+  - `docs/decisions/002-image-pipeline-learnings.md` — image stage, MMS, tournament (through Phase 4.5)
 - Accumulated lessons: `tasks/lessons.md` — read and extend as work proceeds

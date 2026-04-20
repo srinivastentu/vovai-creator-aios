@@ -143,6 +143,76 @@ These are the lessons we carry into the next production stages (image, audio, vi
 
 ---
 
+## Phase 4 entries — distilled from the image pipeline (MMS, providers, judge, validators, tournament, UI)
+
+See `docs/decisions/002-image-pipeline-learnings.md` for the full retrospective.
+
+---
+
+**Date:** 2026-04-14
+**What we learned:** Tournament (generate N → judge → keep best) is the right generalisation for media artifacts. Iterative-revise assumes the producer can sharpen a specific dimension of an existing draft; image / audio / video models cannot — a regeneration is a new seed.
+**Root cause:** The text stage's `revise()` function is not meaningful for artifacts where no internal state persists between calls.
+**Rule:** For image, audio, and video stages use the tournament runner in `core/engine/tournament.ts`. Do not retrofit the text `revise` loop onto media. The PRESERVE/IMPROVE prompt refinement from text is still used — but between rounds of different candidates, not between revisions of the same candidate.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §2.1, §4.1 · `docs/architecture/tournament-pattern.md` §1
+
+---
+
+**Date:** 2026-04-14
+**What we learned:** When concurrent callers share a rate-limit bucket, a check-then-increment across an `await` point lets N callers all pass the limit check before any recorded consumption. Seen when the tournament's `requestMultiple` ran 5 models from the same provider in parallel and all cleared a 3/min limit.
+**Root cause:** The quota check and the increment straddled an async yield; the event loop scheduled other continuations before the increment ran.
+**Rule:** In any shared-quota gate (rate limiter, semaphore, budget), call the increment / reserve step synchronously *before* `await`-ing the guarded work. Reconcile on failure. Fix landed at `src/lib/core/models/gateway.ts` by calling `rateLimiter.recordRequest()` before `executeWithTimeout(...)`.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §4.2 · commit `05da6f3`
+
+---
+
+**Date:** 2026-04-15
+**What we learned:** Provider URLs built with unescaped dynamic segments (`modelApiId`, task IDs) are injectable. API keys passed as URL query parameters leak into logs and error messages.
+**Root cause:** String interpolation without `encodeURIComponent` + credential placement in the wrong part of the request.
+**Rule:** Every dynamic URL segment must be passed through `encodeURIComponent`. Credentials go in headers, never in query strings. Shared helper `maskApiKey` in `core/models/providers/shared.ts` is applied at the `fetchWithTimeout` boundary before any error is surfaced.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §4.3 · commit `49debd6`
+
+---
+
+**Date:** 2026-04-16
+**What we learned:** Async-poll providers (Freepik Mystic, future Runway) need a specific pattern: tight submit timeout, then a remaining-budget poll loop with exponential backoff and abort support. Bespoke per-provider loops drift and miss cancellation.
+**Root cause:** Polling code written per-provider tends to reinvent backoff, abort handling, and timeout layering — often incorrectly.
+**Rule:** Every async-poll provider reuses `pollUntilComplete` from `core/models/providers/shared.ts`. Never hand-roll a poll loop in a provider client. If the utility doesn't fit a new provider's shape, extend the utility, don't fork it.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §2.3 · `src/lib/core/models/providers/shared.ts` · `src/lib/core/models/providers/freepik.ts`
+
+---
+
+**Date:** 2026-04-17
+**What we learned:** Vision-model judges have the same calibration drift as text-model judges. Without explicit score bands, GPT-4o vision clustered competent images at 8.5+ and the rubric lost discrimination.
+**Root cause:** Judges default to "be kind" unless the system prompt forces discrimination.
+**Rule:** Every judge prompt (text, image, audio, video) must include an explicit calibration paragraph with numeric bands: "7 = competent production quality, 8 = professional, 9+ = exceptional — rare. Do not inflate." Make it a template shared across judges.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §4.6 · `src/lib/core/agentic/judges/image-judge.ts` · commit `314d29e`
+
+---
+
+**Date:** 2026-04-18
+**What we learned:** Google's public docs listed `imagen-4-fast` and `imagen-4-standard` as valid API model IDs. The v1beta API returns 404 for those strings. Correct IDs are versioned and tier-gated. Separately, `gemini-3.1-flash-image-preview` (nanobanan-2) 503s on free-tier keys. Both were added to the catalog before sandbox verification, then disabled post-ship.
+**Root cause:** Provider documentation and the actual API don't always agree; tier differences (free vs paid) aren't always documented.
+**Rule:** Before adding a model to `src/lib/core/models/config/model-inventory.ts`, call the provider sandbox with the exact `apiModelId` and the tier that will be used in production. Confirm a successful response. Document the verification in the commit message — the next agent will re-learn this the hard way unless it is written down. Disabled models stay in the catalog with a `disabled` flag and a reason comment; they do not get silently removed.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §3.5, §4.7 · commits `d40e787`, `6923435`
+
+---
+
+**Date:** 2026-04-19
+**What we learned:** A tournament UI that only shows the current round erodes the user's trust in "best-version tracking" — when round 3 is worse than round 1, users see worse work and assume the system regressed. Phase 4.5 fixed this with a two-column layout: current round on the left, best-so-far on the right.
+**Root cause:** "Best ≠ latest" is an invisible property unless the UI makes it visible.
+**Rule:** Any tournament-powered stage UI must render best-so-far separately from the current round. Keep the best artifact pinned until replaced by a strictly higher-scoring one. This mirrors the `bestArtifact` / `bestGrade` separation the engine already tracks internally.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §2.7 · `src/app/generate/image/page.tsx` · commit `314d29e`
+
+---
+
+**Date:** 2026-04-19
+**What we learned:** Regenerate-with-feedback logic initially lived in the image page component and duplicated the prompt-augmentation rules. Moving it into `useImageTournament` (commit `3e41b50`) made the audio/video pages cheap to build.
+**Root cause:** Prompt orchestration (augment original prompt with user feedback before dispatching to tournament) is stage logic, not presentation logic.
+**Rule:** For every `/generate/*` page, the hook owns orchestration (prompt augmentation, tournament dispatch, state merging); the page component renders. Copy-paste the `useImageTournament` shape for `useAudioTournament`, `useVideoTournament`, etc.
+**Applied to:** `docs/decisions/002-image-pipeline-learnings.md` §2.8 · `src/hooks/useImageTournament.ts`
+
+---
+
 ## Adding new lessons
 
 Append new entries here whenever:
