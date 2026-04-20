@@ -60,7 +60,23 @@ const createStubClient = (providerId: string): ProviderClient => ({
   },
 })
 
-const estimateCost = (
+/**
+ * Post-call cost calculation. Runs AFTER the provider returns, using the
+ * usage counters on `ProviderResult` to multiply against `model.pricing`.
+ * This is NOT a pre-call budget check — it records what was spent, it does
+ * not gate what may be spent.
+ *
+ * Inputs: `ModelDefinition`, `Capability`, `ProviderResult`.
+ * Output: `{ costUsd, unit }` — the final USD cost for this specific call
+ * and the billing unit applied.
+ *
+ * Supported units: 'image', '1k-tokens-in', '1k-tokens-out', 'minute',
+ * 'second', 'character'. When `model.pricing[capability]` is undefined,
+ * returns `{ costUsd: 0, unit: 'none' }`. Per-minute / per-second units
+ * currently fall through to the flat `costPerUnit` (no duration-based
+ * multiplication — add when a provider needs it).
+ */
+const calculateFinalCost = (
   model: ModelDefinition,
   capability: Capability,
   result: ProviderResult,
@@ -256,7 +272,8 @@ export const createModelGateway = (deps: ModelGatewayDeps = {}): ModelGateway =>
       )
       const durationMs = result.durationMs || Date.now() - startedAt
 
-      const { costUsd, unit } = estimateCost(
+      // Compute final cost from the provider's returned result (post-call, for ledger).
+      const { costUsd, unit } = calculateFinalCost(
         resolved.modelDefinition,
         req.capability,
         result,

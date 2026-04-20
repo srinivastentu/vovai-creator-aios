@@ -281,4 +281,81 @@ describe('elevenlabs provider', () => {
     const h = await client.checkHealth()
     expect(h.state).toBe('down')
   })
+
+  // Spec: execute() must never throw — every failure path returns { success: false }.
+  // This is the literal try/catch form of that assertion. Other tests prove the
+  // same property implicitly via return-value checks; a reader grepping for the
+  // spec clause should also find the form here.
+  it.each([
+    {
+      label: 'unsupported capability',
+      capability: 'image-generation' as const,
+      params: {} as Record<string, unknown>,
+      makeFetch: () => vi.fn(),
+    },
+    {
+      label: 'missing text',
+      capability: 'voice-synthesis' as const,
+      params: { voiceId: 'v' } as Record<string, unknown>,
+      makeFetch: () => vi.fn(),
+    },
+    {
+      label: 'HTTP 401',
+      capability: 'voice-synthesis' as const,
+      params: { text: 'x', voiceId: 'v' } as Record<string, unknown>,
+      makeFetch: () =>
+        vi.fn().mockResolvedValue(
+          mockResponse({
+            ok: false,
+            status: 401,
+            body: { detail: 'nope' },
+            contentType: 'application/json',
+          }),
+        ),
+    },
+    {
+      label: 'HTTP 500 malformed body',
+      capability: 'voice-synthesis' as const,
+      params: { text: 'x', voiceId: 'v' } as Record<string, unknown>,
+      makeFetch: () =>
+        vi.fn().mockResolvedValue(mockResponse({ ok: false, status: 500, body: '<<not json>>' })),
+    },
+    {
+      label: 'network error',
+      capability: 'voice-synthesis' as const,
+      params: { text: 'x', voiceId: 'v' } as Record<string, unknown>,
+      makeFetch: () => vi.fn().mockRejectedValue(new Error('ECONNRESET')),
+    },
+    {
+      label: 'AbortError timeout',
+      capability: 'voice-synthesis' as const,
+      params: { text: 'x', voiceId: 'v', timeoutMs: 10 } as Record<string, unknown>,
+      makeFetch: () =>
+        vi.fn().mockImplementation(async () => {
+          const err = new Error('aborted')
+          err.name = 'AbortError'
+          throw err
+        }),
+    },
+  ])(
+    'execute never throws — $label returns { success: false }',
+    async ({ capability, params, makeFetch }) => {
+      const { createElevenLabsClient } = await import('../elevenlabs')
+      const fetchMock = makeFetch()
+      const client = createElevenLabsClient({
+        apiKey: 'k',
+        outputDir: tmpDir,
+        fetchImpl: fetchMock,
+      })
+      let res: Awaited<ReturnType<typeof client.execute>> | undefined
+      try {
+        res = await client.execute('eleven_turbo_v2_5', capability, params)
+      } catch (err) {
+        throw new Error(`execute() threw instead of returning failure: ${String(err)}`)
+      }
+      expect(res).toBeDefined()
+      expect(typeof res).toBe('object')
+      expect(res!.success).toBe(false)
+    },
+  )
 })

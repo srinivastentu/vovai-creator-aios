@@ -213,6 +213,34 @@ See `docs/decisions/002-image-pipeline-learnings.md` for the full retrospective.
 
 ---
 
+## Phase 5 entries — distilled from the Phase 5.0 + 5.1A signoff (ElevenLabs, output paths, cost calc)
+
+---
+
+**Date:** 2026-04-20
+**What we learned:** Naming carries semantic weight. `estimateCost` implied pre-call budget-check; the function was actually post-call final-cost calculation. Name first, docstring second — a good name prevents the misread before the docstring is read. Cheap to fix at birth, expensive six months later.
+**Root cause:** Function was introduced with a generic verb (`estimate*`) that conflicts with the prevailing convention in budget / planning code, where `estimate*` means pre-call. The docstring that would have clarified it was also missing.
+**Rule:** When a function operates on a `ProviderResult` — i.e. *after* the provider call has returned — it must be named `calculate*` / `compute*Final*` (or similar post-call verb), and the JSDoc must state "post-call" in the first line. Reserve `estimate*` for pre-call / projection helpers. Apply this check to every new helper in `core/models/` and `core/agentic/`.
+**Applied to:** `src/lib/core/models/gateway.ts` (`estimateCost` → `calculateFinalCost` + JSDoc)
+
+---
+
+**Date:** 2026-04-20
+**What we learned:** Never widen a discriminated union back to `string`. `unit: 'image' | ... | string` looks like a union but the trailing `| string` collapses it to `string` at the type level. The compiler cannot catch typo'd or invented units. Add new literals explicitly; never use `| string` as an escape hatch.
+**Root cause:** `| string` was added as a forward-compatibility pressure valve when new pricing units were anticipated. In practice, TypeScript folds the union into `string`, so every literal in the union becomes decorative — no exhaustiveness, no narrowing, no typo protection.
+**Rule:** Literal-string unions in `src/lib/core/models/types.ts` and anywhere exhaustiveness matters must not include `| string`. When a new value is needed, add it as a literal member in the same PR. Grep for `| string` next to literal unions before accepting any new type that looks like it.
+**Applied to:** `src/lib/core/models/types.ts` (`PricingEntry.unit` — dropped `| string`, added `'character'` explicitly)
+
+---
+
+**Date:** 2026-04-20
+**What we learned:** Spec-literal test forms are not ceremony. When the spec mandates "test that wraps in try/catch and asserts catch is unreachable," implicit proof via return-value assertion doesn't substitute. Reviewer rubrics match on form, and more importantly, the literal form catches bugs the implicit form can't when a new throw path is added later.
+**Root cause:** The ElevenLabs client's existing failure-path tests asserted `res.success === false`, which implicitly proves no-throw today. A future refactor that adds a `throw` inside one path would still pass those tests (the assertion is never reached) or fail them with a misleading stack, not a clear "execute() threw" signal.
+**Rule:** When a provider / tool / boundary helper carries a "never throws / never leaks / never rejects" clause, add a dedicated parameterized test shaped exactly around that clause — `try { await fn() } catch (err) { throw new Error('...') }` — covering ~5 representative failure paths. This test is not redundant with other failure-path tests; it encodes the spec form so the spec can't silently regress.
+**Applied to:** `src/lib/core/models/providers/__tests__/elevenlabs.test.ts` (new `it.each` — "execute never throws — … returns { success: false }")
+
+---
+
 ## Adding new lessons
 
 Append new entries here whenever:

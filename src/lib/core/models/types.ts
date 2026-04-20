@@ -48,7 +48,7 @@ export interface ResolutionPricing {
 
 export interface PricingEntry {
   costPerUnit: number
-  unit: 'image' | '1k-tokens-in' | '1k-tokens-out' | 'minute' | 'second' | string
+  unit: 'image' | '1k-tokens-in' | '1k-tokens-out' | 'minute' | 'second' | 'character'
   byResolution?: ResolutionPricing
 }
 
