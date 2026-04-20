@@ -1,3 +1,4 @@
+import { createElevenLabsClient } from '../providers/elevenlabs'
 import { createFalAiClient } from '../providers/fal-ai'
 import { createFreepikClient } from '../providers/freepik'
 import { createGoogleGeminiClient } from '../providers/google-gemini'
@@ -17,6 +18,9 @@ export const createDefaultClients = (): Map<string, ProviderClient> => {
   }
   if (process.env.FREEPIK_API_KEY) {
     map.set('freepik', createFreepikClient())
+  }
+  if (process.env.ELEVENLABS_API_KEY) {
+    map.set('elevenlabs', createElevenLabsClient())
   }
   return map
 }
