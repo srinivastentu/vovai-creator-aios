@@ -23,8 +23,8 @@ coverage/
 # Database
 *.db
 
-# Media storage
-storage/
+# Media storage (project-root only; do not ignore src/lib/core/storage)
+/storage/
 
 # Claude local settings
 .claude/settings.local.json
