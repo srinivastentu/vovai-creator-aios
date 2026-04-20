@@ -1,10 +1,11 @@
 import { readFile, stat } from 'node:fs/promises'
 import { extname, join } from 'node:path'
+import { OUTPUT_DIRS } from '@/lib/core/storage/output-paths'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const OUTPUT_DIR = join(process.cwd(), 'output', 'images')
+const OUTPUT_DIR = OUTPUT_DIRS.image
 
 const CONTENT_TYPES: Record<string, string> = {
   '.png': 'image/png',
