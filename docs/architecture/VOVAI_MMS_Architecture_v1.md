@@ -510,8 +510,10 @@ Provider: elevenlabs
   Models:
     - eleven-turbo-v2-5      | ElevenLabs Turbo v2.5        | voice-synthesis | $0.00005/char  | standard  | active
     - eleven-multilingual-v2 | ElevenLabs Multilingual v2   | voice-synthesis | $0.0001/char   | premium   | active
-    - eleven-v3              | ElevenLabs v3 (alpha)        | voice-synthesis | TBD            | premium   | disabled (per-voice allow-list pending)
+    - eleven-v3              | ElevenLabs v3 (alpha)        | voice-synthesis | TBD            | premium   | disabled
 ```
+
+`eleven-v3` is shipped `disabled` because GA availability and stability for this account have not been verified live as of Phase 5.1A. Re-enable by flipping `status: 'active'` on the `eleven-v3` entry in `src/lib/core/models/config/model-inventory.ts` once the Phase 5.1E smoke-test confirms it.
 
 Files saved via `OUTPUT_DIRS.voice` using the core storage module. The provider client uses `fetchWithTimeout` + `downloadAndSave` from `shared.ts`; no bespoke code path.
 
