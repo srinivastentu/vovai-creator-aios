@@ -1,7 +1,7 @@
 # Where You Are — Master Action Plan Progress Map
 
 **Current state (2026-04-20):** 988 tests (979 + 9 gated-live), Phase 4.5 shipped, on `main`.
-**Last update:** Post-Phase-4.5 sync (tournament + image UI complete; 5 models live, 2 disabled).
+**Last update:** Post-Phase-4.5 sync (tournament + image UI complete; 6 image-generation models live across 4 providers, 3 disabled).
 
 ---
 
@@ -12,7 +12,7 @@
 | Phase 1: Project foundation | ✅ DONE | LE-0: folders, Prisma, core/domain split |
 | Phase 2: Core loop engine | ✅ DONE | LE-1 + LE-2 + LE-3: all 4 functions, types, rubric grader, validators |
 | Phase 3: Text generation | ✅ DONE | 3.1–3.5: adapter, judge, validators, loop proof, `/generate/text` UI. Retrospective: `docs/decisions/001-project-learnings-phase-3.md` |
-| Phase 4: Image generation | ✅ DONE | 4.0–4.5: MMS (4 providers, 5 live models), image judge, validators, tournament engine, `/generate/image` UI with SSE. Retrospective: `docs/decisions/002-image-pipeline-learnings.md` · Pattern spec: `docs/architecture/tournament-pattern.md` |
+| Phase 4: Image generation | ✅ DONE | 4.0–4.5: MMS (4 providers, 6 live models — nanobanan-pro, flux-dev, flux-pro, dall-e-3-standard, dall-e-3-hd, freepik-mystic), image judge, validators, tournament engine, `/generate/image` UI with SSE. Retrospective: `docs/decisions/002-image-pipeline-learnings.md` · Pattern spec: `docs/architecture/tournament-pattern.md` |
 | Phase 7.1: Human review core | ✅ DONE | LE-5: 5 actions, gate enforcement, sovereignty checks |
 | Phase 8.1: Pipeline orchestrator core | ✅ DONE | LE-6: 8 functions, stage sequencing |
 | Phase 9: eLearning domain setup | ✅ MOSTLY DONE | LE-4 + LE-7 + LE-10: archetypes, components, 4 rubrics, real agents |
