@@ -28,6 +28,7 @@ src/lib/core/                            <- CORE: Machinery (portable)
 ├── agentic/                             <- System 2: Agentic System
 ├── review/                              <- System 3: Human Review System
 ├── models/                              <- System 5: Model Management System (MMS)
+├── storage/                             <- Output path resolution (OUTPUT_DIRS)
 ├── tools/                               <- (future) Tool System
 ├── prompts/                             <- (future) Prompt System
 ├── context/                             <- (future) Context System
@@ -71,8 +72,13 @@ Centralized gateway for ALL AI model calls. Model catalog, provider registry,
 cost ledger, routing, rate limiting, health monitoring. Every AI call goes
 through the gateway — no component talks directly to an AI provider.
 Provider clients: fal-ai (Flux), OpenAI (DALL-E 3, GPT-4o vision),
-Google Gemini (NanoBanana, Imagen 4), Freepik (Mystic).
+Google Gemini (NanoBanana, Imagen 4), Freepik (Mystic), ElevenLabs (voice).
 See `docs/architecture/VOVAI_MMS_Architecture_v1.md`.
+
+**Storage (`src/lib/core/storage/`):**
+Output path resolution. Exports `OUTPUT_DIRS` (text / image / voice / music / video / cost-ledger),
+`resolveOutputPath(kind, filename)` (rejects traversal), and `ensureOutputDir(kind)`.
+Base directory overridable via `OUTPUT_BASE_DIR`. Future home for cost-ledger persistence.
 
 ### Tech Stack
 
@@ -168,10 +174,12 @@ Tournament pattern proven on a second artifact type. Retrospective: [docs/decisi
 7. **Visual-first** — mock data -> static UI -> API routes -> wire together.
 8. **Approval gate** — before changing 3+ files, explain plan and get approval.
 9. **New stage kickoff** — before implementing a new production stage (image, audio, video, code, design, etc.), read `docs/decisions/` and `tasks/lessons.md` first. Apply the operating principles captured there, and add new entries as you discover them.
+10. **Tracker snapshot at spec kickoff** — at the start of every new micro-phase spec, paste the current state of the relevant `tasks/todo.md` section verbatim into the spec before entering plan mode. Keeps architect and executor working from the same text.
 
 ### Coding Standards
 
 - TypeScript strict. No `any`. ES modules. 2-space indent. No semicolons.
+- Never widen a literal-string union with `| string` — add new literal members explicitly. `| string` collapses the union at the type level and silently defeats exhaustiveness and typo protection.
 - Functional React + hooks. Tailwind. shadcn/ui.
 - Loop Engine takes injected deps — never imports agents.
 - Pipeline orchestration in Domain Workflow, never in Loop Engine.

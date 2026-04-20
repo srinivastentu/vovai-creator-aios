@@ -130,11 +130,15 @@ Text has a fact-auditor (Tier 3). Images do not. An image can have 6 fingers on 
 
 The gateway records cost *after* the provider returns, not before. `lessons.md` §2026-04-13 already flagged this at the text stage — "accept one overrun at the boundary". Images are 10–100× the cost of text. Video will be 10–100× the cost of images. A pre-call budget check that blocks requests once the project / stage ceiling is reached is now load-bearing; the current post-hoc behaviour masks overruns until the ledger is inspected.
 
+**Status update (2026-04-20):** Tracked as `tasks/todo.md` TD-10 (HARD-BLOCKER mandatory before Phase 6 video). Non-blocking for Phase 5 audio since per-call voice cost is low. The Phase 5.1A `calculateFinalCost` rename explicitly carves out the `estimate*` namespace for the future pre-call budget helper.
+
 ### 3.3 Provider error humanisation is heuristic
 
 `humanizeError()` and `mapHttpError()` in the provider clients work by pattern-matching on HTTP status and string fragments ("rate limit", "quota", "unavailable"). As we added Gemini and Freepik, the patterns diverged — Google returns `429` with a JSON body, Freepik returns `202` for async and `400` for validation. The mapping is brittle and inconsistent.
 
 A structured error type from each provider would be cleaner. Candidate: add `{ code, category, retryable, userMessage }` to `ProviderResult` and have each client emit it.
+
+**Status update (2026-04-20):** Tracked as `tasks/todo.md` TD-11. Candidate to bundle with 5.1B (voice rubric + judge) or 5.1C (voice validators) — whichever exposes the next heuristic-divergence case first.
 
 ### 3.4 Model catalog is static
 

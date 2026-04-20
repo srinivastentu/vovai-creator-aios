@@ -40,6 +40,7 @@ src/lib/core/
 ├── agentic/       ← System 2: Agentic System
 ├── review/        ← System 3: Human Review System
 ├── models/        ← System 5: Model Management System (NEW)
+├── storage/       ← Output path resolution (OUTPUT_DIRS) — added Phase 5.0
 ├── tools/         ← (future) Tool System
 ├── prompts/       ← (future) Prompt System
 ├── context/       ← (future) Context System
@@ -151,8 +152,9 @@ ModelDefinition:
   qualityTier: 'budget' | 'standard' | 'premium'
   pricing:                      — Cost information per capability
     [capability]:
-      costPerUnit: number       — USD per unit (per image, per 1K tokens, per minute, etc.)
-      unit: string              — 'image' | '1k-tokens-in' | '1k-tokens-out' | 'minute' | 'second'
+      costPerUnit: number       — USD per unit (per image, per 1K tokens, per minute, per character, etc.)
+      unit: string              — 'image' | '1k-tokens-in' | '1k-tokens-out' | 'minute' | 'second' | 'character'
+                                  ('character' for character-billed TTS providers, e.g. ElevenLabs)
       byResolution?:            — Optional resolution-specific pricing
         '512': number
         '1k': number
@@ -420,6 +422,8 @@ The single entry point. Orchestrates all other components.
 
 **Error handling:** The gateway NEVER throws. All errors are caught and returned as `{ success: false, error: '...' }`. If a provider call fails and there's a fallback model available for the same capability, the gateway MAY automatically retry with the fallback (configurable via `GatewayConfig.autoFallback: boolean`).
 
+**Cost-math naming convention:** Helpers that operate on a `ProviderResult` — i.e. after the provider call has returned — are named `calculate*Final*` (e.g. `calculateFinalCost` in `gateway.ts`) to signal post-call semantics. `estimate*` is reserved for pre-call projections and budget checks (see TD-10). Docstring must state "post-call" on the first line.
+
 ---
 
 ## 6. Model Inventory
@@ -480,12 +484,9 @@ Provider: openai (already listed above, add text capabilities)
     - gpt-4o-mini         | GPT-4o Mini                 | text-scoring     | token-based    | budget
 ```
 
-### 6.3 Future Models (Phases 5-6)
+### 6.3 Future Models (Phase 6+)
 
 ```
-Provider: elevenlabs (future)
-  Models: voice models for TTS
-
 Provider: suno (future)
   Models: music generation models
 
@@ -497,6 +498,22 @@ Provider: kling (future, possibly via Freepik)
 ```
 
 The MMS catalog is designed so adding these is: define model + register with provider. All routing, cost tracking, health monitoring comes free.
+
+### 6.4 Phase 5 Voice Models (Active)
+
+Added in Phase 5.1A. Character-billed TTS via the ElevenLabs REST API.
+
+```
+Provider: elevenlabs
+  Auth: ELEVENLABS_API_KEY
+  Pattern: sync (REST with MP3 body)
+  Models:
+    - eleven-turbo-v2-5      | ElevenLabs Turbo v2.5        | voice-synthesis | $0.00005/char  | standard  | active
+    - eleven-multilingual-v2 | ElevenLabs Multilingual v2   | voice-synthesis | $0.0001/char   | premium   | active
+    - eleven-v3              | ElevenLabs v3 (alpha)        | voice-synthesis | TBD            | premium   | disabled (per-voice allow-list pending)
+```
+
+Files saved via `OUTPUT_DIRS.voice` using the core storage module. The provider client uses `fetchWithTimeout` + `downloadAndSave` from `shared.ts`; no bespoke code path.
 
 ---
 
@@ -694,13 +711,15 @@ Not done now. Future task: create an Anthropic provider client in MMS, register 
 8. **Same model, multiple providers is supported.** NanoBanana 2 can be accessed via Google direct AND Freepik. They are separate model entries with different IDs (`nanobanan-2` vs `freepik-nanobanan-2`) but the router can compare their costs/performance.
 ---
 
-## 13. Current State (as of Phase 4.1E)
+## 13. Current State (as of Phase 5.1A)
 
-- 4 providers registered: fal-ai, openai, google-gemini, freepik
-- 11 active models, 2 disabled (NB via Freepik — use google-gemini instead)
-- Provider clients: all 4 implemented and tested
-- Gateway: operational with timeout, abort signal, cost tracking, health monitoring
+- 5 providers registered: fal-ai, openai, google-gemini, freepik, elevenlabs
+- Capabilities live: text-generation, text-scoring, image-generation, image-scoring, voice-synthesis
+- Active models across image + voice; disabled entries preserved with reason (see §6.4)
+- Provider clients: all 5 implemented and tested; ElevenLabs added Phase 5.1A (commit `a716427`, wired via `596ac28`, integration tests via `dd39290`)
+- Gateway: operational with timeout, abort signal, cost tracking, health monitoring; character-based pricing added Phase 5.0 (`1690484`); post-call `calculateFinalCost` helper (Phase 5.1A signoff, `eaeafdc`)
+- Core storage: `src/lib/core/storage/` (Phase 5.0, commit `37679ff`) resolves output paths for all capabilities; image routes migrated via `0382bbd`, `63c7751`
 - Shared utilities: fetchWithTimeout, downloadAndSave, saveBase64ToDisk, pollUntilComplete, failure, readErrorDetail, maskApiKey
-- Tests: ~60 MMS-specific unit tests plus an end-to-end integration suite in `tests/unit/mms-integration.test.ts`
+- Tests: MMS unit + integration suites including `tests/unit/mms-integration.test.ts` and ElevenLabs ↔ gateway integration
 - Manual live-API script: `scripts/test-mms-live.ts` (run with real env keys)
-- Ready for: Phase 4.2 (Image Judge), Phase 4.4 (Tournament via requestMultiple)
+- Ready for: Phase 5.1B (voice rubric + judge), Phase 5.1C (voice validators), Phase 5.1E (tournament dry-run with voice)
