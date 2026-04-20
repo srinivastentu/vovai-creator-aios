@@ -17,19 +17,19 @@
 
 Mirrors the Phase 4 cadence. Same tournament engine, same MMS gateway, same SSE UI pattern — only the artifacts and rubrics are new.
 
-### 5.0 Pre-flight hardening (lessons from Phase 4)
-
-- [ ] Pre-call budget check in the gateway (address open tension `002` §3.2 and `lessons.md` 2026-04-13 "one overrun"). Block at `gateway.request()` once project or stage budget ceiling is hit. Non-blocking for Phase 5 audio (cheap) but mandatory before Phase 6 video.
-- [ ] Structured provider error codes (address open tension `002` §3.3). Replace heuristic string-matching in `humanizeError()` with a `{ code, category, retryable, userMessage }` shape on `ProviderResult`.
-- [ ] Design the Tier-3 domain auditor pattern for media. For voice: pronunciation correctness + intelligibility. For music: copyright / mood-drift guard. Phase 4 left this as an open tension.
+### 5.0 — COMPLETE (shipped as TD-2 OUTPUT_DIRS refactor, tag v5.1.0)
 
 ### 5.1 Voice (ElevenLabs)
 
-- [ ] 5.1A ElevenLabs provider client under `src/lib/core/models/providers/elevenlabs.ts` — reuse `shared.ts` helpers (`fetchWithTimeout`, `downloadAndSave`, `maskApiKey`); sandbox-verify every `voice_id` before catalog entry
+- [x] 5.1A ElevenLabs provider client under `src/lib/core/models/providers/elevenlabs.ts` — reuse `shared.ts` helpers (`fetchWithTimeout`, `downloadAndSave`, `maskApiKey`); sandbox-verify every `voice_id` before catalog entry ✅ (commit `a716427` + signoff fixes 2026-04-20: explicit no-throw test, post-call cost naming, tightened pricing-unit type)
 - [ ] 5.1B Voice rubric (5 dims: prosody, clarity, pacing, pronunciation, emotional fit) + judge — decide whether to transcribe before scoring (Whisper) or score directly from audio URL
 - [ ] 5.1C Deterministic voice validators: duration bounds, sample rate, silence %, peak-clipping
-- [ ] 5.1D Register ElevenLabs in `model-inventory.ts`; verify live
+- [x] 5.1D Register ElevenLabs in `model-inventory.ts`; verify live ✅ (commit `4f448f4` — 3 voice-synthesis models registered; live wiring via `596ac28`, integration tests via `dd39290`)
 - [ ] 5.1E Tournament dry-run with voice via a throwaway CLI script before UI
+
+### 5.1B Upcoming — Voice judge design (Tier-3 auditor pattern for media)
+
+- [ ] Design the Tier-3 domain auditor pattern for media. For voice: pronunciation correctness + intelligibility. For music: copyright / mood-drift guard. Phase 4 left this as an open tension.
 
 ### 5.2 Music (Suno)
 
@@ -62,11 +62,24 @@ Mirrors the Phase 4 cadence. Same tournament engine, same MMS gateway, same SSE 
 Captured from the pre-Phase-5 readiness review (2026-04-20). Non-blocking for Phase 5.1 unless noted; schedule during the 5.0 pre-flight window where they slot in naturally.
 
 - [ ] **Demote `dall-e-3-hd` from tournament default** — 2× the cost of `dall-e-3-standard` for marginal quality gain on the image rubric; same underlying model. Keep available as opt-in; remove from the default `modelIds` mix.
-- [ ] **Central `OUTPUT_DIRS` constant** — every image provider hardcodes `'./output/images'`; wire a shared `src/lib/core/models/output-paths.ts` during Phase 5.0 before the ElevenLabs adapter picks its own voice path ad-hoc.
 - [ ] **Gateway singleton hardening** — add `resetGateway()` export for test/env-refresh paths in `src/lib/core/models/default-gateway.ts`; document in CLAUDE.md that adding provider env vars requires a dev-server restart (Next.js HMR appears to catch `.env.local` changes but don't rely on it).
 - [ ] **Persist cost ledger** — `cost-ledger.ts` is in-memory only; every restart loses history. Append to `output/cost-ledger.jsonl` on each `record()` (opt-out via env). Blocker for Phase 6 video budget caps, not Phase 5.
 - [ ] **Extract `src/app/generate/_shared/` layout primitives** — `PromptInputPanel`, `CostReadout`, `EventLog`, and an SSE-consumer hook helper. Factor during 5.3B before `/generate/audio` copy-pastes a third instance.
 - [ ] **Replace placeholder `ELEVENLABS_API_KEY`** — the 5-char value in `.env.local` is a stub; get the real key before 5.1D "verify live" or the ElevenLabs adapter ships with no integration proof.
+
+Added from the Phase 5.0 + 5.1A signoff fixes (2026-04-20):
+
+> **TD-7:** `CostRecord` schema has no `characters` or `tokensIn`/`tokensOut` fields — per-call billing unit detail is not queryable from the ledger, limiting per-project cost breakdowns by dimension. Decide on schema extension when cost ledger is persisted to JSONL (see TD-4).
+
+> **TD-8:** Provider filename conventions have drifted slightly — `fal-ai` uses a hyphenated slug (`flux-dev`), ElevenLabs uses the raw `apiModelId` (`eleven_turbo_v2_5` with underscores). Not a bug, but parse-based tooling downstream would have to handle both shapes. Normalize when we add the next provider.
+
+> **TD-9:** `resolveOutputPath` has no length cap on filenames. OS returns `ENAMETOOLONG` for >255-char names so there's no security bypass, but a fast-fail check with a clear error would be more developer-friendly. Defer.
+
+Relocated from the 5.0 Pre-flight section (2026-04-20):
+
+> **TD-10:** [HARD-BLOCKER: mandatory before Phase 6] Pre-call budget check in the gateway (address open tension `002` §3.2 and `lessons.md` 2026-04-13 "one overrun"). Block at `gateway.request()` once project or stage budget ceiling is hit. Non-blocking for Phase 5 audio (cheap) but mandatory before Phase 6 video.
+
+> **TD-11:** Structured provider error codes (address open tension `002` §3.3). Replace heuristic string-matching in `humanizeError()` with a `{ code, category, retryable, userMessage }` shape on `ProviderResult`. Candidate to bundle with 5.1B or 5.1C.
 
 Source: pre-Phase-5 readiness review, 2026-04-20. If this review becomes a retrospective doc under `docs/decisions/` later, link it here.
 
