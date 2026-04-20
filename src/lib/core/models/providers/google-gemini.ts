@@ -1,3 +1,4 @@
+import { OUTPUT_DIRS } from '../../storage/output-paths'
 import type { Capability } from '../types'
 import {
   failure as sharedFailure,
@@ -108,7 +109,7 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     const width = typeof params.width === 'number' ? params.width : 1024
     const height = typeof params.height === 'number' ? params.height : 1024
     const outputDir =
-      typeof params.outputDir === 'string' ? params.outputDir : './output/images'
+      typeof params.outputDir === 'string' ? params.outputDir : OUTPUT_DIRS.image
     const timeoutMs =
       typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
     const abortSignal =
@@ -206,7 +207,7 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     const width = typeof params.width === 'number' ? params.width : undefined
     const height = typeof params.height === 'number' ? params.height : undefined
     const outputDir =
-      typeof params.outputDir === 'string' ? params.outputDir : './output/images'
+      typeof params.outputDir === 'string' ? params.outputDir : OUTPUT_DIRS.image
     const timeoutMs =
       typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
     const abortSignal =

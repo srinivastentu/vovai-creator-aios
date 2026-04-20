@@ -1,4 +1,5 @@
 import OpenAI, { APIError } from 'openai'
+import { OUTPUT_DIRS } from '../../storage/output-paths'
 import type { Capability } from '../types'
 import { downloadAndSave, failure as sharedFailure } from './shared'
 import type { HealthCheckResult, ProviderClient, ProviderResult } from './types'
@@ -105,7 +106,7 @@ export const createOpenAiClient = (): ProviderClient => {
     const negativePrompt =
       typeof params.negativePrompt === 'string' ? params.negativePrompt : undefined
     const outputDir =
-      typeof params.outputDir === 'string' ? params.outputDir : './output/images'
+      typeof params.outputDir === 'string' ? params.outputDir : OUTPUT_DIRS.image
     const timeoutMs =
       typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
     const abortSignal =

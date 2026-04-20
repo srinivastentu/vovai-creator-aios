@@ -1,3 +1,4 @@
+import { OUTPUT_DIRS } from '../../storage/output-paths'
 import type { Capability } from '../types'
 import {
   downloadAndSave,
@@ -68,7 +69,7 @@ export const createFalAiClient = (): ProviderClient => {
     const height = typeof params.height === 'number' ? params.height : 1024
     const seed = typeof params.seed === 'number' ? params.seed : undefined
     const outputDir =
-      typeof params.outputDir === 'string' ? params.outputDir : './output/images'
+      typeof params.outputDir === 'string' ? params.outputDir : OUTPUT_DIRS.image
     const timeoutMs =
       typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
     const abortSignal =
