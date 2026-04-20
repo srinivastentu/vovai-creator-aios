@@ -11,6 +11,7 @@ export interface ProviderResult {
   revisedPrompt?: string
   tokensIn?: number
   tokensOut?: number
+  characters?: number
   durationMs: number
   error?: string
 }

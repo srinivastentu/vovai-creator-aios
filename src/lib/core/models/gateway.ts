@@ -75,6 +75,10 @@ const estimateCost = (
     const tokens = result.tokensOut ?? 0
     return { costUsd: (tokens / 1000) * entry.costPerUnit, unit: entry.unit }
   }
+  if (entry.unit === 'character') {
+    const chars = result.characters ?? 0
+    return { costUsd: chars * entry.costPerUnit, unit: entry.unit }
+  }
   return { costUsd: entry.costPerUnit, unit: entry.unit }
 }
 
@@ -292,6 +296,7 @@ export const createModelGateway = (deps: ModelGatewayDeps = {}): ModelGateway =>
           mimeType: result.mimeType,
           fileSizeBytes: result.fileSizeBytes,
           revisedPrompt: result.revisedPrompt,
+          characters: result.characters,
         },
         cost: {
           costUsd: result.success ? costUsd : 0,

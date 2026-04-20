@@ -121,6 +121,7 @@ export interface GatewayResult {
   mimeType?: string
   fileSizeBytes?: number
   revisedPrompt?: string
+  characters?: number
   grade?: Record<string, unknown>
   [key: string]: unknown
 }
