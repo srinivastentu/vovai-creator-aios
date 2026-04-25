@@ -104,7 +104,7 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 ## Build Progress
 
 **Branch:** `main`
-**Tests:** 988 (979 passing + 9 gated-live skipped) across 57 files
+**Tests:** 1033 (1024 passing + 9 gated-live skipped) across 62 files
 **Architectural contract:** `grep -r "from.*domain/" src/lib/core/` returns nothing
 **Action plan:** `docs/implementation-guides/loop-engine-action-plan.md`
 
@@ -161,6 +161,25 @@ Tournament pattern proven on a second artifact type. Retrospective: [docs/decisi
 | 4.5-fix | `314d29e` | Judge calibration prompt (7 = competent, 8 = professional, 9+ = rare); validator threshold tuning |
 | 4.5-refactor | `3e41b50` | Regenerate + feedback prompt augmentation moved from page component into `useImageTournament` hook |
 
+### Phase 5 — Audio Generation (in progress)
+
+Tournament pattern extending to voice + music. Active spine in [tasks/todo.md](tasks/todo.md). MMS gateway is now the single point for character-based pricing.
+
+| Phase | Commit | What Was Built |
+|---|---|---|
+| 5.0 | `37679ff` | `OUTPUT_DIRS` constant + path helpers in [src/lib/core/storage/output-paths.ts](src/lib/core/storage/output-paths.ts) — text / image / voice / music / video / cost-ledger |
+| 5.0 | `0382bbd`, `63c7751` | Provider image output + `/api/images` route routed through `OUTPUT_DIRS.image` |
+| 5.0 | `a2abb9d` | Regression guard test against hard-coded output paths. Tagged `v5.1.0` |
+| 5.1A | `1690484` | Character-based pricing in MMS gateway cost estimator (per-1k-character tiering) |
+| 5.1A | `a716427` | ElevenLabs voice-synthesis provider client — [src/lib/core/models/providers/elevenlabs.ts](src/lib/core/models/providers/elevenlabs.ts) |
+| 5.1A | `4f448f4` | Registered ElevenLabs provider + 3 voice models in MMS catalog |
+| 5.1A | `596ac28` | Wired ElevenLabs client into gateway when `ELEVENLABS_API_KEY` is set |
+| 5.1A | `dd39290` | ElevenLabs ↔ gateway integration tests |
+| 5.1D | `eaeafdc` | Signoff fixes — `calculateFinalCost` rename, explicit no-throw test, unit-union tightening |
+| 5.1D | `2abb9b9`, `5b74288` | Consolidated OUTPUT_DIRS + ElevenLabs learnings into contract & MMS spec; documented eleven-v3 disabled-reason |
+
+**Upcoming (5.1B/C/E → 5.5):** voice rubric + Tier-3 auditor judge, voice validators, tournament CLI dry-run, Suno music client (5.2), generic `TournamentRunner<T>` + SSE helper extraction (5.3), `/generate/audio` UI (5.4), retro `003-audio-pipeline-learnings.md` + `v2.2.0-audio-generation` tag (5.5). Tracked tech debt: TD-3..TD-11 in [tasks/todo.md](tasks/todo.md) — TD-10 (pre-call budget check) and TD-11 (structured provider error codes) are Phase 6 hard-blockers.
+
 ---
 
 ## Workflow
@@ -187,7 +206,7 @@ Tournament pattern proven on a second artifact type. Retrospective: [docs/decisi
 ### Testing
 
 - `npm run typecheck && npm run test -- --bail` before every commit
-- 988+ tests must pass (979 + 9 gated-live). `grep -r "from.*domain/" src/lib/core/` must return nothing.
+- 1033+ tests must pass (1024 + 9 gated-live). `grep -r "from.*domain/" src/lib/core/` must return nothing.
 
 ### Core Principles
 
