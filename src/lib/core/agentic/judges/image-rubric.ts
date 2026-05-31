@@ -1,5 +1,5 @@
 // Image quality rubric — 5 dimensions, weights sum to 1.0.
-// Domain-agnostic: no eLearning-specific concepts.
+// Domain-agnostic: no domain-specific concepts.
 
 import type { RubricDefinition } from '../../engine/types'
 

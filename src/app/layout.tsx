@@ -6,8 +6,8 @@ import { cn } from "@/lib/utils"
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
-  title: 'VOVAI eLearn AIOS',
-  description: 'AI-powered eLearning video production platform',
+  title: 'VOVAI CreatorOS',
+  description: 'Agentic AI content production OS for creators.',
 }
 
 export default function RootLayout({

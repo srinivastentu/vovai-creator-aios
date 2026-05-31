@@ -1,21 +1,33 @@
-# VOVAI CreatorOS
+# CreatorOS
 
-> Agentic AI content production OS. CreatorOS turns a single creative brief into finished, multi-format content — with humans guiding, reviewing, and approving at every critical gate. V1 in progress. (Forked from VOVAI eLearn AIOS; the sections below still describe the eLearn lineage and will be rewritten as CreatorOS takes shape.)
+Agentic AI content production OS for creators. Second AIOS built
+on the VOVAI Core Platform.
 
-## Quick Start (Mac)
+**Status:** V1 in progress. Build tracked via `git tag | grep CR-`.
 
-```bash
-npm install
-cp .env.example .env.local       # Fill in API keys
-brew services start postgresql@17 # Start PostgreSQL
-npx prisma migrate dev            # Set up database
-npm run dev                       # http://localhost:3000
-```
+## Stack
 
-## Development with Claude Code
-Open VS Code → Cmd+Shift+P → "Claude Code: Open in New Tab"
-Tell Claude: "Read CLAUDE.md and tasks/todo.md"
+Next.js 15 (App Router) · TypeScript strict · Prisma 7 ·
+PostgreSQL · Tailwind 4 · shadcn/ui · Vitest
 
-## Architecture
-See [docs/architecture/system-overview.md](docs/architecture/system-overview.md)
+## Documentation
 
+- `docs/00-foundation/identity-and-scope.md` — what V1 ships
+- `docs/00-foundation/master-context.md` — full V1 spec
+- `docs/01-architecture/` — Core machinery (Loop Engine, MMS, etc.)
+- `docs/02-domain/` — CreatorOS-specific entities, pipeline, rubrics
+- `docs/04-plans/v1-action-plan.md` — 12-step build plan
+- `docs/INDEX.md` — full doc map
+
+## Development
+
+    npm install
+    npx prisma migrate dev
+    npm run dev
+
+Tests: `npm run test` · Typecheck: `npm run typecheck` ·
+Build: `npm run build`
+
+## License
+
+Private. All rights reserved.

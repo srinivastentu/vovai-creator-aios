@@ -1,6 +1,6 @@
-# VOVAI eLearn AIOS
+# VOVAI this codebase (originally eLearn AIOS; now CreatorOS — see addendum)
 
-> Agentic AI-powered end-to-end eLearning & Training Operating System. From a single project brief to a fully structured, multi-component learning experience. Humans guide, review, and approve at every critical gate.
+> Agentic AI-powered end-to-end Creator Operating System. From a single project brief to a fully structured, multi-component learning experience. Humans guide, review, and approve at every critical gate.
 
 ---
 
@@ -52,7 +52,7 @@ Runs ONE stage via `produce()` -> `evaluate()` -> `runLoop()` -> `processReview(
 Agent and judge are injected (`AgentExecutor`, `JudgeFunction`), never imported.
 4 patterns (standard, strategic+production, tournament, nested). 9 enforced rules.
 State: `IDLE -> GENERATING -> EVALUATING -> (REVISING|PRESENTING) -> AWAITING_REVIEW -> APPROVED`.
-See `docs/architecture/recursive-loop-engine.md` for full spec.
+See `docs/_eLearn_archive/architecture/recursive-loop-engine.md` for full spec.
 
 **System 2 — Agentic System (`src/lib/core/agentic/`):**
 Agent execution machinery. Registry, executor with retries/timeouts/cost tracking, model router. Agent prompts, personas, and configs live in `domain/workflows/agents/`.
@@ -65,7 +65,7 @@ Artifacts editable during review. Reviewer roles in `domain/workflows/review-con
 Pipeline orchestration, stage sequencing, archetypes, component registry, agent configs, rubrics.
 6 phases: Phase 0 (ideation, runs once) -> Phases 1-5 (production per-component).
 Order: Documents -> Assessments -> Videos -> Activities -> Capstone -> Meta.
-8 human gates. See `docs/architecture/elearn-pipeline.md`.
+8 human gates. See `docs/_eLearn_archive/architecture/elearn-pipeline.md`.
 
 **System 5 — Model Management System (`src/lib/core/models/`):**
 Centralized gateway for ALL AI model calls. Model catalog, provider registry,
@@ -73,7 +73,7 @@ cost ledger, routing, rate limiting, health monitoring. Every AI call goes
 through the gateway — no component talks directly to an AI provider.
 Provider clients: fal-ai (Flux), OpenAI (DALL-E 3, GPT-4o vision),
 Google Gemini (NanoBanana, Imagen 4), Freepik (Mystic), ElevenLabs (voice).
-See `docs/architecture/VOVAI_MMS_Architecture_v1.md`.
+See `docs/_eLearn_archive/architecture/VOVAI_MMS_Architecture_v1.md`.
 
 **Storage (`src/lib/core/storage/`):**
 Output path resolution. Exports `OUTPUT_DIRS` (text / image / voice / music / video / cost-ledger),
@@ -97,16 +97,16 @@ Base directory overridable via `OUTPUT_BASE_DIR`. Future home for cost-ledger pe
 
 ### Adding New Core Systems (Future)
 
-Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-framework.md`). For any new system: list components, apply three-question test, place machinery in `core/[system]/`, place configuration in `domain/workflows/[system]/`, verify import rule.
+Follow the Core vs Domain Separation Framework (`docs/_eLearn_archive/architecture/core-domain-framework.md`). For any new system: list components, apply three-question test, place machinery in `core/[system]/`, place configuration in `domain/workflows/[system]/`, verify import rule.
 
 ---
 
 ## Build Progress
 
 **Branch:** `main`
-**Tests:** 1033 (1024 passing + 9 gated-live skipped) across 62 files
+**Tests:** Test counts are tracked via git tags; see `git tag | grep CR-`.
 **Architectural contract:** `grep -r "from.*domain/" src/lib/core/` returns nothing
-**Action plan:** `docs/implementation-guides/loop-engine-action-plan.md`
+**Action plan:** `docs/_eLearn_archive/implementation-guides/loop-engine-action-plan.md`
 
 ### Loop Engine v2 (merged — 14 steps)
 
@@ -129,7 +129,7 @@ Follow the Core vs Domain Separation Framework (`docs/architecture/core-domain-f
 
 ### Phase 3 — Text Generation (complete)
 
-First real end-to-end production stage. Retrospective: [docs/decisions/001-project-learnings-phase-3.md](docs/decisions/001-project-learnings-phase-3.md).
+First real end-to-end production stage. Retrospective: [docs/_eLearn_archive/decisions/001-project-learnings-phase-3.md](docs/_eLearn_archive/decisions/001-project-learnings-phase-3.md).
 
 | Phase | Commit | What Was Built |
 |---|---|---|
@@ -141,7 +141,7 @@ First real end-to-end production stage. Retrospective: [docs/decisions/001-proje
 
 ### Phase 4 — Image Generation (complete)
 
-Tournament pattern proven on a second artifact type. Retrospective: [docs/decisions/002-image-pipeline-learnings.md](docs/decisions/002-image-pipeline-learnings.md). Pattern spec: [docs/architecture/tournament-pattern.md](docs/architecture/tournament-pattern.md).
+Tournament pattern proven on a second artifact type. Retrospective: [docs/_eLearn_archive/decisions/002-image-pipeline-learnings.md](docs/_eLearn_archive/decisions/002-image-pipeline-learnings.md). Pattern spec: [docs/_eLearn_archive/architecture/tournament-pattern.md](docs/_eLearn_archive/architecture/tournament-pattern.md).
 
 | Phase | Commit | What Was Built |
 |---|---|---|
@@ -192,7 +192,7 @@ Tournament pattern extending to voice + music. Active spine in [tasks/todo.md](t
 6. **Autonomous** — given a bug, just fix it. Zero hand-holding.
 7. **Visual-first** — mock data -> static UI -> API routes -> wire together.
 8. **Approval gate** — before changing 3+ files, explain plan and get approval.
-9. **New stage kickoff** — before implementing a new production stage (image, audio, video, code, design, etc.), read `docs/decisions/` and `tasks/lessons.md` first. Apply the operating principles captured there, and add new entries as you discover them.
+9. **New stage kickoff** — before implementing a new production stage (image, audio, video, code, design, etc.), read `docs/_eLearn_archive/decisions/` and `tasks/lessons.md` first. Apply the operating principles captured there, and add new entries as you discover them.
 10. **Tracker snapshot at spec kickoff** — at the start of every new micro-phase spec, paste the current state of the relevant `tasks/todo.md` section verbatim into the spec before entering plan mode. Keeps architect and executor working from the same text.
 
 ### Coding Standards
@@ -206,7 +206,7 @@ Tournament pattern extending to voice + music. Active spine in [tasks/todo.md](t
 ### Testing
 
 - `npm run typecheck && npm run test -- --bail` before every commit
-- 1033+ tests must pass (1024 + 9 gated-live). `grep -r "from.*domain/" src/lib/core/` must return nothing.
+- Test counts are tracked via git tags; see `git tag | grep CR-`. `grep -r "from.*domain/" src/lib/core/` must return nothing.
 
 ### Core Principles
 
@@ -252,17 +252,17 @@ When compacting, ALWAYS preserve:
 
 ## Reference Docs (read on demand, not preloaded)
 
-- Architecture overview: `docs/architecture/system-overview.md`
-- Loop engine spec: `docs/architecture/recursive-loop-engine.md`
-- Tournament pattern spec: `docs/architecture/tournament-pattern.md` (media artifacts — image, audio, video)
-- Model Management System spec: `docs/architecture/VOVAI_MMS_Architecture_v1.md`
-- Core vs domain framework: `docs/architecture/core-domain-framework.md`
-- Pipeline stages: `docs/architecture/elearn-pipeline.md`
-- Agent persona template: `docs/agents/persona-template.md`
-- Rubric schemas: `docs/rubrics/structure-rubric-schema.json`, `docs/rubrics/production-rubric-schema.json`
+- Architecture overview: `docs/_eLearn_archive/architecture/system-overview.md`
+- Loop engine spec: `docs/_eLearn_archive/architecture/recursive-loop-engine.md`
+- Tournament pattern spec: `docs/_eLearn_archive/architecture/tournament-pattern.md` (media artifacts — image, audio, video)
+- Model Management System spec: `docs/_eLearn_archive/architecture/VOVAI_MMS_Architecture_v1.md`
+- Core vs domain framework: `docs/_eLearn_archive/architecture/core-domain-framework.md`
+- Pipeline stages: `docs/_eLearn_archive/architecture/elearn-pipeline.md`
+- Agent persona template: `docs/_eLearn_archive/agents/persona-template.md`
+- Rubric schemas: `docs/_eLearn_archive/rubrics/structure-rubric-schema.json`, `docs/_eLearn_archive/rubrics/production-rubric-schema.json`
 - Project learnings (retrospectives):
-  - `docs/decisions/001-project-learnings-phase-3.md` — text stage (through Phase 3.5)
-  - `docs/decisions/002-image-pipeline-learnings.md` — image stage, MMS, tournament (through Phase 4.5)
+  - `docs/_eLearn_archive/decisions/001-project-learnings-phase-3.md` — text stage (through Phase 3.5)
+  - `docs/_eLearn_archive/decisions/002-image-pipeline-learnings.md` — image stage, MMS, tournament (through Phase 4.5)
 - Accumulated lessons: `tasks/lessons.md` — read and extend as work proceeds
 
 <!--

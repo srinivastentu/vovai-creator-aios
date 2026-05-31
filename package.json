@@ -1,7 +1,20 @@
 {
   "name": "vovai-creator-aios",
   "version": "0.1.0",
+  "description": "Agentic AI content production OS for creators.",
   "private": true,
+  "keywords": [
+    "ai",
+    "agentic",
+    "content-production",
+    "creator-tools",
+    "vovai",
+    "aios"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srinivastentu/vovai-creator-aios.git"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
