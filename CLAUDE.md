@@ -264,3 +264,177 @@ When compacting, ALWAYS preserve:
   - `docs/decisions/001-project-learnings-phase-3.md` — text stage (through Phase 3.5)
   - `docs/decisions/002-image-pipeline-learnings.md` — image stage, MMS, tournament (through Phase 4.5)
 - Accumulated lessons: `tasks/lessons.md` — read and extend as work proceeds
+
+<!--
+========================================================================
+  CreatorOS — CLAUDE.md Addendum
+  Appended during CR-0.5: Knowledge bootstrap
+
+  PURPOSE: Add the routing table, @import directives, and Claude Code
+  workflow guidance without rewriting the existing architectural contract
+  above. Existing eLearn-specific references in the body of this CLAUDE.md
+  are now deprecated — see docs/00-foundation/identity-and-scope.md for
+  current scope.
+========================================================================
+-->
+
+# CreatorOS Identity Note
+
+This repo is `vovai-creator-aios` (CreatorOS, the second AIOS on the
+VOVAI Core Platform). The eLearn-specific examples elsewhere in this
+file describe the parent project; they remain accurate for the Core
+machinery (loop engine, MMS, agentic system) but the Domain content
+(K-12 archetypes, Bloom's Taxonomy, video pipeline) does NOT apply
+to CreatorOS.
+
+For current scope and identity: `docs/00-foundation/identity-and-scope.md`.
+For the full V1 specification: `docs/00-foundation/master-context.md`.
+For everything else: see the routing table below.
+
+# Routing Table
+
+When the user asks about a topic, jump to the listed file(s) first
+before answering. This is how concise session prompts work — they
+say "Read first: <file>" and you find the file via this table.
+
+| Topic / question | Read these files |
+|---|---|
+| What is CreatorOS? What does V1 ship? | `docs/00-foundation/identity-and-scope.md`, then `docs/00-foundation/master-context.md` §1, §8 |
+| The acceptance test | `docs/00-foundation/identity-and-scope.md` "The acceptance test", and `docs/03-decisions/creator-decisions-log.md` (mechanization) |
+| Core vs Domain rule | `docs/01-architecture/core-vs-domain.md` |
+| Import discipline check | `.claude/skills/grep-check/SKILL.md` |
+| Loop Engine | `docs/01-architecture/loop-engine.md` |
+| Loop patterns (Standard, Strategic, Tournament, Nested, Cross-Critique) | `docs/01-architecture/loop-patterns.md` |
+| Cross-critique pattern (the differentiator) | `docs/01-architecture/cross-critique-pattern.md` |
+| MMS architecture | `docs/01-architecture/mms-architecture.md` |
+| Context Engineering System (System 6) | `docs/01-architecture/context-system.md` |
+| Review System (4-vs-6 actions) | `docs/01-architecture/review-system-v1.md` |
+| Memory architecture (4 types) | `docs/01-architecture/memory-architecture.md` |
+| Loop Engine implementation notes | `docs/01-architecture/loop-engine-implementation.md` |
+| Entity hierarchy (Persona, Workspace, Idea, LFM, Artifact) | `docs/02-domain/entities.md` |
+| V1 pipeline (stages, gates) | `docs/02-domain/pipeline-v1.md` |
+| V1 agent map + Forge persona doc template | `docs/02-domain/agents-and-personas.md` |
+| Rubrics inventory + authoring rules | `docs/02-domain/rubrics.md` |
+| Decisions inherited from eLearn AIOS | `docs/03-decisions/inherited-platform-decisions.md` |
+| Forge ADOPT patterns | `docs/03-decisions/forge-adoption-patterns.md` |
+| CreatorOS-specific decisions | `docs/03-decisions/creator-decisions-log.md` |
+| The action plan (12 CR sessions) | `docs/04-plans/v1-action-plan.md` |
+| How to run Claude Code (ultracode, Auto Mode, subagents, skills) | `docs/05-claude-code/workflows.md` |
+| Index of all docs | `docs/INDEX.md` |
+
+# Imports (followed automatically by Claude Code)
+
+@docs/00-foundation/identity-and-scope.md
+@docs/01-architecture/core-vs-domain.md
+@docs/01-architecture/cross-critique-pattern.md
+@docs/02-domain/pipeline-v1.md
+@docs/03-decisions/creator-decisions-log.md
+@docs/04-plans/v1-action-plan.md
+
+These six docs auto-load at session start. They form the
+architectural floor every CR step builds on.
+
+# Loop patterns — Pattern 5 added
+
+The Loop Engine pattern catalog now includes Pattern 5:
+**Cross-Critique** (see `docs/01-architecture/cross-critique-pattern.md`).
+This is a Core enhancement; eLearn AIOS inherits it via a separate
+back-port PR.
+
+In CreatorOS V1:
+- Stages 2 (Research) and 3 (Master synth) use Pattern 1 (Standard).
+- Stage 5 (Repurpose: LinkedIn + Article) uses Pattern 5
+  (Cross-Critique).
+
+Pattern 5 adds 3 rules to the universal 9:
+- **Rule 10**: Producer ≠ Integrator ≠ Judge at the model level.
+- **Rule 11**: Producers never see the rubric.
+- **Rule 12**: Budget cap (`maxBudgetUSD` on LoopStage) is hard.
+
+# Review system — V1 surfaces 4 actions
+
+The Loop Engine retains all 6 review actions. V1 UI surfaces only:
+
+- `approve`
+- `feedback`
+- `reject`
+- `inline_edit`
+
+The unsurfaced two (`use_segments`, `mix_produce`) are designed,
+tested at engine level, gated to V2 UI. Every V1 UI review component
+includes:
+
+```typescript
+// TODO(V2): surface use_segments + mix_produce actions
+// Engine processes them; only the UI is gated.
+```
+
+# Architectural invariants — check before every commit
+
+Run the grep-check skill (auto-invoked by the cr-step-protocol skill):
+
+```bash
+grep -rE "from ['\"][^'\"]*domain/" src/lib/core/
+```
+
+Must return empty. The check is comment-safe (the corrected version
+from the one in the original CLAUDE.md body, which was a string-match
+that caught comments).
+
+# Coding standards (unchanged)
+
+The existing coding standards in the body of CLAUDE.md remain
+authoritative:
+
+- TypeScript strict, no `any`
+- ES modules, 2-space indent, no semicolons
+- Functional React + hooks
+- Every state change emits an event
+- Every artifact is immutable
+- Every LLM call tracked in cost ledger
+
+# Claude Code workflow recommendations
+
+For every CR step session:
+
+1. `/effort ultracode` (Max plan defaults Dynamic Workflows on)
+2. Auto Mode enabled
+3. Paste the CR-step session prompt from `docs/04-plans/v1-action-plan.md`
+4. The `cr-step-protocol` skill auto-loads and orchestrates
+
+For ad-hoc debugging on a single file: `/effort medium` or no flag.
+
+For deeper architectural discussion (not building yet):
+`/effort high`. Stay out of code; use Read tools only.
+
+See `docs/05-claude-code/workflows.md` for the full guide.
+
+# Subagent invocation
+
+Four custom subagents in `.claude/agents/`. Most are auto-invoked
+by the protocol skill or by Claude Code's classifier:
+
+| Subagent | Auto-invoked when |
+|---|---|
+| `architect-reviewer` | Before any commit suggestion |
+| `rubric-author` | Task mentions "rubric", "weights", "dimension", "completeness" |
+| `prompt-tuner` | Task mentions "underperforming", "scores low", "voice drift", "iterating prompts" |
+| `test-writer` | Task mentions "tests", "test scaffold", "test coverage", "test cases" |
+
+You can invoke explicitly: `@architect-reviewer please review this diff.`
+
+# Build progress note
+
+The "Current Build Progress" section in the body of this CLAUDE.md
+describes eLearn AIOS state at the time of fork. CreatorOS build
+progress is tracked via git tags:
+
+```bash
+git tag | grep CR-
+```
+
+The latest CR-N tag is the current step's completion marker.
+
+---
+
+End of CR-0.5 addendum.
