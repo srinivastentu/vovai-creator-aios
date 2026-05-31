@@ -389,3 +389,75 @@ Pinned while implementing Stage 3 (Long-Form Master synthesis).
   rounding as the happy path (architect-review follow-up, fixed in
   this commit) — `snapQuarter` stays only on individual LLM-returned
   dimension scores, never on the already-deterministic composite.
+
+---
+
+## CR-4 decisions (2026-05-31)
+
+Pinned while implementing Stage 5 (Repurpose) single-model producers —
+the first stage that emits a publishable Artifact.
+
+### Architecture
+
+- **2026-05-31 — CR-4 injects a deterministic structural pass-judge +
+  a placeholder structural rubric to satisfy the engine contract; the
+  deterministic validator is CR-4's ONLY real quality gate.** Core
+  `runLoop` requires a `JudgeFunction` and every `LoopStage` requires a
+  `rubric`, but CR-4 ships no LLM quality judge (that is CR-5). Because
+  `runLoop` skips `evaluate()` on validator failure, the judge only
+  ever sees a structurally-valid artifact — so the structural judge
+  (`createStructuralPassJudge`, zero-cost, no API call) returns a fixed
+  passing grade (composite 80 ≥ threshold 70), and
+  `SINGLE_PRODUCER_STRUCTURAL_RUBRIC` is a one-dimension `completeness`
+  placeholder (weight 1.0; satisfies Forge ADOPT 6 and the weight-sum
+  rule). CR-5 replaces both with `LINKEDIN_POST_RUBRIC` /
+  `LONG_FORM_ARTICLE_RUBRIC` + the cross-model Gemini judge. Directly
+  parallels the CR-2/CR-3 decisions that added a judge the action-plan
+  build list omitted — here the necessity is the engine contract, not a
+  cross-model grade.
+- **2026-05-31 — The CR-4 executor is produce-only (no `revise`).**
+  With no quality judge there is no PRESERVE/IMPROVE signal to revise
+  against, so the executor always calls `producer.produce()`. A
+  validator failure re-produces a fresh draft (the engine skips the
+  judge and loops). The Cross-Critique revise/integrate path lands in
+  CR-7; the producer files are written as "Producer A" for that
+  adaptation.
+
+### Cost and quality
+
+- **2026-05-31 — Stage 5 single-producer stages run `minIterations=1`
+  (deliberate; per action-plan CR-4 `min=1`).** Supersedes the Loop
+  Engine norm of `minIterations=2` (used by Stages 2 & 3) *for CR-4
+  only*. Rationale: the structural pass-judge gives every valid draft
+  the same score (80), and the producer is produce-only, so a forced
+  second iteration would re-produce an equal-quality draft at double
+  the spend with no improvement signal — wasted money against the
+  acceptance test's <$5 / <30 min budget. CR-5 restores
+  `minIterations=2` (and raises the threshold to 80) once the real
+  Gemini judge provides an improvement signal that makes a second
+  iteration worthwhile. Resolves the CR-4 architect-review warning.
+- **2026-05-31 — Live CR-4 run: LinkedIn post 1559 chars ($0.0131) +
+  long-form article 1235 words ($0.0367), 1 iteration each, total
+  ~$0.05** against the seeded BuildOS master — far under the $1.00
+  session ceiling. Both pass their deterministic validators on the
+  first draft and read in the BuildOS voice (signature phrases present,
+  do-not-say list respected). Quality is human-judged; the LLM rubric
+  judge that mechanizes it arrives in CR-5.
+
+### Data model
+
+- **2026-05-31 — CR-4 persists Artifact rows with
+  `derivedVia='cross_critique'` (forward-compat), `status='awaiting_
+  review'`, `parentArtifactIds=[]`, `bestScore=null`.** `derivedVia`
+  uses the underscored Prisma enum (entities.md reconciliation) and is
+  marked `cross_critique` now so CR-7 needs no backfill — it becomes
+  literally true once cross-critique is wired. `bestScore` is null
+  because CR-4 has no LLM quality grade (the structural pass is loop
+  plumbing, not a quality signal); CR-5 fills it from the Gemini
+  judge's composite. `status='awaiting_review'` mirrors Stage 3's
+  `gate_a_pending` — the artifact is presented, pending Gate B (CR-11).
+- **2026-05-31 — CR-4 does NOT mutate `LongFormMaster.status`.** The
+  master stays `gate_a_pending`; flipping it to `in_repurpose` is a
+  Gate-A-approval consequence, and Gate A has no UI until CR-10. The
+  CLI consumes whatever master exists (dev convenience) without
+  implying an approval that did not happen.

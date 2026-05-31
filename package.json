@@ -26,7 +26,8 @@
     "test:watch": "vitest watch",
     "db:seed": "tsx prisma/seed.ts",
     "pipeline:research": "tsx scripts/pipeline-research.ts",
-    "pipeline:master": "tsx scripts/pipeline-master.ts"
+    "pipeline:master": "tsx scripts/pipeline-master.ts",
+    "pipeline:produce": "tsx scripts/pipeline-produce.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

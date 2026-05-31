@@ -146,3 +146,89 @@ export interface MasterCostEvent {
   tokensOut: number
   costUSD: number
 }
+
+// ---------------------------------------------------------------------------
+// Stage 5 (Repurpose) artifacts — CR-4 single-model producers.
+// An approved Long-Form Master flows in; one publishable artifact per type
+// flows out toward Gate B. CR-4 runs ONE Claude producer per type (no judge,
+// no cross-critique). CR-7 swaps the stage to the Cross-Critique pattern with
+// two producers + critics + integrator + Gemini judge. These are CreatorOS-
+// specific shapes — not Core.
+// ---------------------------------------------------------------------------
+
+/** V1 repurpose targets (Artifact.artifactType). */
+export type ArtifactKind = 'linkedin_post' | 'long_form_article'
+
+/**
+ * One Long-Form Master section the producer repurposes. Unlike a MasterSection
+ * this carries no sourceRefs — the published post/article does not cite inline;
+ * the Master holds the traceable citations (Gate A), the artifact is the
+ * publishable surface.
+ */
+export interface RepurposeSection {
+  heading: string
+  contentMarkdown: string
+}
+
+/**
+ * Compact persona view the producers write toward. Rendered from the
+ * CreatorPersona JSON columns by the CLI (see docs/02-domain/buildos-persona.md).
+ * Carries the voice fingerprints the producer must apply — the voice-fidelity
+ * criterion of the V1 acceptance test bites from CR-4 onward.
+ */
+export interface ProducerPersona {
+  name: string
+  /** Formality + vocabulary + cadence, one block. */
+  voiceSummary: string
+  /** The recurring thesis every piece ladders up to. */
+  pointOfView: string
+  /** Who this content is for. */
+  audienceSummary: string
+  /** Phrases the voice reaches for (apply, don't force). */
+  signaturePhrases: string[]
+  /** Recurring opening moves the creator uses. */
+  signatureHooks: string[]
+  /** Banned words/phrases (AI tells, hype). */
+  doNotSay: string[]
+}
+
+/**
+ * Everything a Stage 5 producer needs about the Master + Persona, decoupled
+ * from Prisma rows so the agent stays pure and testable. The CLI maps DB rows
+ * into this shape.
+ */
+export interface RepurposeContext {
+  longFormMasterId: string
+  artifactType: ArtifactKind
+  masterTitle: string
+  ideaTitle: string
+  niches: string[]
+  persona: ProducerPersona
+  /** The approved Master's ordered sections (heading + body). */
+  sections: RepurposeSection[]
+}
+
+/** Artifact.content for `linkedin_post`. charCount is recomputed from text by code. */
+export interface LinkedInArtifact {
+  text: string
+  charCount: number
+}
+
+/** Artifact.content for `long_form_article`. wordCount is recomputed from markdown by code. */
+export interface ArticleArtifact {
+  title: string
+  markdown: string
+  wordCount: number
+}
+
+/** Loop artifact T for a Stage 5 producer stage (one concrete type per stage). */
+export type RepurposeArtifact = LinkedInArtifact | ArticleArtifact
+
+/** Cost emitted by a Stage 5 producer (CR-4: single producer; CR-7 adds critics/integrator/judge). */
+export interface RepurposeCostEvent {
+  source: 'producer'
+  model: string
+  tokensIn: number
+  tokensOut: number
+  costUSD: number
+}
