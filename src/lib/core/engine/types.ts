@@ -92,8 +92,75 @@ export interface IterationRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Cross-Critique (Pattern 5) — shared, gateway-independent types
+//
+// Kept here (not in cross-critique.ts) so this module stays self-contained:
+// these reference only AgentConfig / GradeReport / IterationRecord, all local.
+// The gateway-coupled runner types (adapter, options) live in cross-critique.ts,
+// mirroring how tournament-types.ts isolates its GatewayResponse import.
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a cross-critique loop stopped. Surfaced on LoopState so the UI can show
+ * the reason (the engine presents bestArtifact, not the last iteration's output).
+ */
+export type TerminationReason = 'threshold_met' | 'max_iterations' | 'budget_exhausted'
+
+/**
+ * Per-stage configuration for the cross-critique pattern. Producers generate in
+ * parallel; each critic critiques one producer's output; one integrator
+ * synthesizes; one judge grades. Every role is an AgentConfig so the engine can
+ * resolve its model for the cross-model guard (Pattern-5 rule 10) and for gateway
+ * routing.
+ *
+ * `critics` is explicit (the doc's original sketch omitted it): the engine needs
+ * each critic's own model id to make the gateway call — it cannot be inferred
+ * from `criticAssignments`, which only maps critic → target.
+ */
+export interface CrossCritiqueConfig {
+  /** V1: 2 producers (Claude + GPT-4o). Sent the same task; differ by model. */
+  producers: AgentConfig[]
+  /** Critic agents; each `id` is a key in `criticAssignments`. */
+  critics: AgentConfig[]
+  /** criticAgentId → targetProducerAgentId (the producer output this critic reads). */
+  criticAssignments: Record<string, string>
+  /** Synthesizes the producer outputs + critiques into one artifact (sequential). */
+  integratorAgent: AgentConfig
+  /** Grades the integrated artifact. MUST be a different model family from every
+   *  producer and the integrator (rule 10) — throws at iteration start otherwise. */
+  judgeAgent: AgentConfig
+}
+
+/**
+ * One cross-critique iteration's full record. Extends IterationRecord so it slots
+ * into LoopState.iterations uniformly (grade = judgeGrade, costUSD = iterationCostUSD),
+ * while preserving the per-role sub-artifacts for the Gate-B iteration-history panel.
+ */
+export interface CrossCritiqueIterationRecord extends IterationRecord {
+  /** producerAgentId → that producer's artifact this iteration. */
+  producerArtifacts: Record<string, unknown>
+  /** criticAgentId → critique text. */
+  critiques: Record<string, string>
+  /** The integrator's synthesized output (the artifact that gets judged + presented).
+   *  Null only when integration produced nothing usable (rule 9, graceful degradation). */
+  integratedArtifact: unknown
+  /** The judge's grade of the integrated artifact. Null when integration failed
+   *  (no artifact to grade) — mirrors IterationRecord.grade. */
+  judgeGrade: GradeReport | null
+  /** Sum of all 6 sub-call costs (producers ×2 + critics ×2 + integrator + judge). */
+  iterationCostUSD: number
+}
+
+// ---------------------------------------------------------------------------
 // Stage & state
 // ---------------------------------------------------------------------------
+
+export type LoopPattern =
+  | 'standard'
+  | 'strategic'
+  | 'tournament'
+  | 'nested'
+  | 'cross-critique'
 
 export interface LoopStage<T> {
   id: string
@@ -102,7 +169,7 @@ export interface LoopStage<T> {
   threshold: number
   maxIterations: number
   minIterations: number
-  loopPattern: 'standard' | 'strategic' | 'tournament' | 'nested'
+  loopPattern: LoopPattern
   validator?: (artifact: T) => ValidationResult
   /**
    * Optional hook: called after the standard threshold check when the engine
@@ -111,6 +178,15 @@ export interface LoopStage<T> {
    * preserves default behavior. Domain-agnostic — the stage decides the rule.
    */
   shouldContinue?: (state: LoopState<T>) => boolean
+  /**
+   * Cross-critique (Pattern 5): hard cumulative-cost cap for the stage. When
+   * `cumulativeCostUSD >= maxBudgetUSD`, the loop terminates immediately with
+   * `terminationReason: 'budget_exhausted'` — even if min iterations are unmet
+   * (rule 12). Ignored by the other patterns.
+   */
+  maxBudgetUSD?: number
+  /** Cross-critique (Pattern 5): required when `loopPattern === 'cross-critique'`. */
+  crossCritique?: CrossCritiqueConfig
 }
 
 export interface LoopState<T> {
@@ -123,6 +199,18 @@ export interface LoopState<T> {
   loopCount: number
   humanFeedback: string[]
   costUSD: number
+  /**
+   * Cross-critique (Pattern 5): cumulative spend across all iterations, summed
+   * per iteration (producers + critics + integrator + judge). Drives the hard
+   * budget cap. Initialized to 0; the standard loop leaves it untouched.
+   */
+  cumulativeCostUSD: number
+  /**
+   * Set when the loop transitions to 'presenting' so the UI can show why it
+   * stopped (the engine surfaces bestArtifact, not the last output). Undefined
+   * until termination.
+   */
+  terminationReason?: TerminationReason
 }
 
 // ---------------------------------------------------------------------------

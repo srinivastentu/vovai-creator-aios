@@ -392,6 +392,7 @@ describe('processReview', () => {
       loopCount: 2,
       humanFeedback: [],
       costUSD: 0.01,
+      cumulativeCostUSD: 0.01,
     }
   }
 

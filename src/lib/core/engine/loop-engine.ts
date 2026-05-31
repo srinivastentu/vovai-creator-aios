@@ -13,6 +13,7 @@ import type {
   AgentExecutor,
   JudgeFunction,
 } from './types'
+import { runCrossCritiqueIteration, type CrossCritiqueDeps } from './cross-critique'
 
 // ---------------------------------------------------------------------------
 // createInitialState
@@ -29,6 +30,7 @@ export function createInitialState<T>(stageId: string): LoopState<T> {
     loopCount: 0,
     humanFeedback: [],
     costUSD: 0,
+    cumulativeCostUSD: 0,
   }
 }
 
@@ -74,8 +76,32 @@ export async function runLoop<T>(
   state: LoopState<T>,
   context: unknown,
   agentExecutor: AgentExecutor,
-  judge: JudgeFunction
+  judge: JudgeFunction,
+  // Cross-critique (Pattern 5) only. The standard/strategic/tournament/nested
+  // patterns ignore this; existing callers pass nothing (backward-compatible).
+  crossCritique?: CrossCritiqueDeps<T>
 ): Promise<LoopState<T>> {
+  // Dispatch on the loop pattern. Cross-critique routes to its dedicated runner
+  // (which uses the gateway + injected adapter). agentExecutor is unused there —
+  // producers/critics/integrator are gateway calls, not single-executor calls.
+  if (stage.loopPattern === 'cross-critique') {
+    if (!crossCritique) {
+      throw new Error(
+        `[loop-engine] stage ${stage.id} uses loopPattern 'cross-critique' but runLoop ` +
+          'was called without gateway/adapter deps'
+      )
+    }
+    return runCrossCritiqueIteration(
+      crossCritique.gateway,
+      stage,
+      state,
+      context,
+      judge,
+      crossCritique.adapter,
+      crossCritique.options
+    )
+  }
+
   let current = { ...state }
 
   // Capture prior artifact + grade before overwriting — for comparative judging

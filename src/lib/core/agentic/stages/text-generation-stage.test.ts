@@ -207,6 +207,7 @@ describe('createTextGenerationStage (mock)', () => {
           loopCount: 0,
           humanFeedback: [],
           costUSD: 0,
+          cumulativeCostUSD: 0,
         }
       )
     ).rejects.toThrow(/context must include/)

@@ -39,6 +39,7 @@ function makeState(
     loopCount: 1,
     humanFeedback: [],
     costUSD: 0,
+    cumulativeCostUSD: 0,
     ...overrides,
   }
 }
