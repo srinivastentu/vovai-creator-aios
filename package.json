@@ -24,7 +24,8 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:watch": "vitest watch",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "pipeline:research": "tsx scripts/pipeline-research.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

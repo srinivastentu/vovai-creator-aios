@@ -17,6 +17,20 @@ export {
 } from './adapters/text-adapter'
 export type { ClaudeTextAdapterOptions } from './adapters/text-adapter'
 
+export {
+  createWebSearchClient,
+  parseWebSearchContent,
+  readSearchCount,
+  WEB_SEARCH_COST_PER_CALL,
+} from './adapters/web-search-adapter'
+export type {
+  WebSearchSource,
+  WebSearchRun,
+  WebSearchArgs,
+  WebSearchRunner,
+  WebSearchClientOptions,
+} from './adapters/web-search-adapter'
+
 export { createTextGenerationStage } from './stages/text-generation-stage'
 export type {
   TextGenerationStage,

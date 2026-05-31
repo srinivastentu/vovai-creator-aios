@@ -248,3 +248,49 @@ the schema is written.
   `.env.example`, `.env.local` (real DATABASE_URL), `prisma.config.ts`,
   and the generated client all exist. Only `tsx` + the `db:seed`
   script were missing.
+
+---
+
+## CR-2 decisions (2026-05-31)
+
+Pinned while implementing Stage 2 (Research).
+
+### Architecture
+
+- **2026-05-31 — Web-search machinery is Core; the research agent is
+  Domain.** `src/lib/core/agentic/adapters/web-search-adapter.ts` holds
+  the generic "call Claude with the `web_search_20250305` tool, parse
+  the result blocks + citations into normalized sources, track cost"
+  machinery (zero domain words → passes the three-question test). The
+  CreatorOS Research Agent (`domain/workflows/creator/agents/research-agent.ts`)
+  injects it and decides WHAT to research. Reaffirms the 2026-05 decision
+  "web_search via Claude SDK, no new MMS provider client."
+- **2026-05-31 — CreatorOS rubric composite follows rubrics.md Rule 4:
+  1–10 per dimension, composite `= Σ(score · weight · 10)` → 0–100.**
+  This is the ONLY model under which RESEARCH_RUBRIC's `passThreshold: 75`
+  (composite) and per-dimension `passThreshold: 7` (1–10) are both
+  correct. The Research Judge reuses Core `calculateWeightedScore`
+  (1–10) and multiplies by 10; pass/fail uses Core `checkThresholds`
+  (composite ≥ 75 AND every dimension ≥ its 1–10 bar). The eLearn-legacy
+  `createOpenAITextJudge` runs a 1–10 composite and hard-requires a
+  `structure_completeness` dimension, so it is NOT reused for CreatorOS
+  rubrics. CR-3/CR-5 judges must use the same 0–100 model.
+
+### Operational
+
+- **2026-05-31 — Local CLI scripts load `.env.local` then `.env`.**
+  `dotenv/config` reads only `.env` (which holds just `DATABASE_URL`);
+  the API keys live in `.env.local`. `scripts/pipeline-research.ts`
+  uses `loadEnv({ path: ['.env.local', '.env'] })` (earlier file wins,
+  Next.js precedence). Future pipeline scripts follow this. `seed.ts`
+  and `inspect-db.ts` are unchanged — they only need `DATABASE_URL`.
+
+### Scope
+
+- **2026-05-31 — Stage 2 ships a third agent the action-plan list
+  omitted: the Research Judge.** The plan's CR-2 agent list named only
+  `research-agent` + `source-curator`, but the Standard loop needs a
+  cross-model judge to grade against RESEARCH_RUBRIC. Added
+  `agents/research-judge.ts` (GPT-4o — cross-model vs the Claude
+  producer, loop rule 7). CR-5's "judge" work remains the Gemini
+  production judges for Stage 5; this is the Stage-2 judge only.
