@@ -518,7 +518,7 @@ The single test that defines "CreatorOS V1 works":
 > 1. The Long-Form Master contains traceable sources (every section linked to a URL or uploaded doc).
 > 2. The LinkedIn post is one Srinivas would publish without editing.
 > 3. The long-form article is one Srinivas would publish without editing.
-> 4. The cross-critique loop produced visibly different versions across iterations (not just superficial edits).
+> 4. The cross-critique loop produced substantively different versions across iterations — mechanized as cosine similarity ≤ 0.92 between consecutive integrated artifacts (via `text-embedding-3-large`).
 > 5. The full run completed in under 30 minutes, under $5 cost.
 >
 > **Fail criteria:** Any output that requires substantial human rewrite means V1 isn't done. We tune until the test passes consistently.
@@ -643,7 +643,9 @@ Sub-agent composition fits naturally when we eventually adopt the Anthropic Agen
 
 ## 13. RUBRIC LIBRARY (V1)
 
-Each rubric has 5 dimensions, weights sum to 1.0, dimension scores 1-10, threshold 8.0.
+> **Superseded by `docs/02-domain/rubrics.md`** (authoritative). The summaries below are stale where they differ: the LinkedIn and Article rubrics each have **6** dimensions with an explicit `completeness` ≥ 0.20 (Forge ADOPT 6), and thresholds are expressed on the 0–100 composite scale (75/80), not "8.0".
+
+Each rubric's dimension scores are 1-10, weights sum to 1.0.
 
 ### 13.1 Research rubric
 - Relevance (0.25)

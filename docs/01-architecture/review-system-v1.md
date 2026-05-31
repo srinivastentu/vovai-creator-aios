@@ -93,7 +93,7 @@ of overall quality across subsequent iterations.
 When the user inline-edits an artifact then clicks Regenerate:
 
 1. The edited version is saved as a new Artifact with
-   `derivedVia: 'inline-edit'`, `parentArtifactIds: [bestArtifactId]`.
+   `derivedVia: 'inline_edit'`, `parentArtifactIds: [bestArtifactId]`.
 2. A new cross-critique iteration kicks off with the edited version
    as priority context.
 3. The new artifact has `derivedVia: 'regenerate'`,

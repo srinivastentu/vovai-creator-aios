@@ -4,6 +4,14 @@
 
 ---
 
+> ⚠️ **Reading note (2026-05-31):** the body below is **eLearn-legacy**
+> and partly stale for CreatorOS — it says "Four Systems" (authoritative
+> count is **six** Core systems) and lists "OpenAI (GPT-4o — judging)"
+> (the CreatorOS V1 judge is **Gemini**). Authoritative sources: the
+> CR-0.5 addendum at the END of this file +
+> `docs/00-foundation/identity-and-scope.md`. Doc precedence:
+> decisions log > master-context > other docs > this legacy body.
+
 ## Architectural Contract
 
 ### Two-Category, Four-System Architecture

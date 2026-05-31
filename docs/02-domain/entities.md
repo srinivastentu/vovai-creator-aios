@@ -177,7 +177,7 @@ interface Artifact {
   artifactType: 'linkedin_post' | 'long_form_article'   // V1
   content: unknown                     // shape depends on artifactType
   parentArtifactIds: string[]          // for fork-on-regenerate
-  derivedVia: 'cross-critique' | 'inline-edit' | 'regenerate' | 'merge'
+  derivedVia: 'cross_critique' | 'inline_edit' | 'regenerate' | 'merge'  // underscores — Prisma-legal; see reconciliation addendum
   bestScore?: number                   // judge's grade for this artifact
   status: 'draft' | 'awaiting_review' | 'approved' | 'rejected'
   costUSD: number                      // cumulative cost to produce
@@ -219,3 +219,70 @@ Prisma types directly — it works with generic shapes
 
 All of the above are V2+ concerns. V1 ships with these constraints
 explicit, not hidden.
+
+## V1 reconciliation addendum (2026-05-31)
+
+> Resolves pre-CR-1 audit findings so the schema is unambiguous. These
+> override the conceptual shapes above where they differ. Decisions are
+> pinned in `docs/03-decisions/creator-decisions-log.md` (2026-05-31).
+
+### `derivedVia` is underscored (Prisma-legal)
+
+Prisma enum members cannot contain hyphens. The canonical spelling is
+`cross_critique | inline_edit | regenerate | merge`. Any remaining
+hyphenated mentions in prose (review-system-v1.md, pipeline-v1.md, the
+CR-4/CR-11 literals in the action plan) are stale — code must use the
+underscore form the generated Prisma enum produces.
+
+### `Artifact.longFormMasterId` is REQUIRED in V1
+
+The conceptual shape marks it optional (non-master-derived artifacts
+are a V2 idea). **V1 narrows it to required** — every V1 artifact is
+derived from a LongFormMaster. CR-1 schema: non-nullable FK.
+
+### Relations & delete policy (V1)
+
+All foreign keys are explicit Prisma `@relation`s. Delete policy
+encodes Immutable History (principle 3):
+
+| FK | onDelete |
+|---|---|
+| CreatorPersona → User | Restrict |
+| Workspace → User, Workspace → CreatorPersona | Restrict |
+| Idea → Workspace | Restrict (Workspace delete 400s if ideas exist) |
+| LongFormMaster → Workspace, → Idea | Restrict |
+| LongFormSection → LongFormMaster | Cascade (sections are owned parts) |
+| SourceRef → LongFormSection, → ResearchSource | Cascade |
+| ResearchSource → LongFormMaster | Cascade |
+| Artifact → Workspace, → LongFormMaster | Restrict |
+| StageSession → Workspace | Restrict |
+| IterationRecord → StageSession | Cascade |
+
+"Cascade" only where the child is an owned structural part; everything
+that represents independent history is "Restrict" (delete blocked,
+surfaced as 400).
+
+### Episodic-memory tables are part of V1 schema
+
+Per `docs/01-architecture/memory-architecture.md`, V1 persists loop
+history in two tables that the conceptual hierarchy above omitted:
+
+- **StageSession** — one row per stage run: `id, workspaceId,
+  stageId, status, finalArtifactId?, costUSD, terminationReason?,
+  startedAt, completedAt?`.
+- **IterationRecord** — one row per loop iteration: `id,
+  stageSessionId, version, gradeJson?, modelUsed, tokensIn,
+  tokensOut, costUSD, createdAt`.
+
+These home the Gate B iteration-history panel (CR-11) and
+`terminationReason`. CR-1 creates both. (V2 adds nullable `embedding`
+columns for semantic memory; V1 writes none.)
+
+### CreatorPersona JSON sub-schemas
+
+The inner shapes of `voiceTone`, `audienceProfile`, `creatorProfile`,
+and `defaultRubricRefs` are defined in
+`docs/02-domain/buildos-persona.md`, along with the reviewed seed
+content. `defaultRubricRefs` values are rubric ids from
+`docs/02-domain/rubrics.md` (`research-rubric`,
+`long-form-master-rubric`, `linkedin-post-rubric`, `article-rubric`).

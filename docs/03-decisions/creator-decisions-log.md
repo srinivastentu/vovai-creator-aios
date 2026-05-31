@@ -84,7 +84,8 @@ the original master context.
 - **2026-05 — Inline-edit + Regenerate resolves as FORK, not discard
   or merge.** Preserves Immutable History (principle 3). Schema:
   `Artifact.parentArtifactIds: string[]`, `Artifact.derivedVia:
-  'cross-critique' | 'inline-edit' | 'regenerate' | 'merge'`.
+  'cross_critique' | 'inline_edit' | 'regenerate' | 'merge'`
+  (underscores — see 2026-05-31 reconciliation below).
 - **2026-05 — Long-Form Master is STRUCTURED, not a text blob.**
   `LongFormMaster.sections[]`, `LongFormSection.sourceRefs[]`,
   `SourceRef.researchSourceId + relevanceSnippet`. Without this
@@ -169,3 +170,81 @@ When a real decision gets made (in chat or in a Claude Code session):
 If a session can't reach a decision, don't add anything — add it to
 `docs/03-decisions/open-questions.md` instead (file may not exist
 yet; create when first needed).
+
+---
+
+## Pre-CR-1 reconciliation (2026-05-31)
+
+Decisions pinned during the pre-CR-1 documentation audit. Each
+resolves a discrepancy that would otherwise force ad-hoc choices when
+the schema is written.
+
+### Data model
+
+- **2026-05-31 — `Artifact.derivedVia` enum uses underscores:
+  `cross_critique | inline_edit | regenerate | merge`.** Prisma enum
+  members cannot contain hyphens; the generated TS type is the
+  underscore form. Supersedes the hyphenated spelling in
+  entities.md, this log (2026-05 Data-model entry), review-system-v1.md,
+  pipeline-v1.md, and the CR-4/CR-11 literals in the action plan —
+  those prose mentions are stale and any code must use underscores.
+- **2026-05-31 — `Artifact.longFormMasterId` is REQUIRED in V1.**
+  The conceptual shape (entities.md) marks it optional for V2
+  non-master-derived artifacts; V1 narrows it to a non-nullable FK
+  because every V1 artifact derives from a LongFormMaster.
+- **2026-05-31 — Explicit FK relations + delete policy for all
+  foreign keys.** Owned structural parts (sections, sourceRefs,
+  researchSources, iteration records) cascade; everything
+  representing independent history restricts (delete 400s). Full
+  table in entities.md "V1 reconciliation addendum".
+- **2026-05-31 — `StageSession` + `IterationRecord` are V1 Prisma
+  tables, created in CR-1.** Resolves the gap where
+  memory-architecture.md mandates them as V1 episodic memory but the
+  CR-1 schema block omitted them. They home the Gate B iteration
+  history panel (CR-11) and `terminationReason`. (RECOMMENDED default
+  — flagged for Srinivas to veto in favor of JSON-on-Artifact; if
+  vetoed, update memory-architecture.md to match.)
+- **2026-05-31 — CreatorPersona JSON sub-schemas are defined in
+  `docs/02-domain/buildos-persona.md`.** `voiceTone`,
+  `audienceProfile`, `creatorProfile`, `defaultRubricRefs` now have a
+  contract; `defaultRubricRefs` references rubric ids from rubrics.md.
+
+### Process / content
+
+- **2026-05-31 — BuildOS seed persona is authored, not improvised.**
+  Claude drafted concrete persona content in buildos-persona.md;
+  Srinivas reviews/edits before CR-1 seeds it. The acceptance test's
+  voice-fidelity criterion must be graded against a specified persona.
+- **2026-05-31 — Inserted a pre-CR-1 reconciliation step.** Doc
+  fixes + tooling (`tsx`, `db:seed`) landed before CR-1 so the
+  schema session is deterministic.
+
+### Documentation precedence (clarified)
+
+- **2026-05-31 — Precedence is: decisions log > master-context >
+  other docs > CLAUDE.md eLearn-legacy body.** The first ~100 lines
+  of CLAUDE.md describe eLearn (incl. "Four Systems" and "OpenAI
+  judges") and are superseded by the addendum + identity-and-scope.md
+  (authoritative: six Core systems; Gemini is the V1 judge). A banner
+  at the top of CLAUDE.md is recommended but was DEFERRED this session
+  (the file's size triggered read glitches; a safe automated edit was
+  now done). A banner was added at the top of CLAUDE.md pointing here;
+  the "CreatorOS Identity Note" addendum at the END also mitigates this.
+- **2026-05-31 — rubrics.md is authoritative for rubric dimensions.**
+  master-context.md §13 (5 dims, completeness folded) is superseded
+  by rubrics.md (6 dims, explicit `completeness` ≥ 0.20 per Forge
+  ADOPT 6). pipeline-v1.md's mixed-case dimension list defers to
+  rubrics.md camelCase ids.
+
+### Audit findings corrected (not bugs)
+
+- **2026-05-31 — Several audit claims about master-context.md were
+  inaccurate** (hallucinated line refs): it is internally consistent
+  on the six-systems count (five reused + one new) and already lists
+  6 review actions with `mix_produce`. The only real master-context
+  drift is §9 acceptance criterion 4 (lacked the cosine ≤ 0.92
+  mechanization; now aligned).
+- **2026-05-31 — Environment is ready (audit false alarm).**
+  `.env.example`, `.env.local` (real DATABASE_URL), `prisma.config.ts`,
+  and the generated client all exist. Only `tsx` + the `db:seed`
+  script were missing.

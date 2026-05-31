@@ -43,7 +43,7 @@ AIOS or Agri AIOS.
   Nested, Cross-Critique. Pattern 5 (Cross-Critique) is the CreatorOS
   addition.
 - `cross-critique-pattern.md` — Pattern 5 standalone spec.
-- `mms-architecture.md` — Model & Media Studio architecture.
+- `mms-architecture.md` — Model Management System (MMS) architecture.
 - `context-system.md` — System 6. V1 thin-seam spec.
 - `review-system-v1.md` — 4 surfaced vs 6 engine actions policy.
 - `memory-architecture.md` — Four memory types + V2 plan.
