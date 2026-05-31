@@ -328,6 +328,7 @@ say "Read first: <file>" and you find the file via this table.
 | CreatorOS-specific decisions | `docs/03-decisions/creator-decisions-log.md` |
 | The action plan (12 CR sessions) | `docs/04-plans/v1-action-plan.md` |
 | How to run Claude Code (ultracode, Auto Mode, subagents, skills) | `docs/05-claude-code/workflows.md` |
+| CR-step sign-off review (gate before next step) | `docs/sign-off-review/README.md`, `.claude/workflows/cr-signoff-audit.js` |
 | Index of all docs | `docs/INDEX.md` |
 
 # Imports (followed automatically by Claude Code)

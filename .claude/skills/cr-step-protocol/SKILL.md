@@ -1,6 +1,6 @@
 ---
 name: cr-step-protocol
-description: The CreatorOS CR-step session protocol. Activates automatically at the start of any Claude Code session in a CreatorOS repo (detected by presence of docs/04-plans/v1-action-plan.md). Walks Claude through the steps every CR session must follow: read CLAUDE.md, read routing-table targets, identify the current step, run gates, commit + tag. Without this skill, sessions miss verification gates and accumulate state inconsistencies.
+description: The CreatorOS CR-step session protocol. Activates automatically at the start of any Claude Code session in a CreatorOS repo (detected by presence of docs/04-plans/v1-action-plan.md). Walks Claude through the steps every CR session must follow: read CLAUDE.md, read routing-table targets, identify the current step, run gates, commit + tag, then a senior-staff-engineer sign-off review before moving forward. Without this skill, sessions miss verification gates and accumulate state inconsistencies.
 auto_load: true
 ---
 
@@ -163,6 +163,60 @@ git push origin main
 git push origin CR-N-<short-name>
 ```
 
+## Step 8.5 — CR-step sign-off review (gate before moving forward)
+
+After the step is committed + tagged, run the **senior-staff-engineer
+sign-off review** before declaring the step done or starting the next
+one. This is the heavier, multi-angle counterpart to Step 7's
+per-diff architect-reviewer. Full spec:
+`docs/sign-off-review/README.md`.
+
+1. **Gather ground truth.** You already re-ran typecheck / test /
+   build sequentially in Step 7.5. Collect the changed-file list
+   (`git show --stat <commit>`), the commit SHA, and the tag.
+
+2. **Run the audit workflow** (`.claude/workflows/cr-signoff-audit.js`),
+   passing the step context as `args`:
+
+   ```
+   Workflow({ name: "cr-signoff-audit", args: {
+     step: "CR-N", stepTitle: "<title>", scope: "<You-will-see + Build summary>",
+     readFirst: [ <the step's Read-first docs> ],
+     groundTruth: { typecheck: "exit 0", test: "...", build: "exit 0",
+                    grepCore: "empty (PASS)", prisma: "valid; no drift" },
+     changedFiles: [ <git show --stat> ], commit: "<sha>", tag: "CR-N-<name>",
+     dateISO: "<today>"
+   }})
+   ```
+   (If name resolution is unavailable, use
+   `{ scriptPath: ".claude/workflows/cr-signoff-audit.js", args: {…} }`.)
+
+3. **Write the report.** Take `synthesis.reportMarkdown` from the
+   result and write it **verbatim** to
+   `docs/sign-off-review/CR-N-sign-off.md`. Add a row to the index
+   table in `docs/sign-off-review/README.md`. Commit both as a small
+   docs follow-up:
+
+   ```bash
+   git add docs/sign-off-review/
+   git commit -m "CR-N: sign-off review report"
+   git push origin main
+   ```
+
+4. **Enforce the gate** on `synthesis.overallVerdict`:
+   - **DO NOT SIGN OFF** (≥1 blocker) → the step is NOT done. STOP.
+     Do not start CR-(N+1). Fix the blocker (new commit), then re-run
+     this step from sub-step 1. The blocker report is still written —
+     it is the record of what was wrong.
+   - **SIGN-OFF WITH FOLLOW-UPS** → proceed. Each follow-up is recorded
+     in the report with the CR step it is due before. If a follow-up
+     changes scope, also append it to
+     `docs/03-decisions/creator-decisions-log.md`.
+   - **SIGN-OFF** → proceed.
+
+A CR step is not "done" until its sign-off report exists in
+`docs/sign-off-review/` with no unresolved blocker.
+
 ## Step 9 — Final report
 
 After commit + tag, output a single concise report:
@@ -206,6 +260,9 @@ That's the entire report. Don't elaborate beyond it.
   bisect points here.
 - **Skipping architect-reviewer.** Core/Domain violations escape.
 - **Multi-step work in one commit.** Reverting becomes painful.
+- **Moving to the next CR step without a sign-off review (Step 8.5).**
+  Defects compound across steps; the sign-off gate catches them while
+  they are still cheap to fix, and leaves a written record per step.
 
 ## When to break the protocol
 

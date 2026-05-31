@@ -87,6 +87,17 @@ How to drive Claude Code through these plans.
 - `workflows.md` — Effort modes, Auto Mode, Dynamic Workflows,
   subagents, skills, the convention "one CR step = one session."
 
+### `sign-off-review/`
+
+The senior-staff-engineer sign-off gate that runs after every CR step
+is implemented and before the next one begins.
+
+- `README.md` — The pipeline: when it runs, the five audit lenses,
+  verdict semantics, the `cr-signoff-audit` workflow + `args` contract.
+- `_TEMPLATE.md` — The per-step report template.
+- `CR-<N>-sign-off.md` — One committed review report per CR step
+  (e.g. `CR-1-sign-off.md`).
+
 ## Cross-references
 
 If you need to know... | Read...
@@ -95,6 +106,7 @@ What V1 ships | `00-foundation/identity-and-scope.md`
 The acceptance test | `00-foundation/identity-and-scope.md` + `03-decisions/creator-decisions-log.md`
 Cross-critique pattern spec | `01-architecture/cross-critique-pattern.md`
 How to add a new loop stage | `.claude/skills/loop-stage-creation/SKILL.md` + `02-domain/pipeline-v1.md`
+How to sign off a completed CR step | `sign-off-review/README.md` + `.claude/workflows/cr-signoff-audit.js`
 How to write an agent persona doc | `.claude/skills/agent-persona-creation/SKILL.md` + `02-domain/agents-and-personas.md`
 Rubric authoring rules | `02-domain/rubrics.md`
 What was decided about X | `03-decisions/creator-decisions-log.md` (search by date)
