@@ -241,6 +241,18 @@ See `docs/decisions/002-image-pipeline-learnings.md` for the full retrospective.
 
 ---
 
+## 2026-05-31 — Cascade-cancelled tool batch corrupted streaming output (CR-0)
+
+**What happened:** During CR-0 fork bootstrap, one tool call in a batch (an `ls` of a nonexistent directory) failed. The cascade cancelled subsequent queued tool calls in that batch. The streamed tool-result block presented to the session contained partially-rendered output from the cancelled tools, interleaved with later results. Reading this corrupted stream, the session believed typecheck, tests, and build had all passed when they had not. A broken commit was pushed to main with a tag. Recovery was via amend + force-push after re-reading raw tool results and verifying ground truth by file-dumping.
+
+**Root cause:** Trusting batched/streamed tool output as ground truth at a safety-critical gate (the pre-push verification).
+
+**Fix:** At the pre-push gate in cr-step-protocol skill, do not trust prior session context. Re-run typecheck, test, and build as sequential separate tool calls. Wait for each to complete and read the exit code from its own dedicated tool result before invoking the next. Only after all three return 0 in fresh sequential calls does `git push` proceed. Cascade-cancellation cannot fool a tool that has not yet been called.
+
+**Generalizable lesson:** Streamed/batched output can be corrupted by upstream cancellation. When the decision is safety-critical (push to main, force-push, irreversible action), require fresh sequential verification. Distrust narrative context; trust separate tool calls.
+
+---
+
 ## Adding new lessons
 
 Append new entries here whenever:
