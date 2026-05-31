@@ -1,16 +1,8 @@
 {
-  "$schema": "https://docs.claude.com/claude-code/settings.schema.json",
-  "_comment": "CreatorOS Claude Code project settings. Auto Mode on. Tool allowlist tuned for the action plan in docs/04-plans/v1-action-plan.md.",
-  "autoMode": {
-    "enabled": true,
-    "_note": "Two-stage classifier auto-approves read-only and trivially safe operations. Subagents spawned by Dynamic Workflows run in acceptEdits mode when this is on."
-  },
-  "effort": {
-    "default": "ultracode",
-    "_note": "Override per-session with /effort. Max plan defaults Dynamic Workflows on at ultracode."
-  },
-  "tools": {
-    "allowed": [
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
       "Read",
       "Glob",
       "Grep",
@@ -18,15 +10,7 @@
       "Write",
       "Bash(npm:*)",
       "Bash(npx:*)",
-      "Bash(git:status)",
-      "Bash(git:diff:*)",
-      "Bash(git:log:*)",
-      "Bash(git:branch:*)",
-      "Bash(git:add:*)",
-      "Bash(git:commit:*)",
-      "Bash(git:tag:*)",
-      "Bash(git:push:*)",
-      "Bash(git:checkout:*)",
+      "Bash(git:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
@@ -35,39 +19,20 @@
       "Bash(cp:*)",
       "Bash(mv:*)",
       "Bash(tar:*)",
-      "Bash(rm:src/_eLearn_archive_*)",
-      "Bash(rm:tests/_eLearn_archive/*)",
-      "Bash(rm:tmp/*)",
       "Bash(pwd)",
       "Bash(echo:*)",
-      "WebFetch(docs.anthropic.com)",
-      "WebFetch(docs.claude.com)",
-      "WebFetch(support.claude.com)"
+      "Bash(test:*)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:support.claude.com)"
     ],
-    "denied": [
-      "Bash(rm:-rf:*)",
-      "Bash(git:reset:--hard:*)",
-      "Bash(git:push:--force:*)",
-      "Bash(git:push:-f:*)",
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
       "Bash(curl:*)",
       "Bash(wget:*)"
     ]
-  },
-  "subagents": {
-    "autoInvoke": {
-      "architectReviewerBeforeCommit": true,
-      "_note": "architect-reviewer auto-runs on staged diff before any commit suggestion. The diff must pass before the protocol skill allows commit."
-    }
-  },
-  "skills": {
-    "autoLoad": [
-      "cr-step-protocol",
-      "grep-check"
-    ],
-    "_note": "Other skills (loop-stage-creation, agent-persona-creation) load on-demand based on their YAML frontmatter description matching."
-  },
-  "context": {
-    "claudeMdImportFollowed": true,
-    "_note": "When CLAUDE.md uses @docs/... imports, Claude Code follows them automatically. This is how the routing table works."
   }
 }
