@@ -294,3 +294,39 @@ Pinned while implementing Stage 2 (Research).
   `agents/research-judge.ts` (GPT-4o — cross-model vs the Claude
   producer, loop rule 7). CR-5's "judge" work remains the Gemini
   production judges for Stage 5; this is the Stage-2 judge only.
+
+### CR-2 follow-ups (pre-CR-3, from the sign-off review)
+
+- **2026-05-31 — Per-dimension `passThreshold` is ADVISORY in V1; the
+  loop terminates on the composite `threshold` + min/max iterations.**
+  The Core `runLoop` presents/revises on `grade.overallScore >=
+  stage.threshold` (+ min/max), and escalates to the human at
+  maxIterations. It does NOT auto-block on `grade.passesThreshold`
+  (which also factors per-dimension bars). The judge still computes and
+  surfaces per-dimension scores + `passesThreshold`; those inform the
+  PRESERVE/IMPROVE feedback and the human review gate (Gate A/B), which
+  is the real enforcement point in V1. This is intentional and applies
+  to all stages including Stage 3 (Gate A). Changing the Core engine to
+  hard-gate on every dimension is a V2 consideration, not a CR-2/CR-3
+  change. Resolves sign-off follow-up #1.
+- **2026-05-31 — `ResearchSource` gets `@@unique([longFormMasterId,
+  url])`** (migration `cr_2_research_source_unique_url`). The curator
+  already dedupes by normalized URL, so the constraint rejects no valid
+  data; it lets CR-3 resolve a `SourceRef` → `ResearchSource`
+  unambiguously by URL within a master, and enforces dedupe at the DB
+  level. Applied via hand-authored migration + `migrate deploy` because
+  `migrate dev` is non-interactive-blocked in this environment; client
+  regenerated (per the CR-1 `prisma generate` lesson). Resolves sign-off
+  follow-up #2.
+- **2026-05-31 — `bibliography/` is git-ignored** (personal reference
+  scratch, not a project deliverable) so it can't be accidentally
+  committed. Resolves sign-off follow-up #6.
+- **2026-05-31 — BuildOS persona APPROVED as the V1 voice baseline,
+  with a voice-refinement window closing at CR-4.** Srinivas approved
+  the seeded persona (`docs/02-domain/buildos-persona.md`, banner +
+  checklist updated) as the baseline; `voiceTone.signaturePhrases` and
+  `voiceTone.doNotSay` remain tunable but MUST be final before CR-4
+  (first stage where producers write in the voice and the acceptance
+  test's voice-fidelity criterion applies). Any change re-runs
+  `npm run db:seed` (idempotent). Resolves the sign-off "human input
+  needed" item on persona approval.

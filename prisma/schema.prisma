@@ -183,6 +183,10 @@ model ResearchSource {
   longFormMaster LongFormMaster @relation(fields: [longFormMasterId], references: [id], onDelete: Cascade)
   sourceRefs     SourceRef[]
 
+  // One row per (master, url): the curator dedupes by normalized URL, so this
+  // rejects no valid data and lets CR-3 resolve a SourceRef -> ResearchSource
+  // unambiguously by URL within a master.
+  @@unique([longFormMasterId, url])
   @@index([longFormMasterId])
 }
 

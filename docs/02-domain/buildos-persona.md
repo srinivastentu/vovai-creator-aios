@@ -1,12 +1,19 @@
-# BuildOS Creator — Seed Persona (DRAFT for review)
+# BuildOS Creator — Seed Persona (V1 baseline — APPROVED)
 
-> **Status: DRAFT — Srinivas to review/edit before CR-1 seeds it.**
+> **Status: APPROVED as the V1 voice baseline (Srinivas, 2026-05-31,
+> during CR-2 follow-up).** Seeded verbatim by CR-1 and consumed by
+> CR-2 (`audienceProfile`). The values below are the approved baseline,
+> not provisional draft.
+>
+> **Voice-refinement window:** `voiceTone.signaturePhrases` and
+> `voiceTone.doNotSay` may still be tuned, but must be FINAL before
+> **CR-4** — that is the first stage where producers write in this
+> voice and the acceptance test's voice-fidelity criterion bites. If
+> you change them, re-run `npm run db:seed` (idempotent on stable ids).
+>
 > This is the persona at the heart of the V1 acceptance test
 > (voice-fidelity is human-judged). It was drafted by Claude from
-> `identity-and-scope.md` + `entities.md` + `rubrics.md`; the values
-> are a starting point, not ground truth. Edit freely — especially
-> `voiceTone.signaturePhrases`, `voiceTone.doNotSay`, and
-> `creatorProfile`, which carry your actual brand voice.
+> `identity-and-scope.md` + `entities.md` + `rubrics.md`.
 >
 > Resolves audit gaps **A5 / C4 / D2** (persona JSON sub-schemas + seed
 > content were previously undefined). The sub-schemas below are now the
@@ -129,12 +136,15 @@ const BUILDOS_PERSONA = {
 
 ## Review checklist for Srinivas
 
-- [ ] `voiceTone.signaturePhrases` — are these actually phrases you use?
-- [ ] `voiceTone.doNotSay` — add your personal "AI tells" pet peeves.
-- [ ] `creatorProfile.bio` — accurate one-liner?
-- [ ] `creatorProfile.pointOfView` — is this the thesis you want every artifact to ladder up to?
-- [ ] `audienceProfile` — is this who you're actually writing for?
+Approved as the V1 baseline on 2026-05-31. The two voice fields remain
+open for refinement until CR-4 (see the banner).
 
-Once approved, this becomes the body of `prisma/seed.ts`'s persona insert
-(CR-1). Until then CR-1 should treat this file as the source of truth for
-persona content, not improvise.
+- [x] `voiceTone.signaturePhrases` — approved baseline (tunable until CR-4).
+- [x] `voiceTone.doNotSay` — approved baseline (tunable until CR-4).
+- [x] `creatorProfile.bio` — accurate one-liner.
+- [x] `creatorProfile.pointOfView` — the thesis every artifact ladders up to.
+- [x] `audienceProfile` — confirmed audience.
+
+This block is the body of `prisma/seed.ts`'s persona insert (CR-1) and
+the source of truth for persona content. Edits here must be re-seeded
+via `npm run db:seed`.

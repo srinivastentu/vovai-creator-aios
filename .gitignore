@@ -47,3 +47,6 @@ tsconfig.tsbuildinfo
 tmp/
 output/
 .claude/scheduled_tasks.lock
+
+# Personal reference scratch (not a project deliverable)
+bibliography/
