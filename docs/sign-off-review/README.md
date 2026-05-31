@@ -144,6 +144,7 @@ decision or architecture rule, or would break the next CR step.
 |---|---|---|
 | CR-1 — minimal schema + BuildOS persona | SIGN-OFF WITH FOLLOW-UPS | [CR-1-sign-off.md](CR-1-sign-off.md) |
 | CR-2 — Research stage end-to-end | SIGN-OFF WITH FOLLOW-UPS | [CR-2-sign-off.md](CR-2-sign-off.md) |
+| CR-3 — Long-Form Master synthesizer | SIGN-OFF WITH FOLLOW-UPS | [CR-3-sign-off.md](CR-3-sign-off.md) |
 
 _(Append a row per step as reviews complete.)_
 
