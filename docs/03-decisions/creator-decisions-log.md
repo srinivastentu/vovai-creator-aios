@@ -604,3 +604,108 @@ for them:
   "confirm gateway routes correctly" verification action). The judge's
   `personaContext` block is an in-spirit extension of the
   "rubric + artifact only" rule (cross-context isolation intact).
+
+---
+
+## CR-6 decisions (2026-05-31)
+
+Pinned while implementing the Cross-Critique pattern (Pattern 5) in the
+Core Loop Engine — TYPES + RUNTIME only, no domain wiring (CR-7).
+
+### Architecture
+
+- **2026-05-31 — `runCrossCritiqueIteration` lives in its own
+  `src/lib/core/engine/cross-critique.ts`, dispatched from `runLoop`.**
+  Mirrors the existing `tournament.ts` precedent (a sibling engine file
+  that imports the Core `ModelGateway` type — a Core→Core import the
+  grep-check allows). Keeps `loop-engine.ts` lean and preserves
+  `types.ts`'s zero-import self-containment (the gateway-coupled adapter
+  types stay out of the shared type module). The CR-6 prompt's "extend
+  loop-engine.ts: runCrossCritiqueIteration" is satisfied in spirit —
+  `runLoop` does the dispatch (on `stage.loopPattern === 'cross-critique'`
+  via an optional, backward-compatible 6th `CrossCritiqueDeps` param);
+  the heavy runner is a sibling.
+- **2026-05-31 — The engine owns orchestration; prompts + parsing are
+  injected via `CrossCritiqueAdapter<T>`.** Six generic, zero-domain-word
+  methods (producer/critic/integrator request builders + artifact/critique
+  parsers + `feedbackFromGrade`). The judge stays an injected
+  `JudgeFunction` (consistent with the tournament + the rest of the
+  engine). The engine never knows what a "LinkedIn post" is — CR-7 supplies
+  the BuildOS prompts via the adapter. Passes the three-question test.
+- **2026-05-31 — `CrossCritiqueConfig` gains an explicit
+  `critics: AgentConfig[]` the doc sketch omitted.** `criticAssignments`
+  maps critic→target only; the engine needs each critic's own
+  `model.primary` to make the gateway call, so the critic AgentConfigs are
+  explicit. Doc-alignment follow-up below.
+
+### Cross-model rule 10 (interpretation)
+
+- **2026-05-31 — Rule 10 is enforced as "the judge's model family must be
+  disjoint from EVERY producer AND the integrator"; producers and the
+  integrator MAY share a family.** cross-critique-pattern.md's literal
+  "Producer ≠ Integrator ≠ Judge" is read as a chain meaning neither
+  producer nor integrator may share the JUDGE's family (the documented
+  self-preference-bias guard) — NOT strict pairwise distinctness. This is
+  the only interpretation consistent with V1's own canonical config, which
+  reuses **Claude as both Producer A and the Integrator** (Gemini judges).
+  Enforced by `assertCrossCritiqueModels` at iteration start, before any
+  spend; tested (`producer == judge → throws`; `producer == integrator →
+  allowed`). The architect-reviewer + all five sign-off lenses concurred.
+
+### Scope / re-deferrals (discharges the CR-5 "[due before CR-6]" item)
+
+- **2026-05-31 — The CR-5 follow-up "[due before CR-6] centralize the
+  producer≠judge guard in Core" had three clauses; clause 1 landed in
+  CR-6, clauses 2–3 are re-deferred to CR-7.** Supersedes the
+  "[due before CR-6]" tag on that item.
+  - Clause 1 (DONE, CR-6): the guard is centralized in Core as
+    `assertCrossCritiqueModels` + `classifyModelFamily` (lifted from the
+    domain-local `modelFamily`), at cross-critique iteration start.
+  - Clause 2 (→ CR-7): back family classification with the MMS catalog
+    `providerId` instead of substring matching. CR-6 ships the structural
+    `classifyModelFamily` as the default plus an injectable
+    `CrossCritiqueRunnerOptions.classifyFamily` seam; the catalog-backed
+    resolver wires in CR-7. **Rationale for re-deferral:** the action plan
+    scopes CR-6 as "ZERO domain imports / No Domain wiring yet," so the
+    catalog-backed resolver (and the domain caller it serves) cannot land
+    in CR-6. V1 correctness is unaffected — the substring classifier
+    classifies all V1 models (claude / gpt-4o / gemini) identically to a
+    providerId-backed resolver.
+  - Clause 3 (→ CR-7): remove the domain-local
+    `assertCrossModel`/`modelFamily` duplication in
+    `single-producer-stage.ts` and have the domain call the Core primitive;
+    retarget the stale `TODO(CR-6)` to done. CR-7 owns the Stage-5
+    cross-critique wiring, so the de-dup rides along naturally.
+- **2026-05-31 — `LoopState` gained `terminationReason` and
+  `CrossCritiqueIterationRecord.judgeGrade`/`integratedArtifact` are
+  nullable — deliberate, beyond the literal prompt/doc.**
+  `terminationReason` surfaces WHY the loop stopped (the doc's escalation
+  presents `bestArtifact` + the reason). `judgeGrade: GradeReport | null`
+  (and a nullable `integratedArtifact`) is the graceful-degradation path
+  (rule 9) and the validator-rejection path (rule 6) — the judge is skipped
+  when there's nothing valid to grade, mirroring `IterationRecord.grade`.
+
+### CR-6 sign-off follow-ups (2026-05-31)
+
+The CR-6 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high
+confidence, zero blockers — `docs/sign-off-review/CR-6-sign-off.md`).
+Scope-affecting follow-ups, recorded so future steps plan for them:
+
+- **2026-05-31 — [due before CR-7] Wire `options.getJudgeCostUsd` from the
+  gateway-routed Gemini judge** so the hard budget cap (rule 12) counts
+  judge spend, and add a test that non-zero judge cost is included in
+  `cumulativeCostUSD` before the budget check. (CR-6's runner accounts
+  judge cost via the `getJudgeCostUsd` seam; nothing supplies it yet.)
+- **2026-05-31 — [due before CR-7] Doc-vs-code alignment in
+  cross-critique-pattern.md** (+ loop-patterns.md §Pattern 5): add
+  `critics: AgentConfig[]` to the `CrossCritiqueConfig` snippet and change
+  `CrossCritiqueIterationRecord.judgeGrade` to `GradeReport | null` (note
+  `integratedArtifact` may be null on degradation), so the authoritative
+  doc matches the shipped contract.
+- **2026-05-31 — [due before CR-11] The Gate-B review UI must handle a null
+  `bestArtifact` + `terminationReason`** gracefully (show the failure
+  reason, not an empty artifact).
+- **2026-05-31 — [minor] Commit-trailer convention.** The CR-6 code commit
+  omitted the `Co-Authored-By` trailer (matching CR-1..CR-5, which also
+  omit it). Re-include it on subsequent commits per the harness convention;
+  noted in `tasks/lessons.md`.

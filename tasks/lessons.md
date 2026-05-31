@@ -284,6 +284,25 @@ and pipeline scripts.
 
 ---
 
+## Commit trailer omitted on CR-6 (2026-05-31)
+
+**What happened:** The CR-6 code commit was authored as `VOVAI Founder`
+(matching CR-1..CR-5) but omitted the harness's `Co-Authored-By` trailer.
+The sign-off audit flagged the omission as a minor follow-up.
+
+**Fix / rule:** The repo's CR-1..CR-5 commits all omit the trailer, so CR-6
+matched local convention — but the harness convention is to include it.
+Going forward, append the `Co-Authored-By` trailer on CR-step commits
+(code + docs follow-up) unless the user says otherwise. Author stays
+`VOVAI Founder`.
+
+**Generalizable lesson:** When a harness/global instruction and the local
+repo convention disagree on a low-stakes commit detail, follow the harness
+instruction and note the divergence rather than silently matching local
+history.
+
+---
+
 ## Adding new lessons
 
 Append new entries here whenever:
