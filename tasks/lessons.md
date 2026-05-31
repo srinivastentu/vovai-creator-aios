@@ -253,6 +253,37 @@ See `docs/decisions/002-image-pipeline-learnings.md` for the full retrospective.
 
 ---
 
+## 2026-05-31 — `prisma migrate dev` did not refresh model delegates (CR-1)
+
+**What happened:** After writing the CR-1 schema and running
+`npx prisma migrate dev --name cr_1_creator_schema` (which reported the
+migration applied and the DB "in sync"), the seed script failed with
+`TypeError: Cannot read properties of undefined (reading 'upsert')` —
+`db.user` was `undefined`. The generated client at `src/generated/prisma`
+still held the previous (empty-schema) model set. Running
+`npx prisma generate` explicitly produced the 11 model files and the seed
+then succeeded.
+
+**Root cause:** This repo uses Prisma 7's `prisma-client` generator (ESM,
+TS-source output to `src/generated/prisma`, driver-adapter via
+`@prisma/adapter-pg`). In this configuration `migrate dev` did not refresh
+the client's model delegates, so the runtime client exposed no
+`db.<model>` accessors even though the migration applied cleanly.
+
+**Fix / rule:** After ANY `schema.prisma` change, run `npx prisma generate`
+explicitly before invoking any `tsx` script (seed, inspect, pipeline runner)
+that imports the generated client. Quick check:
+`ls src/generated/prisma/models/` should list one file per model; if stale
+or missing models, regenerate.
+
+**Generalizable lesson:** With the Prisma 7 `prisma-client` (TS-source)
+generator + driver adapter, treat `prisma generate` as a separate required
+step after migrations — `migrate dev`'s "in sync" message refers to the
+database, not necessarily the generated client. Relevant to CR-2/CR-3 seed
+and pipeline scripts.
+
+---
+
 ## Adding new lessons
 
 Append new entries here whenever:
