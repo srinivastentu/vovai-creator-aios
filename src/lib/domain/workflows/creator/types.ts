@@ -54,3 +54,95 @@ export interface ResearchCostEvent {
   tokensOut: number
   costUSD: number
 }
+
+// ---------------------------------------------------------------------------
+// Stage 3 (Long-Form Master synthesis) artifacts.
+// The Research Dossier (Stage 2) flows in; a structured, source-traceable
+// LongFormMaster flows out toward Gate A. These are CreatorOS-specific shapes
+// — not Core. A Film AIOS would structure its master differently.
+// ---------------------------------------------------------------------------
+
+/**
+ * One source available to the synthesizer, already persisted as a
+ * ResearchSource row in CR-2. `researchSourceId` is the DB id the synthesizer
+ * must cite against; the synthesizer references sources by short stable
+ * handles (S1, S2, …) which the agent maps back to these ids in code.
+ */
+export interface MasterSourceInput {
+  researchSourceId: string
+  url: string
+  title: string
+  snippet: string
+}
+
+/** A section's citation: links section → ResearchSource with a relevance excerpt. */
+export interface MasterSourceRef {
+  researchSourceId: string
+  relevanceSnippet: string
+}
+
+/** One ordered section of a Long-Form Master. */
+export interface MasterSection {
+  order: number
+  heading: string
+  contentMarkdown: string
+  /** Every section cites ≥1 source (Gate A traceability). */
+  sourceRefs: MasterSourceRef[]
+}
+
+/**
+ * Stage 3 output (the loop's artifact T). Self-contained: it carries the
+ * source pool it was built against so the deterministic validator and the
+ * cross-model judge stay pure `(artifact) => …` functions — mirroring how a
+ * ResearchDossier carries its own sources. The `sources` snapshot is
+ * loop-internal; only `title` + `sections` are persisted (ResearchSource rows
+ * already exist from CR-2).
+ */
+export interface MasterArtifact {
+  title: string
+  sections: MasterSection[]
+  sources: MasterSourceInput[]
+}
+
+/**
+ * Compact persona view the synthesizer writes toward and the judge grades
+ * `personaAlignment` against. Rendered from the CreatorPersona JSON columns
+ * by the CLI (see docs/02-domain/buildos-persona.md for the sub-schemas).
+ */
+export interface MasterPersona {
+  name: string
+  /** Formality + vocabulary + cadence, one block. */
+  voiceSummary: string
+  /** The recurring thesis every piece ladders up to. */
+  pointOfView: string
+  /** Who this content is for. */
+  audienceSummary: string
+  /** Banned words/phrases (AI tells, hype). */
+  doNotSay: string[]
+}
+
+/**
+ * Everything the synthesizer needs about the Master-in-progress, decoupled
+ * from Prisma rows so the agent stays pure and testable. The CLI maps DB rows
+ * into this shape.
+ */
+export interface MasterContext {
+  longFormMasterId: string
+  ideaTitle: string
+  ideaDescription: string
+  niches: string[]
+  persona: MasterPersona
+  /** The curated dossier sources (ResearchSource rows from CR-2). */
+  sources: MasterSourceInput[]
+  /** V1: empty (no uploads wired yet). Priority hint = 6 (see context-system.md). */
+  uploadedDocs?: { title: string; content: string }[]
+}
+
+/** Cost emitted by a Stage 3 unit (synthesizer or judge). */
+export interface MasterCostEvent {
+  source: 'synthesizer' | 'judge'
+  model: string
+  tokensIn: number
+  tokensOut: number
+  costUSD: number
+}

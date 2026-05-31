@@ -330,3 +330,62 @@ Pinned while implementing Stage 2 (Research).
   test's voice-fidelity criterion applies). Any change re-runs
   `npm run db:seed` (idempotent). Resolves the sign-off "human input
   needed" item on persona approval.
+
+---
+
+## CR-3 decisions (2026-05-31)
+
+Pinned while implementing Stage 3 (Long-Form Master synthesis).
+
+### Scope
+
+- **2026-05-31 — Stage 3 ships a Long-Form Master Judge (GPT-4o) the
+  action-plan build list omitted.** The CR-3 prompt named only the
+  `long-form-synthesizer`, but the Standard loop (Pattern 1) needs a
+  cross-model judge to grade against `LONG_FORM_MASTER_RUBRIC` and
+  drive PRESERVE/IMPROVE iteration. Added
+  `agents/long-form-master-judge.ts` (GPT-4o — cross-model vs the
+  Claude synthesizer, loop rule 7 / Pattern-5 rule 10). Directly
+  parallels the CR-2 decision that added the Research Judge. CR-5's
+  Stage-5 Gemini judges are separate and still come later.
+
+### Architecture
+
+- **2026-05-31 — Context curation is domain-local in CR-3; the Core
+  PassthroughCurator (`src/lib/core/context`) is deferred to CR-8.**
+  The CR-3 prompt says "use PassthroughCurator with priorities
+  persona=10, idea=10, researchSources=8, uploadedDocs=6," but CR-8
+  owns building the Context Engineering System (System 6). To avoid
+  pulling Core machinery forward (no scope additions inside a CR step),
+  CR-3 implements the priority-ordered context assembly inline in the
+  synthesizer prompt builder, exported as `MASTER_CONTEXT_PRIORITIES`
+  with a `TODO(CR-8)` to lift it into the Core curator. The V1
+  passthrough behavior (include all blocks, highest priority first) is
+  identical; only the home address changes in CR-8.
+- **2026-05-31 — `MasterArtifact` carries its source-pool snapshot so
+  the validator + judge stay pure `(artifact) => …` functions.** The
+  deterministic validator must check every `SourceRef.researchSourceId`
+  resolves to a dossier source, and the judge must verify accuracy
+  against the cited sources — both need the source pool. Rather than
+  widen the Core `LoopStage.validator` / `JudgeFunction` signatures,
+  the artifact embeds `sources: MasterSourceInput[]` (loop-internal;
+  only `title` + `sections` persist). This mirrors how a
+  `ResearchDossier` carries its own sources.
+- **2026-05-31 — The synthesizer cites sources by short stable handles
+  (S1, S2, …), mapped to `researchSourceId` in code.** ResearchSource
+  ids are opaque cuids an LLM cannot echo reliably; the prompt lists
+  sources as `S1..Sn` and the agent maps handles back to real ids,
+  dropping any unknown handle. The persisted `MasterArtifact` carries
+  real ids the validator and persistence layer use.
+
+### Cost and quality
+
+- **2026-05-31 — Live CR-3 run: 6 sections, 1213 words, 9 SourceRefs,
+  best score 89/100, $0.10, 2 iterations** against the seeded BuildOS
+  idea — well under the $1.50 session ceiling. The judge's composite
+  uses the same 0–100 model as CR-2 (rubrics.md Rule 4): 1–10 per
+  dimension, `Σ(score · weight · 10)`, threshold 80 (the Gate A bar).
+  The fallback `syntheticFailingGrade` path was aligned to the same
+  rounding as the happy path (architect-review follow-up, fixed in
+  this commit) — `snapQuarter` stays only on individual LLM-returned
+  dimension scores, never on the already-deterministic composite.
