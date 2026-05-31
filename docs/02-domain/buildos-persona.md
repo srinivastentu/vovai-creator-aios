@@ -5,11 +5,12 @@
 > CR-2 (`audienceProfile`). The values below are the approved baseline,
 > not provisional draft.
 >
-> **Voice-refinement window:** `voiceTone.signaturePhrases` and
-> `voiceTone.doNotSay` may still be tuned, but must be FINAL before
-> **CR-4** — that is the first stage where producers write in this
-> voice and the acceptance test's voice-fidelity criterion bites. If
-> you change them, re-run `npm run db:seed` (idempotent on stable ids).
+> **Voice-refinement window — CLOSED at CR-4 (2026-05-31).** CR-4's
+> producers consumed `voiceTone.signaturePhrases` and
+> `voiceTone.doNotSay` **unchanged** from the approved baseline below,
+> so the window closed as planned with no edits. Any further tuning is
+> now a fresh change: edit here and re-run `npm run db:seed` (idempotent
+> on stable ids) **before** CR-5 producers iterate against the voice.
 >
 > This is the persona at the heart of the V1 acceptance test
 > (voice-fidelity is human-judged). It was drafted by Claude from
@@ -136,11 +137,11 @@ const BUILDOS_PERSONA = {
 
 ## Review checklist for Srinivas
 
-Approved as the V1 baseline on 2026-05-31. The two voice fields remain
-open for refinement until CR-4 (see the banner).
+Approved as the V1 baseline on 2026-05-31. The refinement window closed
+at CR-4 (see the banner); both fields were consumed unchanged.
 
-- [x] `voiceTone.signaturePhrases` — approved baseline (tunable until CR-4).
-- [x] `voiceTone.doNotSay` — approved baseline (tunable until CR-4).
+- [x] `voiceTone.signaturePhrases` — final baseline (window closed at CR-4, unchanged).
+- [x] `voiceTone.doNotSay` — final baseline (window closed at CR-4, unchanged).
 - [x] `creatorProfile.bio` — accurate one-liner.
 - [x] `creatorProfile.pointOfView` — the thesis every artifact ladders up to.
 - [x] `audienceProfile` — confirmed audience.
