@@ -1,6 +1,11 @@
 // VOVAI CreatorOS — Prisma Schema
-// Models defined in CR-1 onwards. Datasource url is supplied by
+// CR-1: minimal V1 data model. Datasource url is supplied by
 // prisma.config.ts (env DATABASE_URL).
+//
+// Relations & delete policy follow docs/02-domain/entities.md
+// "V1 reconciliation addendum" (2026-05-31): owned structural parts
+// Cascade; everything representing independent history Restricts.
+// Enum members use underscores (Prisma-legal) per the same addendum.
 
 generator client {
   provider = "prisma-client"
@@ -9,4 +14,247 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────
+
+enum WorkspaceRole {
+  admin
+  writer
+  editor
+  reviewer
+}
+
+enum IdeaStatus {
+  captured
+  in_progress
+  completed
+  archived
+}
+
+enum MasterStatus {
+  draft
+  gate_a_pending
+  approved
+  in_repurpose
+}
+
+enum SourceType {
+  web
+  upload
+}
+
+enum ArtifactType {
+  linkedin_post
+  long_form_article
+}
+
+enum DerivedVia {
+  cross_critique
+  inline_edit
+  regenerate
+  merge
+}
+
+enum ArtifactStatus {
+  draft
+  awaiting_review
+  approved
+  rejected
+}
+
+// ─── Core hierarchy ───────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  personas   CreatorPersona[]
+  workspaces Workspace[]
+}
+
+model CreatorPersona {
+  id                String   @id @default(cuid())
+  userId            String
+  name              String
+  niches            String[] @default([])
+  // JSON sub-schemas (VoiceTone, AudienceProfile, CreatorProfile,
+  // DefaultRubricRefs) are defined in docs/02-domain/buildos-persona.md.
+  voiceTone         Json
+  audienceProfile   Json
+  creatorProfile    Json
+  defaultRubricRefs Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workspaces Workspace[]
+
+  @@index([userId])
+}
+
+model Workspace {
+  id          String        @id @default(cuid())
+  userId      String
+  personaId   String
+  name        String
+  description String
+  role        WorkspaceRole @default(admin)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  persona CreatorPersona @relation(fields: [personaId], references: [id], onDelete: Restrict)
+
+  ideas           Idea[]
+  longFormMasters LongFormMaster[]
+  artifacts       Artifact[]
+  stageSessions   StageSession[]
+
+  @@index([userId])
+  @@index([personaId])
+}
+
+model Idea {
+  id          String     @id @default(cuid())
+  workspaceId String
+  title       String
+  description String
+  niches      String[]   @default([])
+  sourceUrl   String?
+  status      IdeaStatus @default(captured)
+  promotedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  longFormMasters LongFormMaster[]
+
+  @@index([workspaceId])
+}
+
+// ─── Long-Form Master (structured, traceable) ─────────────────────
+
+model LongFormMaster {
+  id          String       @id @default(cuid())
+  workspaceId String
+  ideaId      String
+  title       String
+  status      MasterStatus @default(draft)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  idea      Idea      @relation(fields: [ideaId], references: [id], onDelete: Restrict)
+
+  sections        LongFormSection[]
+  researchSources ResearchSource[]
+  artifacts       Artifact[]
+
+  @@index([workspaceId])
+  @@index([ideaId])
+}
+
+model LongFormSection {
+  id               String @id @default(cuid())
+  longFormMasterId String
+  order            Int
+  heading          String
+  contentMarkdown  String
+
+  longFormMaster LongFormMaster @relation(fields: [longFormMasterId], references: [id], onDelete: Cascade)
+  sourceRefs     SourceRef[]
+
+  @@index([longFormMasterId])
+}
+
+model ResearchSource {
+  id               String     @id @default(cuid())
+  longFormMasterId String
+  url              String
+  type             SourceType
+  title            String
+  snippet          String
+  fetchedAt        DateTime   @default(now())
+
+  longFormMaster LongFormMaster @relation(fields: [longFormMasterId], references: [id], onDelete: Cascade)
+  sourceRefs     SourceRef[]
+
+  @@index([longFormMasterId])
+}
+
+model SourceRef {
+  id               String @id @default(cuid())
+  sectionId        String
+  researchSourceId String
+  relevanceSnippet String
+
+  section        LongFormSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  researchSource ResearchSource  @relation(fields: [researchSourceId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+  @@index([researchSourceId])
+}
+
+// ─── Artifacts (repurposed deliverables) ──────────────────────────
+
+model Artifact {
+  id                String         @id @default(cuid())
+  workspaceId       String
+  longFormMasterId  String
+  artifactType      ArtifactType
+  // content shape depends on artifactType — see docs/02-domain/entities.md
+  content           Json
+  parentArtifactIds String[]       @default([])
+  derivedVia        DerivedVia
+  bestScore         Float?
+  status            ArtifactStatus @default(draft)
+  costUSD           Float          @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  longFormMaster LongFormMaster @relation(fields: [longFormMasterId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId])
+  @@index([longFormMasterId])
+}
+
+// ─── Episodic memory (loop history) ───────────────────────────────
+
+model StageSession {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  stageId           String
+  status            String
+  finalArtifactId   String?
+  terminationReason String?
+  costUSD           Float     @default(0)
+  startedAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  iterationRecords IterationRecord[]
+
+  @@index([workspaceId])
+}
+
+model IterationRecord {
+  id             String   @id @default(cuid())
+  stageSessionId String
+  version        Int
+  // gradeJson shape: GradeReport — see src/lib/core/engine/types.ts
+  gradeJson      Json?
+  modelUsed      String
+  tokensIn       Int
+  tokensOut      Int
+  costUSD        Float    @default(0)
+  createdAt      DateTime @default(now())
+
+  stageSession StageSession @relation(fields: [stageSessionId], references: [id], onDelete: Cascade)
+
+  @@index([stageSessionId])
 }
