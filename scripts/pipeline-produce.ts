@@ -1,17 +1,19 @@
 #!/usr/bin/env tsx
-// CR-4 — Stage 5 (Repurpose) single-model producer CLI runner.
+// CR-5 — Stage 5 (Repurpose) single-model producer CLI runner.
 // Usage:
 //   npm run pipeline:produce -- --longFormMasterId=<id> --type=linkedin_post
 //   npm run pipeline:produce -- --longFormMasterId=<id> --type=long_form_article
 //
 // Loads a Long-Form Master (its ordered sections) plus the Idea + Workspace +
-// CreatorPersona, runs the single-producer loop to completion (auto-presented —
-// Gate B UI arrives in CR-11), persists an Artifact row, and writes the rendered
-// output to tmp/runs/<ideaId>/<type>.md.
+// CreatorPersona, runs the single-producer loop (Claude producer → validator →
+// Gemini judge → revise) to completion (auto-presented — Gate B UI arrives in
+// CR-11), persists an Artifact row with the judge's best composite score, and
+// writes the rendered output to tmp/runs/<ideaId>/<type>.md.
 //
-// CR-4 needs only ANTHROPIC_API_KEY (one Claude producer; no judge until CR-5).
-// Load .env.local first (canonical local secrets) then .env — earlier files
-// win, matching Next.js precedence. dotenv/config alone only reads .env.
+// CR-5 needs ANTHROPIC_API_KEY (Claude producer) + GOOGLE_GEMINI_API_KEY (the
+// cross-model Gemini judge, via the MMS gateway). Load .env.local first
+// (canonical local secrets) then .env — earlier files win, matching Next.js
+// precedence. dotenv/config alone only reads .env.
 import { config as loadEnv } from 'dotenv'
 loadEnv({ path: ['.env.local', '.env'] })
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -23,6 +25,7 @@ import {
   createArticleStage,
   runProducerLoop,
   buildArtifactPersistence,
+  type ProducerIterationEvent,
 } from '../src/lib/domain/workflows/creator/single-producer-stage'
 import type {
   ArtifactKind,
@@ -82,6 +85,19 @@ function toProducerPersona(persona: {
   }
 }
 
+/** Persona block the Gemini judge grades personaFit / audienceFit against. */
+function renderPersonaContext(p: ProducerPersona): string {
+  return [
+    `Name: ${p.name}`,
+    p.voiceSummary ? `Voice: ${p.voiceSummary}` : '',
+    p.pointOfView ? `Point of view: ${p.pointOfView}` : '',
+    p.audienceSummary ? `Audience: ${p.audienceSummary}` : '',
+    p.doNotSay.length ? `Never say: ${p.doNotSay.join('; ')}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
 function renderOutput(type: ArtifactKind, artifact: RepurposeArtifact): string {
   if (type === 'linkedin_post') return (artifact as LinkedInArtifact).text
   return (artifact as ArticleArtifact).markdown
@@ -103,7 +119,11 @@ async function main() {
   }
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL not set')
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('ANTHROPIC_API_KEY must be set.')
+    console.error('ANTHROPIC_API_KEY must be set (Claude producer).')
+    process.exit(1)
+  }
+  if (!process.env.GOOGLE_GEMINI_API_KEY) {
+    console.error('GOOGLE_GEMINI_API_KEY must be set (cross-model Gemini judge).')
     process.exit(1)
   }
 
@@ -145,26 +165,39 @@ async function main() {
       `Persona: ${persona.name}  |  Workspace: ${master.workspace.name}  |  ${master.sections.length} master sections\n`
     )
 
-    const onIteration = (e: { version: number; score: number; validationFailed: boolean }) => {
+    const personaContext = renderPersonaContext(persona)
+
+    const onIteration = (e: ProducerIterationEvent) => {
       if (e.validationFailed) {
         console.log(`v${e.version}: VALIDATION FAILED — revising.`)
         return
       }
-      console.log(`Iteration ${e.version}: structural pass (score ${e.score}/100).`)
+      const dims = e.dimensionScores.map((d) => `${d.name} ${d.score}`).join(', ')
+      console.log(`Iteration ${e.version}: judge score ${e.score}/100${dims ? ` — ${dims}` : ''}.`)
     }
 
-    // Branch on artifact type — each stage carries a distinct artifact T.
+    // Branch on artifact type — each stage carries a distinct artifact T. The
+    // stage builds a cross-model Gemini judge (default gateway) graded against
+    // the personaContext; cost (producer + judge) accrues to result.totalCostUSD.
     const result =
       type === 'linkedin_post'
-        ? await runProducerLoop({ stage: createLinkedInStage(), context, onIteration })
-        : await runProducerLoop({ stage: createArticleStage(), context, onIteration })
+        ? await runProducerLoop({
+            stage: createLinkedInStage({ personaContext }),
+            context,
+            onIteration,
+          })
+        : await runProducerLoop({
+            stage: createArticleStage({ personaContext }),
+            context,
+            onIteration,
+          })
 
     const best = result.bestArtifact as RepurposeArtifact | null
     if (!best) throw new Error(`Producer loop produced no usable ${type}`)
 
-    // Auto-present (dev): persist the Artifact row. bestScore stays null — CR-4
-    // has no LLM quality judge (CR-5 fills it). TODO(CR-9): cost → StageSession.
-    const payload = buildArtifactPersistence(type, best, result.totalCostUSD)
+    // Auto-present (dev): persist the Artifact row with the judge's best
+    // composite score (CR-5). TODO(CR-9): cost → StageSession.
+    const payload = buildArtifactPersistence(type, best, result.totalCostUSD, result.bestScore)
     const saved = await db.artifact.create({
       data: {
         workspaceId: master.workspaceId,
@@ -187,10 +220,17 @@ async function main() {
     const outPath = join(outDir, `${type}.md`)
     writeFileSync(outPath, renderOutput(type, best), 'utf8')
 
+    const scoreLabel = result.bestScore !== null ? `${result.bestScore}/100` : 'n/a'
     console.log(
-      `\nGenerated ${type} at ${outPath}. ${sizeLabel(type, best)}. Cost: $${result.totalCostUSD.toFixed(4)}.`
+      `\nGenerated ${type} at ${outPath}. ${sizeLabel(type, best)}. ` +
+        `Best score: ${scoreLabel} over ${result.iterations.length} iteration(s). ` +
+        `Cost: $${result.totalCostUSD.toFixed(4)}.`
     )
-    console.log(`Artifact ${saved.id} → status=${saved.status}, derivedVia=${saved.derivedVia}.`)
+    console.log(
+      `Artifact ${saved.id} → status=${saved.status}, derivedVia=${saved.derivedVia}, bestScore=${saved.bestScore ?? 'null'}.`
+    )
+    const verdict = result.finalState.bestGrade?.recommendation
+    if (verdict) console.log(`Judge verdict: ${verdict}`)
     if (result.error) {
       console.log(
         `(loop surfaced an error at iteration ${result.error.iteration}: ${result.error.message})`

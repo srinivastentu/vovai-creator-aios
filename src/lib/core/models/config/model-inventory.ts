@@ -107,6 +107,49 @@ export const getDefaultModels = (): ModelDefinition[] => [
     apiModelId: 'nano-banana-pro-preview',
     metadata: {},
   },
+  // Gemini text models (CR-5) — text-generation + text-scoring (judges).
+  // The action plan named gemini-1.5-pro-latest / gemini-1.5-flash, but the 1.5
+  // family is retired on Google's v1beta API (verified via ListModels); these
+  // are the current GA equivalents. MMS bills a single unit per (model,
+  // capability) — we bill input tokens (the dominant volume for a judge call),
+  // matching the gpt-4o-vision precedent; output tokens are not separately
+  // billed in V1. Pricing reflects Google's per-1M input rates.
+  {
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
+    providerId: 'google-gemini',
+    capabilities: ['text-generation', 'text-scoring'],
+    qualityTier: 'premium',
+    pricing: {
+      'text-generation': { costPerUnit: 0.00125, unit: '1k-tokens-in' },
+      'text-scoring': { costPerUnit: 0.00125, unit: '1k-tokens-in' },
+    },
+    supportedParams: {
+      maxTokensIn: 1048576,
+      maxTokensOut: 65536,
+    },
+    status: 'active',
+    apiModelId: 'gemini-2.5-pro',
+    metadata: {},
+  },
+  {
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    providerId: 'google-gemini',
+    capabilities: ['text-generation', 'text-scoring'],
+    qualityTier: 'standard',
+    pricing: {
+      'text-generation': { costPerUnit: 0.0003, unit: '1k-tokens-in' },
+      'text-scoring': { costPerUnit: 0.0003, unit: '1k-tokens-in' },
+    },
+    supportedParams: {
+      maxTokensIn: 1048576,
+      maxTokensOut: 65536,
+    },
+    status: 'active',
+    apiModelId: 'gemini-2.5-flash',
+    metadata: {},
+  },
   // Imagen 4 (fast/standard) intentionally omitted: Google's v1beta API rejects
   // `imagen-4-fast` / `imagen-4-standard` with 404 (not supported for predict).
   // Re-add with verified apiModelId (e.g. `imagen-4.0-*-001`) and paid-tier key.

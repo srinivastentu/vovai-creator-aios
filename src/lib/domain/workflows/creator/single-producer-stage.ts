@@ -3,15 +3,17 @@
 // article) with its deterministic validator into a Standard LoopStage plus a
 // matching AgentExecutor + JudgeFunction for the Core Loop Engine.
 //
-// CR-4 ships NO LLM quality judge — that lands in CR-5, and CR-7 swaps the
-// stage to the Cross-Critique pattern (Pattern 5). But the Core engine requires
-// a JudgeFunction and every LoopStage requires a `rubric`. So this file injects:
-//   • a placeholder STRUCTURAL rubric (one completeness dimension), and
-//   • a deterministic structural PASS-judge that returns a fixed passing grade.
-// runLoop only reaches the judge AFTER the validator passes (validator failure
-// short-circuits to 'revising'), so the deterministic validator is CR-4's ONLY
-// real quality gate; the structural judge is a no-op that lets the Standard loop
-// terminate. CR-5 replaces both with the real per-type rubrics + Gemini judge.
+// CR-5 wires the real cross-model judge: each stage grades its artifact with a
+// Gemini judge (via the MMS gateway) against the per-type rubric
+// (LINKEDIN_POST_RUBRIC / LONG_FORM_ARTICLE_RUBRIC). The deterministic validator
+// still runs first (runLoop short-circuits to 'revising' on validator failure,
+// skipping the expensive judge). On a sub-threshold grade the producer revises
+// with PRESERVE/IMPROVE feedback. CR-7 swaps the stage to Cross-Critique (P5).
+//
+// The deterministic structural PASS-judge + placeholder rubric remain exported
+// as a zero-cost test double (no API key needed); they are no longer the stage
+// default. Cross-model discipline (loop rule 7) is enforced by assertCrossModel
+// at build time — producer (Claude) and judge (Gemini) must differ.
 //
 // All Core machinery is INJECTED (runLoop, judge, executor). The engine never
 // imports this file; this file imports Core. Every collaborator is overridable
@@ -30,9 +32,15 @@ import type {
   LoopState,
   RubricDefinition,
 } from '../../../core/engine/types'
+import type { ModelGateway } from '../../../core/models/gateway'
 import { calculateWeightedScore, checkThresholds } from '../../../core/agentic/grader'
 import { createLinkedInProducer } from './agents/linkedin/producer-claude'
 import { createArticleProducer } from './agents/article/producer-claude'
+import { createLinkedInJudge } from './agents/linkedin/judge'
+import { createArticleJudge } from './agents/article/judge'
+import { DEFAULT_JUDGE_MODEL, type GeminiTextJudgeDeps } from './agents/gemini-text-judge'
+import { LINKEDIN_POST_RUBRIC } from './rubrics/linkedin-post-rubric'
+import { LONG_FORM_ARTICLE_RUBRIC } from './rubrics/article-rubric'
 import { validateLinkedInPost } from './validators/linkedin-post-validator'
 import { validateArticle } from './validators/article-validator'
 import type {
@@ -44,19 +52,19 @@ import type {
   RepurposeCostEvent,
 } from './types'
 
-// CR-4 tuning. Lower bar than Stage 3 — the real rubric judge + threshold ramp
-// to 80 land in CR-5/CR-7. min=1: a structurally valid first draft presents.
-const SINGLE_PRODUCER_THRESHOLD = 70
-const SINGLE_PRODUCER_MIN_ITERATIONS = 1
-const SINGLE_PRODUCER_MAX_ITERATIONS = 2
+// CR-5 tuning. The real cross-model Gemini judge now provides an improvement
+// signal, so min restores to 2 (a second pass always finds something) and the
+// threshold rises to 75 (ramps to 80 in CR-7 with cross-critique).
+const SINGLE_PRODUCER_THRESHOLD = 75
+const SINGLE_PRODUCER_MIN_ITERATIONS = 2
+const SINGLE_PRODUCER_MAX_ITERATIONS = 3
 
 /**
- * CR-4 placeholder rubric. Satisfies the engine contract (LoopStage.rubric is
- * required; weights sum to 1.0; a completeness dimension ≥ 0.20 per Forge
- * ADOPT 6). The structural judge below ignores the anchors and returns a fixed
- * pass once the deterministic validator has passed.
- * TODO(CR-5): replace with LINKEDIN_POST_RUBRIC / LONG_FORM_ARTICLE_RUBRIC
- * (docs/02-domain/rubrics.md) and wire the real Gemini judge.
+ * Structural placeholder rubric — retained as a zero-cost test double. Satisfies
+ * the engine contract (weights sum to 1.0; a completeness dimension ≥ 0.20 per
+ * Forge ADOPT 6). The stage defaults (CR-5) use the real per-type rubrics
+ * (LINKEDIN_POST_RUBRIC / LONG_FORM_ARTICLE_RUBRIC) + the Gemini judge; this
+ * rubric + createStructuralPassJudge let unit tests run the loop without an API.
  */
 export const SINGLE_PRODUCER_STRUCTURAL_RUBRIC: RubricDefinition = {
   id: 'single-producer-structural',
@@ -83,10 +91,10 @@ export const SINGLE_PRODUCER_STRUCTURAL_RUBRIC: RubricDefinition = {
 const STRUCTURAL_PASS_SCORE = 8
 
 /**
- * Deterministic CR-4 judge. runLoop only invokes the judge AFTER the validator
- * passes, so a structurally valid artifact is the precondition here — we return
- * a fixed passing grade. Zero cost, no API call. CR-5 replaces this with the
- * cross-model Gemini judge that grades against the real rubric.
+ * Deterministic structural pass-judge — a zero-cost test double (no API call).
+ * Returns a fixed passing grade for any artifact. The CR-5 stage default is the
+ * cross-model Gemini judge; this is injected via `deps.judge` in unit tests that
+ * exercise the loop without hitting the gateway.
  */
 export function createStructuralPassJudge(): JudgeFunction {
   return async (_artifact, rubric): Promise<GradeReport> => {
@@ -138,7 +146,7 @@ export const SINGLE_PRODUCER_ARTICLE_AGENTS: AgentConfig[] = [
 export const SINGLE_PRODUCER_LINKEDIN_STAGE: LoopStage<LinkedInArtifact> = {
   id: 'single-producer-linkedin',
   agents: SINGLE_PRODUCER_LINKEDIN_AGENTS,
-  rubric: SINGLE_PRODUCER_STRUCTURAL_RUBRIC,
+  rubric: LINKEDIN_POST_RUBRIC,
   threshold: SINGLE_PRODUCER_THRESHOLD,
   maxIterations: SINGLE_PRODUCER_MAX_ITERATIONS,
   minIterations: SINGLE_PRODUCER_MIN_ITERATIONS,
@@ -149,7 +157,7 @@ export const SINGLE_PRODUCER_LINKEDIN_STAGE: LoopStage<LinkedInArtifact> = {
 export const SINGLE_PRODUCER_ARTICLE_STAGE: LoopStage<ArticleArtifact> = {
   id: 'single-producer-article',
   agents: SINGLE_PRODUCER_ARTICLE_AGENTS,
-  rubric: SINGLE_PRODUCER_STRUCTURAL_RUBRIC,
+  rubric: LONG_FORM_ARTICLE_RUBRIC,
   threshold: SINGLE_PRODUCER_THRESHOLD,
   maxIterations: SINGLE_PRODUCER_MAX_ITERATIONS,
   minIterations: SINGLE_PRODUCER_MIN_ITERATIONS,
@@ -159,9 +167,15 @@ export const SINGLE_PRODUCER_ARTICLE_STAGE: LoopStage<ArticleArtifact> = {
 
 // ─── Stage factory ────────────────────────────────────────────────────────────
 
-/** Generic single-producer shape: produces an artifact T from a RepurposeContext. */
+/**
+ * Generic single-producer shape: produces an artifact T from a RepurposeContext,
+ * and (CR-5) revises it from the judge's grade. `revise` is optional so a mock
+ * producer that only defines `produce` still drives the loop (the executor falls
+ * back to produce on revise turns).
+ */
 export interface Producer<T> {
   produce(args: { context: RepurposeContext }): Promise<T>
+  revise?(args: { context: RepurposeContext; previous: T; grade: GradeReport }): Promise<T>
 }
 
 /** Wiring spec per artifact type — keeps the factory DRY across both stages. */
@@ -171,25 +185,61 @@ interface ProducerStageSpec<T> {
     client?: Anthropic
     onCost?: (event: RepurposeCostEvent) => void
   }) => Producer<T>
+  createJudge: (deps: GeminiTextJudgeDeps) => JudgeFunction
 }
 
 const LINKEDIN_SPEC: ProducerStageSpec<LinkedInArtifact> = {
   staticStage: SINGLE_PRODUCER_LINKEDIN_STAGE,
   createProducer: (deps) => createLinkedInProducer(deps),
+  createJudge: (deps) => createLinkedInJudge(deps),
 }
 
 const ARTICLE_SPEC: ProducerStageSpec<ArticleArtifact> = {
   staticStage: SINGLE_PRODUCER_ARTICLE_STAGE,
   createProducer: (deps) => createArticleProducer(deps),
+  createJudge: (deps) => createArticleJudge(deps),
+}
+
+/**
+ * Model-family classification for the cross-model guard. Generic, but domain-
+ * local in CR-5; TODO(CR-6): the Core engine centralizes this at cross-critique
+ * iteration start.
+ */
+function modelFamily(modelId: string): string {
+  const m = modelId.toLowerCase()
+  if (m.includes('claude')) return 'anthropic'
+  if (m.includes('gemini') || m.startsWith('google')) return 'google'
+  if (m.includes('gpt') || m.startsWith('o1') || m.startsWith('o3')) return 'openai'
+  return m
+}
+
+/**
+ * Cross-model enforcement (loop rule 7 / Pattern-5 rule 10): the producer and
+ * the judge MUST be different model families. Throws at stage-build time on
+ * overlap — an agent cannot grade its own output.
+ */
+export function assertCrossModel(producerModel: string, judgeModel: string): void {
+  if (modelFamily(producerModel) === modelFamily(judgeModel)) {
+    throw new Error(
+      `[single-producer-stage] producer (${producerModel}) and judge (${judgeModel}) ` +
+        'must be different model families (loop rule 7 / Pattern-5 rule 10)'
+    )
+  }
 }
 
 export interface SingleProducerStageDeps<T> {
   /** Inject a fully-built producer (tests). Ignored when omitted — one is built. */
   producer?: Producer<T>
-  /** Override the judge (tests). Defaults to the deterministic structural pass-judge. */
+  /** Inject the judge (tests). Defaults to the cross-model Gemini judge. */
   judge?: JudgeFunction
   /** Transport for the internally-built producer (injectable for tests). */
   client?: Anthropic
+  /** MMS gateway the default judge routes through (injectable for tests). */
+  gateway?: ModelGateway
+  /** Judge model id (cross-model vs the Claude producer). Default gemini-2.5-pro. */
+  judgeModelId?: string
+  /** Persona voice + audience block for the judge's personaFit / audienceFit dims. */
+  personaContext?: string
   threshold?: number
   minIterations?: number
   maxIterations?: number
@@ -213,10 +263,30 @@ function buildStage<T>(
     deps.onCost?.(event)
   }
 
-  const producer = deps.producer ?? spec.createProducer({ client: deps.client, onCost: emit })
-  const judge = deps.judge ?? createStructuralPassJudge()
+  // Build the judge first — its cross-model guard (assertCrossModel) validates
+  // the producer/judge family split before anything else is constructed.
+  let judge: JudgeFunction
+  if (deps.judge) {
+    judge = deps.judge
+  } else {
+    const producerModel = spec.staticStage.agents[0]?.model.primary ?? ''
+    const judgeModelId = deps.judgeModelId ?? DEFAULT_JUDGE_MODEL
+    assertCrossModel(producerModel, judgeModelId)
+    judge = spec.createJudge({
+      gateway: deps.gateway,
+      modelId: judgeModelId,
+      personaContext: deps.personaContext,
+      onCost: emit,
+    })
+  }
 
-  const executor: AgentExecutor = async (_agents, context): Promise<T> => {
+  const producer = deps.producer ?? spec.createProducer({ client: deps.client, onCost: emit })
+
+  const executor: AgentExecutor = async (
+    _agents,
+    context,
+    state: LoopState<unknown>
+  ): Promise<T> => {
     const ctx = context as RepurposeContext
     if (
       !ctx ||
@@ -226,9 +296,19 @@ function buildStage<T>(
     ) {
       throw new Error('[single-producer-stage] context must be a RepurposeContext')
     }
-    // CR-4 is produce-only: with no quality judge there is no PRESERVE/IMPROVE
-    // revise signal. A validator failure re-produces a fresh draft (the engine
-    // skips the judge and loops). Cross-critique revision lands in CR-7.
+    // On a graded prior iteration, revise with PRESERVE/IMPROVE (loop rule 4);
+    // otherwise produce a fresh draft. A validator failure short-circuits before
+    // a grade exists, so it re-produces. (Mock producers without revise also
+    // re-produce.)
+    const prior = state.iterations[state.iterations.length - 1] ?? null
+    const priorArtifact = state.currentArtifact as T | null
+    if (prior?.grade && priorArtifact && producer.revise) {
+      return producer.revise({
+        context: ctx,
+        previous: priorArtifact,
+        grade: prior.grade as GradeReport,
+      })
+    }
     return producer.produce({ context: ctx })
   }
 
@@ -260,6 +340,8 @@ export interface ProducerIterationEvent {
   version: number
   score: number
   validationFailed: boolean
+  /** Per-dimension judge scores for this iteration (empty on validator failure). */
+  dimensionScores: { dimensionId: string; name: string; score: number }[]
 }
 
 export interface RunProducerLoopArgs<T> {
@@ -306,6 +388,14 @@ export async function runProducerLoop<T>(
       version: state.loopCount,
       score: produced ? (latest?.grade?.overallScore ?? 0) : 0,
       validationFailed: !produced,
+      dimensionScores:
+        produced && latest?.grade
+          ? latest.grade.dimensionScores.map((d) => ({
+              dimensionId: d.dimensionId,
+              name: d.name,
+              score: d.score,
+            }))
+          : [],
     })
 
     if (state.status === 'presenting' || state.status === 'approved') break

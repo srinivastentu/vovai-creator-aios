@@ -206,6 +206,9 @@ describe('createStructuralPassJudge', () => {
 
 // ─── Stage loop (mocked) ──────────────────────────────────────────────────────
 
+// The CR-5 stage default is the cross-model Gemini judge (hits the gateway), so
+// these loop tests inject the zero-cost structural pass-judge — they exercise the
+// loop machinery, not the judge (judge behavior lives in judge-grading.test.ts).
 describe('createLinkedInStage + runProducerLoop', () => {
   it('one iteration produces a validated, structurally-passed artifact', async () => {
     const mock: Producer<LinkedInArtifact> = {
@@ -213,7 +216,12 @@ describe('createLinkedInStage + runProducerLoop', () => {
         return linkedinArtifact(VALID_LINKEDIN_TEXT)
       },
     }
-    const stage = createLinkedInStage({ producer: mock })
+    // minIterations:1 — assert a single iteration in isolation (CR-5 default is 2).
+    const stage = createLinkedInStage({
+      producer: mock,
+      judge: createStructuralPassJudge(),
+      minIterations: 1,
+    })
     const result = await runProducerLoop({ stage, context: CONTEXT })
 
     expect(result.bestArtifact?.text).toBe(VALID_LINKEDIN_TEXT)
@@ -231,7 +239,11 @@ describe('createLinkedInStage + runProducerLoop', () => {
       },
     }
     const events: { validationFailed: boolean }[] = []
-    const stage = createLinkedInStage({ producer: mock, maxIterations: 3 })
+    const stage = createLinkedInStage({
+      producer: mock,
+      judge: createStructuralPassJudge(),
+      maxIterations: 3,
+    })
     const result = await runProducerLoop({
       stage,
       context: CONTEXT,
@@ -246,6 +258,7 @@ describe('createLinkedInStage + runProducerLoop', () => {
 
   it('tracks producer cost via the injected Anthropic client', async () => {
     // claude-sonnet pricing: (1000/1e6)*3 + (800/1e6)*15 = 0.015 per call.
+    // min/max=1 → exactly one producer call; the structural judge is zero-cost.
     const fakeAnthropic = {
       messages: {
         create: async () => ({
@@ -255,7 +268,12 @@ describe('createLinkedInStage + runProducerLoop', () => {
       },
     } as unknown as Anthropic
 
-    const stage = createLinkedInStage({ client: fakeAnthropic })
+    const stage = createLinkedInStage({
+      client: fakeAnthropic,
+      judge: createStructuralPassJudge(),
+      minIterations: 1,
+      maxIterations: 1,
+    })
     const result = await runProducerLoop({ stage, context: CONTEXT })
 
     expect(result.bestArtifact?.text).toBe(VALID_LINKEDIN_TEXT)
@@ -280,12 +298,53 @@ describe('createArticleStage + runProducerLoop', () => {
     } as unknown as Anthropic
 
     const ctx: RepurposeContext = { ...CONTEXT, artifactType: 'long_form_article' }
-    const stage = createArticleStage({ client: fakeAnthropic })
+    const stage = createArticleStage({
+      client: fakeAnthropic,
+      judge: createStructuralPassJudge(),
+      minIterations: 1,
+    })
     const result = await runProducerLoop({ stage, context: ctx })
 
     expect(result.bestArtifact?.markdown).toBe(VALID_ARTICLE_MD)
     expect(result.bestArtifact?.wordCount).toBeGreaterThanOrEqual(ARTICLE_MIN_WORDS)
     expect(result.finalState.status).toBe('presenting')
+  })
+
+  it('revises with PRESERVE/IMPROVE on a sub-threshold grade, then presents', async () => {
+    // A judge that fails the first draft then passes the revision drives the
+    // producer's revise() path (CR-5). The producer must expose revise().
+    let produceCalls = 0
+    let reviseCalls = 0
+    const mock: Producer<ArticleArtifact> = {
+      async produce() {
+        produceCalls += 1
+        return { title: 'T', markdown: VALID_ARTICLE_MD, wordCount: articleWordCount(VALID_ARTICLE_MD) }
+      },
+      async revise() {
+        reviseCalls += 1
+        return { title: 'T2', markdown: VALID_ARTICLE_MD, wordCount: articleWordCount(VALID_ARTICLE_MD) }
+      },
+    }
+    let graded = 0
+    const judge = async () => {
+      graded += 1
+      const score = graded === 1 ? 6 : 9 // fail first, pass on revision
+      return {
+        overallScore: score * 10,
+        passesThreshold: score >= 8,
+        dimensionScores: [{ dimensionId: 'completeness', name: 'Completeness', score, weight: 1, feedback: 'x' }],
+        recommendation: 'r',
+        improvementPriorities: [],
+      }
+    }
+    const ctx: RepurposeContext = { ...CONTEXT, artifactType: 'long_form_article' }
+    const stage = createArticleStage({ producer: mock, judge, minIterations: 2, maxIterations: 4 })
+    const result = await runProducerLoop({ stage, context: ctx })
+
+    expect(produceCalls).toBe(1)
+    expect(reviseCalls).toBeGreaterThanOrEqual(1) // revise path was taken
+    expect(result.finalState.status).toBe('presenting')
+    expect(result.bestScore).toBe(90)
   })
 })
 

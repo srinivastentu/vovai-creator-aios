@@ -4,14 +4,15 @@
 // shape it for long-form reading. The HOW-to-call-Claude machinery is the
 // Anthropic SDK; cost tracking goes through Core pricing.
 //
-// CR-4 status: this is the SINGLE producer in a Standard loop — no cross-
-// critique, no LLM judge yet (the deterministic validator is the only gate).
-// CR-7 adapts this file into Producer A of the Cross-Critique pattern.
-//
-// Per rubrics.md Rule 5 the producer NEVER sees the rubric.
+// CR-5 status: single producer in a Standard loop with a real cross-model judge
+// (Gemini). produce → validate → judge → revise. On revise the producer gets
+// PRESERVE/IMPROVE feedback derived from the judge's grade (loop rule 4), never
+// the rubric (rubrics.md Rule 5). CR-7 adapts this into Producer A of the
+// Cross-Critique pattern.
 
 import Anthropic from '@anthropic-ai/sdk'
 import { calculateCost } from '../../../../../core/agentic/pricing'
+import type { GradeReport } from '../../../../../core/engine/types'
 import type { ArticleArtifact, RepurposeContext, RepurposeCostEvent } from '../../types'
 
 export interface ArticleProducerDeps {
@@ -25,8 +26,15 @@ export interface ArticleProduceArgs {
   context: RepurposeContext
 }
 
+export interface ArticleReviseArgs {
+  context: RepurposeContext
+  previous: ArticleArtifact
+  grade: GradeReport
+}
+
 export interface ArticleProducer {
   produce(args: ArticleProduceArgs): Promise<ArticleArtifact>
+  revise(args: ArticleReviseArgs): Promise<ArticleArtifact>
 }
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
@@ -39,7 +47,8 @@ const SYSTEM_PROMPT = [
   'You turn a finished Long-Form Master into ONE publishable article (1,200–3,000',
   "words) for a blog / LinkedIn Article / Substack, in the creator's voice. You",
   'run as the single producer in a Standard quality loop: produce → validate →',
-  'present. You do NOT see a rubric.',
+  'judge → revise. You do NOT see a rubric; between iterations you receive',
+  'PRESERVE/IMPROVE feedback.',
   '',
   '# Mission',
   '',
@@ -63,6 +72,8 @@ const SYSTEM_PROMPT = [
   '- BE CONCRETE. Name the pattern, show the tradeoff. Specifics over adjectives.',
   '- STRUCTURE DELIBERATELY: H1 title, intro prose before the first H2, ≥2 H2 body',
   '  sections, then a conclusion H2.',
+  '- ON REVISE: apply PRESERVE/IMPROVE surgically — keep what scored well, fix the',
+  '  flagged weaknesses, deepen thin sections. Do not regress what already works.',
   '',
   '# Quality criteria (self-check before submitting)',
   '',
@@ -129,6 +140,52 @@ function buildUser(ctx: RepurposeContext): string {
   ].join('\n')
 }
 
+/** PRESERVE/IMPROVE feedback from the judge's grade (loop rule 4). No rubric text. */
+function buildPreserveImprove(grade: GradeReport): string {
+  const preserve = grade.dimensionScores
+    .filter((d) => d.score >= 8)
+    .map((d) => `- ${d.name} (${d.score}/10) — keep this working.`)
+  const improve = grade.dimensionScores
+    .filter((d) => d.score < 8)
+    .map((d) => `- ${d.name} (${d.score}/10): ${d.feedback}`)
+  return [
+    preserve.length ? 'PRESERVE (already strong — do not regress):' : '',
+    ...preserve,
+    improve.length ? 'IMPROVE (fix these):' : '',
+    ...improve,
+    grade.improvementPriorities.length
+      ? `Priorities: ${grade.improvementPriorities.join('; ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** Truncate the previous article for the revise prompt to bound token cost. */
+function renderPrevious(previous: ArticleArtifact): string {
+  const md = previous.markdown
+  return md.length > 6000 ? `${md.slice(0, 6000)}\n…(truncated for revision)` : md
+}
+
+function buildReviseUser(args: ArticleReviseArgs): string {
+  const { context: ctx, previous, grade } = args
+  return [
+    personaBlock(ctx),
+    '',
+    masterBlock(ctx),
+    '',
+    'A reviewer graded your previous article. Revise it.',
+    '',
+    buildPreserveImprove(grade),
+    '',
+    'YOUR PREVIOUS ARTICLE (revise this — keep the strong parts):',
+    renderPrevious(previous),
+    '',
+    `Return the full revised article (1,200–3,000 words) on "${ctx.ideaTitle}" as JSON.`,
+    'Keep the H1, the intro, ≥2 H2 body sections, the conclusion, and the persona voice.',
+  ].join('\n')
+}
+
 interface RawResponse {
   title?: string
   markdown?: string
@@ -183,27 +240,41 @@ export function createArticleProducer(deps: ArticleProducerDeps = {}): ArticlePr
       return new Anthropic({ apiKey })
     })()
 
+  async function call(user: string): Promise<string> {
+    const res = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: user }],
+    })
+    const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
+    onCost?.({
+      source: 'producer',
+      model,
+      tokensIn: res.usage.input_tokens,
+      tokensOut: res.usage.output_tokens,
+      costUSD: calculateCost(model, res.usage.input_tokens, res.usage.output_tokens),
+    })
+    return textBlock?.text ?? ''
+  }
+
   return {
     async produce({ context }: ArticleProduceArgs): Promise<ArticleArtifact> {
-      const res = await client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildUser(context) }],
-      })
-      const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
-      onCost?.({
-        source: 'producer',
-        model,
-        tokensIn: res.usage.input_tokens,
-        tokensOut: res.usage.output_tokens,
-        costUSD: calculateCost(model, res.usage.input_tokens, res.usage.output_tokens),
-      })
-      const parsed = parseResponse(textBlock?.text ?? '')
+      const text = await call(buildUser(context))
+      const parsed = parseResponse(text)
       // On unparseable output, return an empty article — the validator fails it
       // and the loop revises (produces again) rather than crashing.
       if (!parsed) return { title: context.ideaTitle, markdown: '', wordCount: 0 }
       return toArtifact(parsed, context)
+    },
+
+    async revise(args: ArticleReviseArgs): Promise<ArticleArtifact> {
+      const text = await call(buildReviseUser(args))
+      const parsed = parseResponse(text)
+      // On a bad revise turn, keep the prior article rather than discarding work.
+      if (!parsed) return args.previous
+      const next = toArtifact(parsed, args.context)
+      return next.markdown.length > 0 ? next : args.previous
     },
   }
 }

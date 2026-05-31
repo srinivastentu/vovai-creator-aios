@@ -75,6 +75,22 @@ interface ImagenResponse {
   }>
 }
 
+interface GeminiTextResponse {
+  candidates?: Array<{ content?: { parts?: GeminiPart[] }; finishReason?: string }>
+  usageMetadata?: {
+    promptTokenCount?: number
+    candidatesTokenCount?: number
+    totalTokenCount?: number
+  }
+}
+
+/** Concatenate all text parts of a Gemini candidate into a single string. */
+const extractText = (parts: GeminiPart[]): string =>
+  parts
+    .map((p) => (typeof p.text === 'string' ? p.text : ''))
+    .filter(Boolean)
+    .join('')
+
 const extractInlineImage = (
   parts: GeminiPart[],
 ): { data: string; mimeType: string; text?: string } | undefined => {
@@ -291,12 +307,111 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     }
   }
 
+  // text-generation + text-scoring share one path: produce text from a prompt.
+  // `text-scoring` callers (judges) pass responseMimeType:'application/json' +
+  // temperature:0 to get a deterministic, parseable JSON verdict; the gateway
+  // maps the returned `content` into GatewayResponse.result.content.
+  const callGeminiText = async (
+    modelApiId: string,
+    params: Record<string, unknown>,
+    apiKey: string,
+    startedAt: number,
+  ): Promise<ProviderResult> => {
+    const prompt = typeof params.prompt === 'string' ? params.prompt : ''
+    if (!prompt) return failure('prompt is required', startedAt)
+
+    const systemPrompt =
+      typeof params.systemPrompt === 'string' ? params.systemPrompt : undefined
+    const temperature =
+      typeof params.temperature === 'number' ? params.temperature : undefined
+    const responseMimeType =
+      typeof params.responseMimeType === 'string' ? params.responseMimeType : undefined
+    const maxOutputTokens =
+      typeof params.maxOutputTokens === 'number' ? params.maxOutputTokens : undefined
+    const timeoutMs =
+      typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
+    const abortSignal =
+      params.abortSignal instanceof AbortSignal ? params.abortSignal : undefined
+
+    const generationConfig: Record<string, unknown> = {}
+    if (temperature !== undefined) generationConfig.temperature = temperature
+    if (responseMimeType) generationConfig.responseMimeType = responseMimeType
+    if (maxOutputTokens !== undefined) generationConfig.maxOutputTokens = maxOutputTokens
+
+    const body = {
+      ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      ...(Object.keys(generationConfig).length > 0 ? { generationConfig } : {}),
+    }
+
+    const url = `${BASE_URL}/${encodeURIComponent(modelApiId)}:generateContent`
+
+    let apiRes: Response
+    try {
+      apiRes = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(body),
+        },
+        timeoutMs,
+        abortSignal,
+      )
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return failure(`Timeout after ${timeoutMs}ms`, startedAt)
+      }
+      const msg = err instanceof Error ? err.message : String(err)
+      return failure(`Network error: ${msg}`, startedAt)
+    }
+
+    if (!apiRes.ok) {
+      const detail = await readErrorDetail(apiRes)
+      return failure(mapHttpError(apiRes.status, detail), startedAt)
+    }
+
+    let parsed: GeminiTextResponse
+    try {
+      parsed = (await apiRes.json()) as GeminiTextResponse
+    } catch (err) {
+      return failure(
+        `Invalid JSON response: ${err instanceof Error ? err.message : String(err)}`,
+        startedAt,
+      )
+    }
+
+    const candidate = parsed.candidates?.[0]
+    if (!candidate) return failure('No candidates returned from Gemini', startedAt)
+    const text = extractText(candidate.content?.parts ?? [])
+    if (!text) return failure('No text content in Gemini response', startedAt)
+
+    return {
+      success: true,
+      rawResponse: parsed as unknown as Record<string, unknown>,
+      content: text,
+      tokensIn: parsed.usageMetadata?.promptTokenCount ?? 0,
+      tokensOut: parsed.usageMetadata?.candidatesTokenCount ?? 0,
+      durationMs: Date.now() - startedAt,
+    }
+  }
+
   const execute = async (
     modelApiId: string,
     capability: Capability,
     params: Record<string, unknown>,
   ): Promise<ProviderResult> => {
     const startedAt = Date.now()
+    // Dispatch on capability first — text models (gemini-2.5-*) share the
+    // `gemini-` prefix with the native image models, so capability disambiguates.
+    if (capability === 'text-generation' || capability === 'text-scoring') {
+      const apiKey = process.env.GOOGLE_GEMINI_API_KEY
+      if (!apiKey) return failure('GOOGLE_GEMINI_API_KEY not set', startedAt)
+      return callGeminiText(modelApiId, params, apiKey, startedAt)
+    }
     if (capability !== 'image-generation') {
       return failure(`Unsupported capability: ${capability}`, startedAt)
     }

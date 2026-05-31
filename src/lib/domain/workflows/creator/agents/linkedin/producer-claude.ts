@@ -4,15 +4,15 @@
 // it for the platform. The HOW-to-call-Claude machinery is the Anthropic SDK;
 // cost tracking goes through Core pricing.
 //
-// CR-4 status: this is the SINGLE producer in a Standard loop — no cross-
-// critique, no LLM judge yet (the deterministic validator is the only gate).
-// CR-7 adapts this file into Producer A of the Cross-Critique pattern (a
-// parallel GPT producer, mutual critics, a Claude integrator, a Gemini judge).
-//
-// Per rubrics.md Rule 5 the producer NEVER sees the rubric.
+// CR-5 status: single producer in a Standard loop with a real cross-model judge
+// (Gemini). produce → validate → judge → revise. On revise the producer gets
+// PRESERVE/IMPROVE feedback derived from the judge's grade (loop rule 4), never
+// the rubric (rubrics.md Rule 5). CR-7 adapts this into Producer A of the
+// Cross-Critique pattern (a parallel GPT producer, mutual critics, an integrator).
 
 import Anthropic from '@anthropic-ai/sdk'
 import { calculateCost } from '../../../../../core/agentic/pricing'
+import type { GradeReport } from '../../../../../core/engine/types'
 import type { LinkedInArtifact, RepurposeContext, RepurposeCostEvent } from '../../types'
 
 export interface LinkedInProducerDeps {
@@ -26,8 +26,15 @@ export interface LinkedInProduceArgs {
   context: RepurposeContext
 }
 
+export interface LinkedInReviseArgs {
+  context: RepurposeContext
+  previous: LinkedInArtifact
+  grade: GradeReport
+}
+
 export interface LinkedInProducer {
   produce(args: LinkedInProduceArgs): Promise<LinkedInArtifact>
+  revise(args: LinkedInReviseArgs): Promise<LinkedInArtifact>
 }
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
@@ -39,7 +46,8 @@ const SYSTEM_PROMPT = [
   'You are the LinkedIn post producer for the CreatorOS content pipeline. You',
   'turn a finished Long-Form Master into ONE publishable LinkedIn post (1,300–',
   "3,000 characters) in the creator's voice. You run as the single producer in a",
-  'Standard quality loop: produce → validate → present. You do NOT see a rubric.',
+  'Standard quality loop: produce → validate → judge → revise. You do NOT see a',
+  'rubric; between iterations you receive PRESERVE/IMPROVE feedback.',
   '',
   '# Mission',
   '',
@@ -60,6 +68,8 @@ const SYSTEM_PROMPT = [
   '- USE THE MASTER AS RAW MATERIAL, not text to paraphrase. Extract the strongest',
   '  insight and build the post around it.',
   '- BE CONCRETE. Name the pattern, show the tradeoff. Specifics over adjectives.',
+  '- ON REVISE: apply PRESERVE/IMPROVE surgically — keep what scored well, fix the',
+  '  flagged weaknesses. Do not regress what already works.',
   '',
   '# Quality criteria (self-check before submitting)',
   '',
@@ -124,6 +134,46 @@ function buildUser(ctx: RepurposeContext): string {
   ].join('\n')
 }
 
+/** PRESERVE/IMPROVE feedback from the judge's grade (loop rule 4). No rubric text. */
+function buildPreserveImprove(grade: GradeReport): string {
+  const preserve = grade.dimensionScores
+    .filter((d) => d.score >= 8)
+    .map((d) => `- ${d.name} (${d.score}/10) — keep this working.`)
+  const improve = grade.dimensionScores
+    .filter((d) => d.score < 8)
+    .map((d) => `- ${d.name} (${d.score}/10): ${d.feedback}`)
+  return [
+    preserve.length ? 'PRESERVE (already strong — do not regress):' : '',
+    ...preserve,
+    improve.length ? 'IMPROVE (fix these):' : '',
+    ...improve,
+    grade.improvementPriorities.length
+      ? `Priorities: ${grade.improvementPriorities.join('; ')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+}
+
+function buildReviseUser(args: LinkedInReviseArgs): string {
+  const { context: ctx, previous, grade } = args
+  return [
+    personaBlock(ctx),
+    '',
+    masterBlock(ctx),
+    '',
+    'A reviewer graded your previous LinkedIn post. Revise it.',
+    '',
+    buildPreserveImprove(grade),
+    '',
+    'YOUR PREVIOUS POST (revise this — keep the strong parts):',
+    previous.text,
+    '',
+    `Return ONE revised LinkedIn post (1,300–3,000 characters) on "${ctx.ideaTitle}" as JSON.`,
+    'Keep the hook, paragraph breaks, and persona voice. One closing thought.',
+  ].join('\n')
+}
+
 interface RawResponse {
   content?: string
 }
@@ -166,26 +216,39 @@ export function createLinkedInProducer(deps: LinkedInProducerDeps = {}): LinkedI
       return new Anthropic({ apiKey })
     })()
 
+  async function call(user: string): Promise<string> {
+    const res = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: user }],
+    })
+    const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
+    onCost?.({
+      source: 'producer',
+      model,
+      tokensIn: res.usage.input_tokens,
+      tokensOut: res.usage.output_tokens,
+      costUSD: calculateCost(model, res.usage.input_tokens, res.usage.output_tokens),
+    })
+    return textBlock?.text ?? ''
+  }
+
   return {
     async produce({ context }: LinkedInProduceArgs): Promise<LinkedInArtifact> {
-      const res = await client.messages.create({
-        model,
-        max_tokens: maxTokens,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: buildUser(context) }],
-      })
-      const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === 'text')
-      onCost?.({
-        source: 'producer',
-        model,
-        tokensIn: res.usage.input_tokens,
-        tokensOut: res.usage.output_tokens,
-        costUSD: calculateCost(model, res.usage.input_tokens, res.usage.output_tokens),
-      })
-      const parsed = parseResponse(textBlock?.text ?? '')
+      const text = await call(buildUser(context))
+      const parsed = parseResponse(text)
       // On unparseable output, return an empty post — the validator fails it and
       // the loop revises (produces again) rather than crashing.
       return toArtifact(parsed?.content ?? '')
+    },
+
+    async revise(args: LinkedInReviseArgs): Promise<LinkedInArtifact> {
+      const text = await call(buildReviseUser(args))
+      const parsed = parseResponse(text)
+      // On a bad revise turn, keep the prior post rather than discarding work.
+      if (!parsed?.content) return args.previous
+      return toArtifact(parsed.content)
     },
   }
 }

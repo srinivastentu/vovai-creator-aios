@@ -365,3 +365,131 @@ describe('createGoogleGeminiClient', () => {
     expect(down.error).toMatch(/GOOGLE_GEMINI_API_KEY/)
   })
 })
+
+// ─── Text capabilities (CR-5): text-generation + text-scoring ──────────────────
+
+const textResponse = (text: string, tokensIn = 1200, tokensOut = 300): Response =>
+  jsonResponse({
+    candidates: [{ content: { parts: [{ text }] }, finishReason: 'STOP' }],
+    usageMetadata: {
+      promptTokenCount: tokensIn,
+      candidatesTokenCount: tokensOut,
+      totalTokenCount: tokensIn + tokensOut,
+    },
+  })
+
+describe('createGoogleGeminiClient — text capabilities', () => {
+  let fetchMock: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    process.env.GOOGLE_GEMINI_API_KEY = 'test-key-text'
+    fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  afterEach(() => {
+    delete process.env.GOOGLE_GEMINI_API_KEY
+    vi.unstubAllGlobals()
+  })
+
+  const judgeJson = JSON.stringify({
+    reasoning: 'The post is concrete and persona-aligned.',
+    dimensionScores: [{ dimensionId: 'personaFit', score: 8, feedback: 'on-voice' }],
+  })
+
+  it('text-scoring returns the model text as ProviderResult.content', async () => {
+    fetchMock.mockResolvedValueOnce(textResponse(judgeJson))
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {
+      systemPrompt: 'You are a judge.',
+      prompt: 'Score this.',
+      responseMimeType: 'application/json',
+      temperature: 0,
+    })
+    expect(res.success).toBe(true)
+    expect(res.content).toBe(judgeJson)
+    expect(res.tokensIn).toBe(1200)
+    expect(res.tokensOut).toBe(300)
+    expect(String(fetchMock.mock.calls[0][0])).toContain('gemini-2.5-pro:generateContent')
+  })
+
+  it('text-generation hits :generateContent and returns content', async () => {
+    fetchMock.mockResolvedValueOnce(textResponse('hello world'))
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-flash', 'text-generation', {
+      prompt: 'Say hello.',
+    })
+    expect(res.success).toBe(true)
+    expect(res.content).toBe('hello world')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('gemini-2.5-flash:generateContent')
+  })
+
+  it('passes systemInstruction + generationConfig (mimeType, temperature) in the body', async () => {
+    fetchMock.mockResolvedValueOnce(textResponse(judgeJson))
+    await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {
+      systemPrompt: 'You are a judge.',
+      prompt: 'Score this.',
+      responseMimeType: 'application/json',
+      temperature: 0,
+    })
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))
+    expect(body.systemInstruction.parts[0].text).toBe('You are a judge.')
+    expect(body.contents[0].parts[0].text).toBe('Score this.')
+    expect(body.generationConfig.responseMimeType).toBe('application/json')
+    expect(body.generationConfig.temperature).toBe(0)
+  })
+
+  it('omits generationConfig when no generation params are supplied', async () => {
+    fetchMock.mockResolvedValueOnce(textResponse('plain'))
+    await createGoogleGeminiClient().execute('gemini-2.5-flash', 'text-generation', {
+      prompt: 'Say hello.',
+    })
+    const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body))
+    expect(body.generationConfig).toBeUndefined()
+    expect(body.systemInstruction).toBeUndefined()
+  })
+
+  it('requires a prompt for text capabilities', async () => {
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {})
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/prompt is required/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('fails when the text response has no candidates', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({}))
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {
+      prompt: 'Score this.',
+    })
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/No candidates/)
+  })
+
+  it('fails when the candidate has no text part', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ candidates: [{ content: { parts: [] }, finishReason: 'STOP' }] }),
+    )
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {
+      prompt: 'Score this.',
+    })
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/No text content/)
+  })
+
+  it('returns failure when GOOGLE_GEMINI_API_KEY is missing (text)', async () => {
+    delete process.env.GOOGLE_GEMINI_API_KEY
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {
+      prompt: 'Score this.',
+    })
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/GOOGLE_GEMINI_API_KEY/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('maps HTTP 429 to a Rate limited failure (text)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: { message: 'too many' } }, 429))
+    const res = await createGoogleGeminiClient().execute('gemini-2.5-pro', 'text-scoring', {
+      prompt: 'Score this.',
+    })
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/Rate limited/)
+  })
+})

@@ -224,9 +224,12 @@ export interface ArticleArtifact {
 /** Loop artifact T for a Stage 5 producer stage (one concrete type per stage). */
 export type RepurposeArtifact = LinkedInArtifact | ArticleArtifact
 
-/** Cost emitted by a Stage 5 producer (CR-4: single producer; CR-7 adds critics/integrator/judge). */
+/**
+ * Cost emitted by a Stage 5 unit. CR-5 adds the Gemini judge (`'judge'`);
+ * CR-7 adds the cross-critique critics + integrator.
+ */
 export interface RepurposeCostEvent {
-  source: 'producer'
+  source: 'producer' | 'judge'
   model: string
   tokensIn: number
   tokensOut: number

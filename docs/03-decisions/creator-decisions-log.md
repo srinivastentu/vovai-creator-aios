@@ -461,3 +461,98 @@ the first stage that emits a publishable Artifact.
   Gate-A-approval consequence, and Gate A has no UI until CR-10. The
   CLI consumes whatever master exists (dev convenience) without
   implying an approval that did not happen.
+
+---
+
+## CR-5 decisions (2026-05-31)
+
+Pinned while implementing Stage 5 judging — the Gemini text judge,
+the per-type rubrics, and the producer revise path.
+
+### Architecture
+
+- **2026-05-31 — The Stage-5 judge routes through the MMS gateway
+  (`capability: 'text-scoring'`), not a direct SDK call.** Per
+  action-plan CR-5 step 1 and the MMS "single gateway" principle
+  (mms-architecture.md §12.7), the Gemini judge is modeled on the
+  existing gateway-routed `core/agentic/judges/image-judge.ts`:
+  `createGeminiTextJudge` calls `gateway.request(...)`, reads
+  `response.result.content`, parses, and computes the composite by
+  code. The CR-2/CR-3 OpenAI judges (`research-judge.ts`,
+  `long-form-master-judge.ts`) remain direct-SDK; migrating them to
+  the gateway is the deferred Phase-3-adapter migration
+  (mms-architecture.md §11.3), explicitly out of CR-5 scope. This is
+  the first CreatorOS judge that uses the gateway and the first text
+  capability wired through it.
+- **2026-05-31 — Gemini text capability is Core; the two judges are
+  Domain.** `core/models/providers/google-gemini.ts` gains a generic
+  `callGeminiText` path (text-generation + text-scoring; dispatch on
+  capability first, since text models share the `gemini-` prefix with
+  the native image models). The CreatorOS LinkedIn/article judges
+  (`agents/linkedin/judge.ts`, `agents/article/judge.ts`) are thin
+  wrappers over a shared domain factory `agents/gemini-text-judge.ts`
+  that inject a type-specific serializer + caller tag. Passes the
+  three-question test: the provider path is zero-domain-words machinery.
+- **2026-05-31 — Cross-model enforcement (loop rule 7 / Pattern-5 rule
+  10) is a domain-level guard in CR-5.** `assertCrossModel` in
+  `single-producer-stage.ts` throws at stage-build time if the producer
+  (Claude) and judge (Gemini) share a model family. `TODO(CR-6)`: the
+  Core engine centralizes this at cross-critique iteration start; the
+  domain guard covers the CR-5 Standard loop until then (no Core scope
+  pulled forward). Satisfies the CR-5 step-5 "Producer ≠ Judge throws on
+  overlap" requirement.
+- **2026-05-31 — CR-5 adds the producer `revise()` path CR-4 deferred.**
+  CR-4 was produce-only (no quality judge → no PRESERVE/IMPROVE signal).
+  With the real Gemini judge, both producers gain `revise()` (mirroring
+  the CR-3 synthesizer): on a sub-threshold grade the executor calls
+  `revise({ context, previous, grade })` with PRESERVE/IMPROVE feedback
+  derived from the grade (loop rule 4), never the rubric (rubrics.md Rule
+  5). `Producer<T>.revise` is optional so mock producers without it still
+  drive the loop (the executor falls back to produce).
+
+### Cost and quality
+
+- **2026-05-31 — The action-plan models `gemini-1.5-pro-latest` /
+  `gemini-1.5-flash` are retired; CR-5 registers `gemini-2.5-pro`
+  (premium) + `gemini-2.5-flash` (standard).** A live `ListModels`
+  probe against the configured key confirmed the 1.5 family no longer
+  supports `generateContent`; the current GA equivalents are the 2.5
+  family. The judge defaults to `gemini-2.5-pro`. Mirrors prior
+  model-availability decisions (nanobanan-2 disabled, Imagen omitted,
+  eleven-v3 disabled). Supersedes the `gemini-1.5-*` names in
+  v1-action-plan.md CR-5.
+- **2026-05-31 — MMS bills a single unit per (model, capability); the
+  Gemini text models bill input tokens (`1k-tokens-in`).** The gateway's
+  `calculateFinalCost` applies one unit per capability; judge calls are
+  input-dominated, so input-token billing (matching the `gpt-4o-vision`
+  image-scoring precedent) is the chosen approximation. Output tokens are
+  not separately billed in V1. The judge emits the gateway-reported cost
+  into the stage total (single source of truth — the gateway already
+  recorded it in the ledger).
+- **2026-05-31 — Stage 5 single-producer tuning restored to threshold
+  75 / min 2 / max 3.** Supersedes the CR-4 `70 / min 1 / max 2` (which
+  was deliberate while the structural pass-judge gave every draft the
+  same score). With a real improvement signal, a second pass is worth the
+  spend; the threshold ramps to 80 in CR-7 with cross-critique. The
+  `LINKEDIN_POST_RUBRIC` / `LONG_FORM_ARTICLE_RUBRIC` files set
+  `passThreshold: 80` per rubrics.md (the advisory dimension/composite bar
+  for `passesThreshold`); the loop terminates on the stage `threshold`
+  (75) per the CR-2 follow-up decision.
+- **2026-05-31 — Live CR-5 runs (BuildOS master, 6 sections): LinkedIn
+  91.3→92.6 over 2 graded iterations (revise path exercised), $0.0339;
+  article validation-fail→94.6, $0.0799. Total ~$0.11, far under the
+  $2.00 ceiling.** The Gemini judge scored high (9+ across dimensions) on
+  genuinely strong Claude output. The judge under-uses the lower bands; a
+  calibration tightening pass (cf. the CR-4.5 image-judge calibration) is
+  a CR-7 follow-up, not a CR-5 blocker — CR-5's contract is a working
+  cross-model quality signal, which is met.
+
+### Data model
+
+- **2026-05-31 — CR-5 persists a real `bestScore` (the Gemini judge's
+  best composite).** Supersedes CR-4's `bestScore=null`. `derivedVia`
+  stays `cross_critique` (forward-compat; literally true after CR-7) and
+  `status='awaiting_review'` (Gate B pending, UI in CR-11). The
+  structural pass-judge + `SINGLE_PRODUCER_STRUCTURAL_RUBRIC` remain
+  exported as a zero-cost test double; they are no longer the stage
+  default.
