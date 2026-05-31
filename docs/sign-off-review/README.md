@@ -146,6 +146,7 @@ decision or architecture rule, or would break the next CR step.
 | CR-2 — Research stage end-to-end | SIGN-OFF WITH FOLLOW-UPS | [CR-2-sign-off.md](CR-2-sign-off.md) |
 | CR-3 — Long-Form Master synthesizer | SIGN-OFF WITH FOLLOW-UPS | [CR-3-sign-off.md](CR-3-sign-off.md) |
 | CR-4 — Single-model producers (LinkedIn + article) | SIGN-OFF WITH FOLLOW-UPS | [CR-4-sign-off.md](CR-4-sign-off.md) |
+| CR-5 — MMS Gemini + judge + rubrics | SIGN-OFF WITH FOLLOW-UPS | [CR-5-sign-off.md](CR-5-sign-off.md) |
 
 _(Append a row per step as reviews complete.)_
 

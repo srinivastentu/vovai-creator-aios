@@ -556,3 +556,51 @@ the per-type rubrics, and the producer revise path.
   structural pass-judge + `SINGLE_PRODUCER_STRUCTURAL_RUBRIC` remain
   exported as a zero-cost test double; they are no longer the stage
   default.
+
+### CR-5 sign-off follow-ups (2026-05-31)
+
+The CR-5 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high
+confidence, zero blockers — `docs/sign-off-review/CR-5-sign-off.md`).
+The scope-affecting follow-ups, recorded here so future CR steps plan
+for them:
+
+- **2026-05-31 — [MAJOR, due before CR-12] Producer + CR-2/CR-3 OpenAI
+  judge spend bypasses the Core CostLedger.** Producers call the
+  Anthropic SDK directly and account cost via `calculateCost → onCost`
+  (an accurate stage-local accumulator); only the new gateway-routed
+  Gemini judge lands in `CostLedger`. The CR-12 acceptance criterion
+  reads `CostLedger.getTotal < $5.00`, which would undercount the
+  dominant producer spend. Before CR-12: either route producers (and
+  ideally the OpenAI judges) through the MMS gateway
+  (`capability: 'text-generation'`), OR change the CR-12 budget helper
+  to aggregate the stage-level `getTotalCostUSD()` totals. Pin the
+  chosen approach when CR-12 is implemented. CR-5 itself is unaffected
+  (its $2.00 ceiling uses the accurate stage total).
+- **2026-05-31 — [due before CR-7] Bound the Gemini judge output
+  budget.** gemini-2.5-pro thinks by default; a `finishReason='MAX_
+  TOKENS'` empty-text response is currently mapped to a synthetic 40.
+  Set an explicit `maxOutputTokens` on the judge call and/or surface
+  `MAX_TOKENS` distinctly in the provider. Fold into the planned CR-7
+  judge-calibration pass (the judge also under-uses the lower scoring
+  bands on strong artifacts).
+- **2026-05-31 — [due before CR-7] When ramping the stage termination
+  bar to 80, change `SINGLE_PRODUCER_THRESHOLD` (not the rubric
+  `passThreshold`, which stays 80 as the advisory bar).** The two
+  values then converge; the CR-11 Gate-B UI should read
+  `terminationReason`/`bestScore` vs the stage threshold, not
+  `grade.passesThreshold`.
+- **2026-05-31 — [due before CR-6] Centralize the producer≠judge
+  model-family guard in Core** (per cross-critique-pattern.md Rule 10,
+  at cross-critique iteration start) and have the Domain stage call the
+  Core primitive; back family classification with the MMS catalog
+  `providerId` rather than substring matching. Removes the
+  domain-local `assertCrossModel`/`modelFamily` duplication
+  (`TODO(CR-6)`).
+- **2026-05-31 — [minor] Action-plan literal drift + test gap.**
+  v1-action-plan.md CR-5 still names `gemini-1.5-*` (superseded here;
+  harmless, optionally align). Add an `mms-integration.test.ts`
+  assertion that a `text-scoring` request with a `gemini-2.5-*`
+  modelId resolves to provider `google-gemini` (closes the
+  "confirm gateway routes correctly" verification action). The judge's
+  `personaContext` block is an in-spirit extension of the
+  "rubric + artifact only" rule (cross-context isolation intact).
