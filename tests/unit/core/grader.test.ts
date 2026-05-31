@@ -258,27 +258,5 @@ describe('createJudgeFunction', () => {
   })
 })
 
-// ─── Backward compatibility ───────────────────────────────────────────────
-
-describe('backward compatibility', () => {
-  it('runRubricGrader is still exported from domain rubric-grader', async () => {
-    const { runRubricGrader } = await import(
-      '../../../src/lib/domain/workflows/agents/rubric-grader'
-    )
-    expect(typeof runRubricGrader).toBe('function')
-  })
-
-  it('calculateOverallScore is still exported from domain structure-rubric', async () => {
-    const { calculateOverallScore } = await import(
-      '../../../src/lib/domain/workflows/rubrics/structure-rubric'
-    )
-    expect(typeof calculateOverallScore).toBe('function')
-  })
-
-  it('getRecommendation is still exported from domain structure-rubric', async () => {
-    const { getRecommendation } = await import(
-      '../../../src/lib/domain/workflows/rubrics/structure-rubric'
-    )
-    expect(typeof getRecommendation).toBe('function')
-  })
-})
+// CR-0: backward-compat tests removed — they only asserted re-exports from the
+// now-purged eLearn domain modules (rubric-grader, structure-rubric).

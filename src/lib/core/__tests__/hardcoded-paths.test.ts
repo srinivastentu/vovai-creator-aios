@@ -8,7 +8,8 @@ const FILES_UNDER_AUDIT = [
   'src/lib/core/models/providers/google-gemini.ts',
   'src/lib/core/models/providers/freepik.ts',
   'src/lib/core/models/providers/elevenlabs.ts',
-  'src/app/api/images/[filename]/route.ts',
+  // CR-0: src/app/api/images/[filename]/route.ts archived (api/ is bare in the
+  // CreatorOS skeleton). Re-add the route's path here when CR steps reintroduce it.
 ]
 
 const FORBIDDEN_LITERALS = [

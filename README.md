@@ -1,6 +1,6 @@
-# VOVAI eLearn AIOS
+# VOVAI CreatorOS
 
-> Agentic AI-powered eLearning OS platform. AI agent teams produce broadcast-quality eLearning videos while humans guide and approve at every gate.
+> Agentic AI content production OS. CreatorOS turns a single creative brief into finished, multi-format content — with humans guiding, reviewing, and approving at every critical gate. V1 in progress. (Forked from VOVAI eLearn AIOS; the sections below still describe the eLearn lineage and will be rewritten as CreatorOS takes shape.)
 
 ## Quick Start (Mac)
 

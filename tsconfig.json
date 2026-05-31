@@ -35,6 +35,12 @@
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "tests/_eLearn_archive",
+    "src/_eLearn_archive_api",
+    "src/_eLearn_archive_pages",
+    "src/_eLearn_archive_components",
+    "src/_eLearn_archive_lib",
+    "src/_eLearn_archive_scripts"
   ]
 }
