@@ -168,7 +168,7 @@ describe('LINKEDIN_CROSS_CRITIQUE_CONFIG', () => {
       'gpt-4o',
     ])
     expect(cfg.integratorAgent.model.primary).toBe('claude-sonnet-4-20250514')
-    expect(cfg.judgeAgent.model.primary).toBe('gemini-2.5-pro')
+    expect(cfg.judgeAgent.model.primary).toBe('gemini-2.5-flash')
     // Each critic reads the OTHER model's draft.
     expect(cfg.criticAssignments['linkedin-critic-claude-on-gpt']).toBe('linkedin-producer-gpt')
     expect(cfg.criticAssignments['linkedin-critic-gpt-on-claude']).toBe('linkedin-producer-claude')

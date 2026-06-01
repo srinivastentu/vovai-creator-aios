@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
+    "test:acceptance": "vitest run --config vitest.e2e.config.ts",
     "test:watch": "vitest watch",
     "db:seed": "tsx prisma/seed.ts",
     "pipeline:research": "tsx scripts/pipeline-research.ts",

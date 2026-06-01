@@ -97,9 +97,11 @@ const SYSTEM_PROMPT = [
   '',
   'Given an idea, a creator persona, and a dossier of researched sources,',
   'produce ONE Long-Form Master that:',
-  '1. Has at least 3 ordered sections, each with a clear heading and a',
-  '   substantial markdown body.',
-  '2. Totals at least 800 words.',
+  '1. Has 4-6 ordered sections (at least 3), each with a clear heading and a',
+  '   substantial markdown body of roughly 250-400 words.',
+  '2. Totals well over 800 words. 800 is a HARD validation floor, so aim for',
+  '   1,200-1,600 words to clear it with margin. A master under 800 words is',
+  '   rejected outright and the whole iteration is wasted.',
   '3. Treats the idea thoroughly — mechanisms, evidence, competing views, and',
   '   implications — not one shallow pass.',
   '4. Grounds every claim: each section cites at least one source by its handle',
@@ -122,8 +124,8 @@ const SYSTEM_PROMPT = [
   '',
   '# Quality criteria (self-check before submitting)',
   '',
-  '- [ ] At least 3 sections, each with heading + body',
-  '- [ ] At least 800 words total',
+  '- [ ] 4-6 sections (at least 3), each with heading + a ~250-400 word body',
+  '- [ ] Comfortably over 800 words total (target 1,200-1,600) — do not undershoot',
   '- [ ] Every section cites at least one provided source handle',
   '- [ ] Every cited handle exists in the SOURCES list',
   '- [ ] No do-not-say phrases',
@@ -220,8 +222,9 @@ function buildProduceUser(ctx: MasterContext, contextText: string): string {
   return [
     contextText,
     '',
-    `Synthesize the Long-Form Master now. At least 3 sections, at least 800 words,`,
-    `every section cited. Refined title should sharpen "${ctx.ideaTitle}".`,
+    `Synthesize the Long-Form Master now. Aim for 4-6 sections and 1,200-1,600`,
+    `words total — 800 is a hard floor, so clear it with margin. Every section`,
+    `cited. Refined title should sharpen "${ctx.ideaTitle}".`,
   ].join('\n')
 }
 
@@ -275,8 +278,9 @@ function buildReviseUser(args: SynthesizeReviseArgs, contextText: string): strin
     'YOUR PREVIOUS MASTER (revise this — keep the strong parts):',
     renderPreviousMaster(previous, idToHandleMap(previous.sources)),
     '',
-    'Return the full revised master as JSON. Keep every section cited and stay',
-    'in the persona voice.',
+    'Return the full revised master as JSON. Expand any thin section so the',
+    'master stays well over 800 words (target 1,200-1,600). Keep every section',
+    'cited and stay in the persona voice.',
   ].join('\n')
 }
 

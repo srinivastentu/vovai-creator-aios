@@ -26,11 +26,22 @@ export function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB))
 }
 
-/** Embed a batch of texts with text-embedding-3-large. Requires OPENAI_API_KEY. */
-export async function embedTexts(
+/** A batch embedder: maps N texts → N vectors. The default hits OpenAI. */
+export type EmbedFn = (
   texts: string[],
-  opts: { apiKey?: string; model?: string } = {},
-): Promise<number[][]> {
+  opts: { apiKey?: string; model?: string },
+) => Promise<number[][]>
+
+export interface SimilarityOpts {
+  apiKey?: string
+  model?: string
+  /** Injectable embedder — defaults to {@link embedTexts}. Lets tests exercise
+   *  the consecutive-pairing logic without a network call. */
+  embed?: EmbedFn
+}
+
+/** Embed a batch of texts with text-embedding-3-large. Requires OPENAI_API_KEY. */
+export const embedTexts: EmbedFn = async (texts, opts = {}) => {
   const apiKey = opts.apiKey ?? process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY required for embeddings')
   const client = new OpenAI({ apiKey })
@@ -44,10 +55,11 @@ export async function embedTexts(
 /** Cosine similarity between each consecutive pair of texts. [] when < 2 texts. */
 export async function consecutiveSimilarities(
   texts: string[],
-  opts: { apiKey?: string; model?: string } = {},
+  opts: SimilarityOpts = {},
 ): Promise<number[]> {
   if (texts.length < 2) return []
-  const embeddings = await embedTexts(texts, opts)
+  const embed = opts.embed ?? embedTexts
+  const embeddings = await embed(texts, { apiKey: opts.apiKey, model: opts.model })
   const sims: number[] = []
   for (let i = 1; i < embeddings.length; i++) {
     sims.push(cosineSimilarity(embeddings[i - 1], embeddings[i]))

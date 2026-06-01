@@ -134,7 +134,7 @@ describe('ARTICLE_CROSS_CRITIQUE_CONFIG', () => {
     const cfg = ARTICLE_CROSS_CRITIQUE_CONFIG
     expect(cfg.producers.map((p) => p.model.primary)).toEqual(['claude-sonnet-4-20250514', 'gpt-4o'])
     expect(cfg.integratorAgent.model.primary).toBe('claude-sonnet-4-20250514')
-    expect(cfg.judgeAgent.model.primary).toBe('gemini-2.5-pro')
+    expect(cfg.judgeAgent.model.primary).toBe('gemini-2.5-flash')
     expect(cfg.criticAssignments['article-critic-claude-on-gpt']).toBe('article-producer-gpt')
     expect(cfg.criticAssignments['article-critic-gpt-on-claude']).toBe('article-producer-claude')
     expect(() => assertCrossCritiqueModels(cfg, catalogModelFamily)).not.toThrow()

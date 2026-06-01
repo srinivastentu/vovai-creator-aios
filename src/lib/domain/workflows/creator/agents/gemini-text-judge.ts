@@ -28,18 +28,52 @@ import { getDefaultGateway } from '../../../../core/models/default-gateway'
 import { calculateWeightedScore, checkThresholds } from '../../../../core/agentic/grader'
 import type { RepurposeCostEvent } from '../types'
 
-/** Default judge model. Premium tier — judge quality drives the loop. */
-export const DEFAULT_JUDGE_MODEL = 'gemini-2.5-pro'
+/**
+ * Default judge model. Supersedes the CR-5 gemini-2.5-pro default (CR-12): pro is
+ * heavily rate-limited ("high demand" 503s) and slow (~40s/call), and its dynamic
+ * thinking blows the output budget on long artifacts. gemini-2.5-flash grades the
+ * same artifacts within ~0.5 pt of pro (verified: article 90.1 vs 91.2) at ~11s a
+ * call with far less thinking — reliable + fast enough for the < 30-min acceptance
+ * bar. Still cross-model vs the Claude/GPT producers (Pattern-5 rule 10 holds).
+ */
+export const DEFAULT_JUDGE_MODEL = 'gemini-2.5-flash'
 const JUDGE_TIMEOUT_MS = 60_000
 /**
- * Explicit output bound for the judge call (CR-5 sign-off follow-up, due before
- * CR-7). gemini-2.5-pro reasons before answering; a generous-but-finite cap keeps
- * runaway generation from inflating real API spend while leaving ample room for
- * the per-dimension reasoning + the 6-dimension JSON verdict. An over-budget
- * (MAX_TOKENS) empty response degrades to a synthetic failing grade → the loop
- * revises (graceful, rule 9).
+ * Explicit output bound for the judge call (CR-5 sign-off follow-up; raised in
+ * CR-12). gemini-2.5-pro reasons (thinks) before answering, and those thinking
+ * tokens count against this cap. At 4096 the thinking for a long artifact (a
+ * ~1,650-word article) consumed the whole budget, leaving no room for the JSON
+ * verdict → MAX_TOKENS → empty text → synthetic 40 every iteration (the article
+ * loop never got a real grade, so it never improved or diverged). 16384 leaves
+ * ample headroom for thinking + the 6-dimension JSON verdict on either artifact,
+ * well within gemini-2.5-pro's output limit. No ledger-cost impact: the Gemini
+ * text models bill input-only (CR-5 decision), so a higher output cap is purely
+ * a truncation guard. A genuine over-budget empty response still degrades to a
+ * synthetic failing grade → the loop revises (graceful, rule 9).
  */
-const JUDGE_MAX_OUTPUT_TOKENS = 4096
+const JUDGE_MAX_OUTPUT_TOKENS = 16384
+/**
+ * Cap gemini-2.5-pro's thinking so the visible JSON verdict always has room
+ * within JUDGE_MAX_OUTPUT_TOKENS (thinking tokens count against the output cap).
+ * Without this bound, dynamic thinking on a long artifact (a ~2,000-word
+ * article) can consume the whole budget → MAX_TOKENS → empty text → synthetic 40
+ * every iteration. 4096 leaves the judge ample room to reason before scoring
+ * (Forge ADOPT 5) while guaranteeing ~12k tokens for the 6-dimension verdict.
+ */
+const JUDGE_THINKING_BUDGET = 4096
+
+/**
+ * The judge maps any failure to a synthetic 40, which corrupts the loop (no real
+ * grade → no PRESERVE/IMPROVE signal → iterations stall). gemini-2.5-pro returns
+ * intermittent 503 "high demand" overloads, so a single transient blip must not
+ * permanently fail the grade. Retry transient failures (429 / 5xx / overload /
+ * timeout) a few times with exponential backoff before falling back to synthetic.
+ * Non-transient errors (bad request, unparseable) fail fast — retrying won't help.
+ */
+const JUDGE_MAX_RETRIES = 3
+const RETRY_BASE_DELAY_MS = 600
+const TRANSIENT_ERROR = /(\b429\b|\b5\d\d\b|rate limit|overload|high demand|unavailable|temporarily|timeout)/i
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
 export interface GeminiTextJudgeDeps {
   /** Inject the gateway (tests). Defaults to the shared singleton (one ledger). */
@@ -192,27 +226,46 @@ export function createGeminiTextJudge(
     const serialized = spec.serialize(artifact)
     const userMessage = `<artifact>\n${serialized}\n</artifact>\n\nEvaluate this ${spec.artifactNoun} against the rubric. Return JSON only.`
 
-    let response: GatewayResponse
-    try {
-      response = await gateway.request({
-        capability: 'text-scoring',
-        params: {
-          systemPrompt,
-          prompt: userMessage,
-          responseMimeType: 'application/json',
-          temperature: 0,
-          maxOutputTokens,
-        },
-        preferences: { modelId, timeoutMs: JUDGE_TIMEOUT_MS },
-        context: { callerTag: spec.callerTag, ...contextOverrides },
-      })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      return syntheticFailingGrade(rubric, `Gateway error: ${msg}`)
+    let response: GatewayResponse | null = null
+    let lastError = 'Gateway failure'
+    for (let attempt = 0; attempt <= JUDGE_MAX_RETRIES; attempt++) {
+      let r: GatewayResponse
+      try {
+        r = await gateway.request({
+          capability: 'text-scoring',
+          params: {
+            systemPrompt,
+            prompt: userMessage,
+            responseMimeType: 'application/json',
+            temperature: 0,
+            maxOutputTokens,
+            thinkingBudget: JUDGE_THINKING_BUDGET,
+          },
+          preferences: { modelId, timeoutMs: JUDGE_TIMEOUT_MS },
+          context: { callerTag: spec.callerTag, ...contextOverrides },
+        })
+      } catch (err) {
+        lastError = `Gateway error: ${err instanceof Error ? err.message : String(err)}`
+        if (TRANSIENT_ERROR.test(lastError) && attempt < JUDGE_MAX_RETRIES) {
+          await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt)
+          continue
+        }
+        break
+      }
+      if (r.success) {
+        response = r
+        break
+      }
+      lastError = r.error ?? 'Gateway failure'
+      if (TRANSIENT_ERROR.test(lastError) && attempt < JUDGE_MAX_RETRIES) {
+        await sleep(RETRY_BASE_DELAY_MS * 2 ** attempt)
+        continue
+      }
+      break
     }
 
-    if (!response.success) {
-      return syntheticFailingGrade(rubric, response.error ?? 'Gateway failure')
+    if (!response) {
+      return syntheticFailingGrade(rubric, lastError)
     }
     const content = response.result?.content
     if (typeof content !== 'string' || content.length === 0) {

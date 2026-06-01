@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { createHealthMonitor } from '../../src/lib/core/models/health-monitor'
 
 describe('HealthMonitor', () => {
@@ -61,5 +61,44 @@ describe('HealthMonitor', () => {
     h.recordOutcome('p', false, 100, 'err')
     h.reset('p')
     expect(h.getHealth('p').sampleSize).toBe(0)
+  })
+
+  describe('time-based recovery (circuit-breaker)', () => {
+    afterEach(() => vi.useRealTimers())
+
+    it('a down provider auto-recovers to healthy after recoveryMs of quiet', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(0)
+      const h = createHealthMonitor({ recoveryMs: 1000 })
+      for (let i = 0; i < 6; i += 1) h.recordOutcome('p', false, 100, 'overloaded')
+      expect(h.getHealth('p').status).toBe('down') // fresh failures → still down
+
+      vi.setSystemTime(1500) // past recoveryMs — stale failures age out
+      const recovered = h.getHealth('p')
+      expect(recovered.status).toBe('healthy')
+      expect(recovered.sampleSize).toBe(0)
+    })
+
+    it('keeps the provider down while failures are still within the window', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(0)
+      const h = createHealthMonitor({ recoveryMs: 5000 })
+      for (let i = 0; i < 6; i += 1) h.recordOutcome('p', false, 100, 'overloaded')
+      vi.setSystemTime(2000) // still within recoveryMs
+      expect(h.getHealth('p').status).toBe('down')
+    })
+
+    it('a success after recovery heals the provider', () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(0)
+      const h = createHealthMonitor({ recoveryMs: 1000 })
+      for (let i = 0; i < 6; i += 1) h.recordOutcome('p', false, 100, 'overloaded')
+      vi.setSystemTime(2000)
+      h.recordOutcome('p', true, 100) // the half-open probe succeeds
+      const s = h.getHealth('p')
+      expect(s.status).toBe('healthy')
+      expect(s.sampleSize).toBe(1)
+      expect(s.successRate).toBe(1)
+    })
   })
 })

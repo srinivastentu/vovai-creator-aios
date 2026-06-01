@@ -303,6 +303,54 @@ history.
 
 ---
 
+## The first live end-to-end run surfaces what mocks never do (CR-12, 2026-06-01)
+
+**What happened:** Every CR step through CR-11 passed on mocked/small runs. The
+CR-12 acceptance test — the FIRST full pipeline run against real models with a
+real (longer) master — failed twice and exposed four defects no prior step hit:
+(1) the synthesizer treated the validator's 800-word **floor** as a target and
+undershot to ~700; (2) the gemini-2.5-pro judge's **thinking tokens** blew the
+`maxOutputTokens` budget on a long article → MAX_TOKENS → synthetic 40; (3) the
+judge had **no retry**, so one transient 503 corrupted the grade; (4) the health
+monitor had **no time-based recovery**, so one bad patch of failures deadlocked
+the provider "down" for the whole process.
+
+**Fix / rule:** When a prompt states a hard floor/ceiling, give the model a
+TARGET well inside the safe zone (margin), never the boundary — models aim at the
+stated number and miss by ~10–15%. For LLM-as-judge with a thinking model: bound
+the thinking budget AND raise the output cap (thinking counts against output),
+retry transient 5xx/429 before any synthetic fallback, and prefer the
+faster/lighter model (flash) when its calibration matches. For any process-global
+circuit breaker (health monitor): it MUST have time-based recovery, or a batch
+run cascades on the first transient blip.
+
+**Generalizable lesson:** Don't relax a spec gate to make a run pass — fix the
+producer to clear it (the decisions log's "tune prompts, don't relax the bar"
+applies to every gate, not just cost). And budget a real live run before
+declaring a pipeline done: mocks prove the wiring, only real models prove the
+prompts, the token budgets, and the failure-handling.
+
+---
+
+## Run the live acceptance the moment the harness is built (CR-12, 2026-06-01)
+
+**What happened:** The acceptance harness was correct on the first try, but the
+live run still cost three full ~17-min runs + several isolated probes to get
+green, because each failure surfaced a new layer (synthesizer → judge tokens →
+judge retry → health deadlock). Debugging each in ISOLATION against an
+already-persisted master/artifact (via the CLI scripts / a tiny judge probe) was
+far cheaper than re-running the whole pipeline each time.
+
+**Fix / rule:** When a long live pipeline fails mid-way, reproduce the failing
+STAGE in isolation against the rows the failed run already persisted (the draft
+master, the produced artifact) before re-running end-to-end. A 30-second judge
+probe beats a 17-minute pipeline re-run for diagnosing a judge bug.
+
+**Generalizable lesson:** Match the reproduction cost to the bug. Isolate the
+smallest failing unit; only re-run the full thing to confirm the composed fix.
+
+---
+
 ## Adding new lessons
 
 Append new entries here whenever:

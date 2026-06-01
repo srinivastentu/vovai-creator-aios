@@ -9,6 +9,16 @@ interface Outcome {
 
 export interface HealthMonitorOptions {
   windowSize?: number
+  /**
+   * Time-based recovery (circuit-breaker half-open). Outcomes older than this are
+   * ignored when computing health, so a provider that tripped "down" auto-recovers
+   * after a quiet period. Without this the window is count-based with no recovery:
+   * once a provider is "down" the router refuses it, which records no new outcome,
+   * so the failing window is frozen and the provider stays "down" for the rest of
+   * the process — fatal for a batch run (one transient overload patch cascades the
+   * whole pipeline). Default 30s.
+   */
+  recoveryMs?: number
 }
 
 export interface HealthMonitor {
@@ -32,6 +42,7 @@ const classify = (successRate: number): HealthState => {
 
 export const createHealthMonitor = (options: HealthMonitorOptions = {}): HealthMonitor => {
   const windowSize = options.windowSize ?? 20
+  const recoveryMs = options.recoveryMs ?? 30_000
   const outcomes = new Map<string, Outcome[]>()
 
   const recordOutcome = (
@@ -47,7 +58,11 @@ export const createHealthMonitor = (options: HealthMonitorOptions = {}): HealthM
   }
 
   const getHealth = (providerId: string): HealthStatus => {
-    const arr = outcomes.get(providerId) ?? []
+    const all = outcomes.get(providerId) ?? []
+    // Only consider outcomes within the recovery window — stale failures age out,
+    // so a "down" provider becomes retryable again after recoveryMs of quiet.
+    const cutoff = Date.now() - recoveryMs
+    const arr = all.filter((o) => o.timestamp >= cutoff)
     if (arr.length === 0) {
       return {
         providerId,

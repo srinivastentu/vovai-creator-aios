@@ -81,6 +81,9 @@ interface GeminiTextResponse {
     promptTokenCount?: number
     candidatesTokenCount?: number
     totalTokenCount?: number
+    // Gemini 2.5 "thinking" tokens — count against maxOutputTokens. When these
+    // exhaust the budget the candidate finishes MAX_TOKENS with no text part.
+    thoughtsTokenCount?: number
   }
 }
 
@@ -328,6 +331,12 @@ export const createGoogleGeminiClient = (): ProviderClient => {
       typeof params.responseMimeType === 'string' ? params.responseMimeType : undefined
     const maxOutputTokens =
       typeof params.maxOutputTokens === 'number' ? params.maxOutputTokens : undefined
+    // Gemini 2.5 "thinking" tokens count against maxOutputTokens; on a long input
+    // dynamic thinking can consume the whole budget and finish MAX_TOKENS with no
+    // text. An explicit thinkingBudget caps thinking so the visible output always
+    // has room. Generic param (zero domain words): the gateway/judge supplies it.
+    const thinkingBudget =
+      typeof params.thinkingBudget === 'number' ? params.thinkingBudget : undefined
     const timeoutMs =
       typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
     const abortSignal =
@@ -337,6 +346,7 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     if (temperature !== undefined) generationConfig.temperature = temperature
     if (responseMimeType) generationConfig.responseMimeType = responseMimeType
     if (maxOutputTokens !== undefined) generationConfig.maxOutputTokens = maxOutputTokens
+    if (thinkingBudget !== undefined) generationConfig.thinkingConfig = { thinkingBudget }
 
     const body = {
       ...(systemPrompt ? { systemInstruction: { parts: [{ text: systemPrompt }] } } : {}),
@@ -387,7 +397,18 @@ export const createGoogleGeminiClient = (): ProviderClient => {
     const candidate = parsed.candidates?.[0]
     if (!candidate) return failure('No candidates returned from Gemini', startedAt)
     const text = extractText(candidate.content?.parts ?? [])
-    if (!text) return failure('No text content in Gemini response', startedAt)
+    if (!text) {
+      // Empty text usually means the candidate finished MAX_TOKENS while
+      // "thinking" (2.5 thinking tokens count against maxOutputTokens). Surface
+      // the finishReason + token counts so the caller can raise the cap or bound
+      // the thinking budget instead of getting a bare "no text".
+      const fr = candidate.finishReason ?? 'unknown'
+      const u = parsed.usageMetadata
+      const counts = u
+        ? ` (finishReason=${fr}, thoughts=${u.thoughtsTokenCount ?? 0}, candidates=${u.candidatesTokenCount ?? 0})`
+        : ` (finishReason=${fr})`
+      return failure(`No text content in Gemini response${counts}`, startedAt)
+    }
 
     return {
       success: true,
