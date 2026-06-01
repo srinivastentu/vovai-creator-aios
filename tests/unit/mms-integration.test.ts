@@ -89,6 +89,7 @@ const imageRequest: GatewayRequest = {
 
 describe('MMS integration', () => {
   beforeEach(() => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-anthropic')
     vi.stubEnv('FAL_KEY', 'test-fal')
     vi.stubEnv('OPENAI_API_KEY', 'test-openai')
     vi.stubEnv('GOOGLE_GEMINI_API_KEY', 'test-gemini')
@@ -180,6 +181,60 @@ describe('MMS integration', () => {
       })
       expect(res.success).toBe(true)
       expect(res.providerId).toBe('fal-ai')
+    })
+  })
+
+  // CR-7: the Cross-Critique stage routes producers/critics/integrator through
+  // text-generation and the Gemini judge through text-scoring. Confirm each
+  // capability+modelId resolves to the expected provider (the cross-model split).
+  describe('text capabilities routing (CR-7)', () => {
+    const textRequest: GatewayRequest = {
+      capability: 'text-generation',
+      params: { prompt: 'write' },
+      preferences: {},
+      context: { projectId: 'p1' },
+    }
+
+    it('text-generation modelId=claude-sonnet-4-20250514 routes to anthropic', async () => {
+      const gateway = setupGateway()
+      const res = await gateway.request({
+        ...textRequest,
+        preferences: { modelId: 'claude-sonnet-4-20250514' },
+      })
+      expect(res.success).toBe(true)
+      expect(res.providerId).toBe('anthropic')
+    })
+
+    it('text-generation modelId=gpt-4o routes to openai', async () => {
+      const gateway = setupGateway()
+      const res = await gateway.request({
+        ...textRequest,
+        preferences: { modelId: 'gpt-4o' },
+      })
+      expect(res.success).toBe(true)
+      expect(res.providerId).toBe('openai')
+    })
+
+    it('text-scoring modelId=gemini-2.5-pro routes to google-gemini', async () => {
+      const gateway = setupGateway()
+      const res = await gateway.request({
+        capability: 'text-scoring',
+        params: { prompt: 'grade' },
+        preferences: { modelId: 'gemini-2.5-pro' },
+        context: { projectId: 'p1' },
+      })
+      expect(res.success).toBe(true)
+      expect(res.providerId).toBe('google-gemini')
+    })
+
+    it('text-generation lists Claude + GPT-4o across anthropic and openai', () => {
+      const gateway = setupGateway()
+      const models = gateway.getAvailableModels('text-generation')
+      const providerIds = new Set(models.map((m) => m.providerId))
+      expect(providerIds.has('anthropic')).toBe(true)
+      expect(providerIds.has('openai')).toBe(true)
+      expect(models.find((m) => m.id === 'gpt-4o')).toBeTruthy()
+      expect(models.find((m) => m.id === 'claude-sonnet-4-20250514')).toBeTruthy()
     })
   })
 

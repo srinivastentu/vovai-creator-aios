@@ -57,6 +57,30 @@ export type {
   ArtifactPersistencePayload,
 } from './single-producer-stage'
 
+// CR-7 — Stage 5 (Repurpose) Cross-Critique (Pattern 5). The CLI drives these;
+// the single-producer stages above stay as the Standard-loop path + test doubles.
+export {
+  LINKEDIN_POST_STAGE,
+  LONG_FORM_ARTICLE_STAGE,
+  LINKEDIN_CROSS_CRITIQUE_CONFIG,
+  ARTICLE_CROSS_CRITIQUE_CONFIG,
+  CROSS_CRITIQUE_THRESHOLD,
+  CROSS_CRITIQUE_MIN_ITERATIONS,
+  CROSS_CRITIQUE_MAX_ITERATIONS,
+  CROSS_CRITIQUE_MAX_BUDGET_USD,
+  catalogModelFamily,
+  createLinkedInCrossCritiqueStage,
+  createArticleCrossCritiqueStage,
+  runCrossCritiqueLoop,
+} from './cross-critique-stage'
+export type {
+  CrossCritiqueStage,
+  CrossCritiqueStageDeps,
+  RunCrossCritiqueLoopArgs,
+  RunCrossCritiqueLoopResult,
+  CrossCritiqueIterationEvent,
+} from './cross-critique-stage'
+
 /** The linear, single-artifact-T V1 stages, in pipeline order (Stage 2 → 3). */
 export const CREATOR_V1_STAGES = [RESEARCH_STAGE, LONG_FORM_MASTER_STAGE]
 

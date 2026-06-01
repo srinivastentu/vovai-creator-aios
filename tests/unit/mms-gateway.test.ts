@@ -340,4 +340,65 @@ describe('ModelGateway', () => {
     expect(res.success).toBe(false)
     expect(res.error).toMatch(/provider api key missing|Provider client not available/)
   })
+
+  // --- Token cost model (CR-7): input + optional output billing ---
+
+  const tokenResult = (tokensIn: number, tokensOut: number): ProviderResult => ({
+    success: true,
+    rawResponse: {},
+    content: 'generated text',
+    tokensIn,
+    tokensOut,
+    durationMs: 30,
+  })
+
+  it('text-generation bills input + output tokens when costPerUnitOut is set', async () => {
+    const { gateway } = buildGateway(
+      { p: mockClient('p', tokenResult(1000, 500)) },
+      [
+        makeModel({
+          id: 'txt',
+          providerId: 'p',
+          capabilities: ['text-generation'],
+          pricing: {
+            'text-generation': { costPerUnit: 0.003, unit: '1k-tokens-in', costPerUnitOut: 0.015 },
+          },
+          apiModelId: 'api-txt',
+        }),
+      ],
+    )
+    const res = await gateway.request({
+      capability: 'text-generation',
+      params: { prompt: 'x' },
+      preferences: { modelId: 'txt' },
+      context: {},
+    })
+    // 1000/1000*0.003 (in) + 500/1000*0.015 (out) = 0.003 + 0.0075 = 0.0105
+    expect(res.cost.costUsd).toBeCloseTo(0.0105, 6)
+    expect(res.cost.tokensIn).toBe(1000)
+    expect(res.cost.tokensOut).toBe(500)
+  })
+
+  it('input-only token pricing ignores output when costPerUnitOut is absent (judge convention)', async () => {
+    const { gateway } = buildGateway(
+      { p: mockClient('p', tokenResult(1000, 500)) },
+      [
+        makeModel({
+          id: 'score',
+          providerId: 'p',
+          capabilities: ['text-scoring'],
+          pricing: { 'text-scoring': { costPerUnit: 0.00125, unit: '1k-tokens-in' } },
+          apiModelId: 'api-score',
+        }),
+      ],
+    )
+    const res = await gateway.request({
+      capability: 'text-scoring',
+      params: {},
+      preferences: { modelId: 'score' },
+      context: {},
+    })
+    // 1000/1000*0.00125 only; output not billed.
+    expect(res.cost.costUsd).toBeCloseTo(0.00125, 6)
+  })
 })

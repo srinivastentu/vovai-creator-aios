@@ -3,9 +3,19 @@
 // serializer. Grades a LinkedInArtifact against LINKEDIN_POST_RUBRIC.
 // Cross-model (loop rule 7): the producer is Claude, so the judge is Gemini.
 
-import type { JudgeFunction } from '../../../../../core/engine/types'
-import { createGeminiTextJudge, type GeminiTextJudgeDeps } from '../gemini-text-judge'
+import type { AgentConfig, JudgeFunction } from '../../../../../core/engine/types'
+import { createGeminiTextJudge, DEFAULT_JUDGE_MODEL, type GeminiTextJudgeDeps } from '../gemini-text-judge'
 import type { LinkedInArtifact } from '../../types'
+
+/** Judge AgentConfig — the Cross-Critique config needs the model for the rule-10
+ *  family check (judge must be a different family from producers + integrator). */
+export const LINKEDIN_JUDGE_AGENT: AgentConfig = {
+  id: 'linkedin-judge',
+  name: 'LinkedIn Judge (Gemini)',
+  model: { primary: DEFAULT_JUDGE_MODEL, fallback: 'gemini-2.5-flash' },
+  maxRetries: 1,
+  timeoutMs: 60_000,
+}
 
 /** Render a LinkedIn post for the judge: char count header + the post text. */
 function serializeLinkedIn(artifact: unknown): string {

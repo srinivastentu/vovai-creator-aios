@@ -307,12 +307,71 @@ describe('createOpenAiClient', () => {
     expect(chatCreate).not.toHaveBeenCalled()
   })
 
+  // --- Text Generation (CR-7) ---
+
+  it('text-generation builds system + user messages and returns content + tokens', async () => {
+    chatCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: 'a synthesized post' } }],
+      usage: { prompt_tokens: 1200, completion_tokens: 600 },
+    })
+    const res = await createOpenAiClient().execute(GPT_4O, 'text-generation', {
+      systemPrompt: 'you are a producer',
+      prompt: 'write the post',
+      temperature: 0.8,
+      maxOutputTokens: 2048,
+    })
+    expect(res.success).toBe(true)
+    expect(res.content).toBe('a synthesized post')
+    expect(res.tokensIn).toBe(1200)
+    expect(res.tokensOut).toBe(600)
+    const call = chatCreate.mock.calls[0][0]
+    expect(call.messages).toEqual([
+      { role: 'system', content: 'you are a producer' },
+      { role: 'user', content: 'write the post' },
+    ])
+    expect(call.temperature).toBe(0.8)
+    expect(call.max_tokens).toBe(2048)
+  })
+
+  it('text-generation works with prompt only (no system message)', async () => {
+    chatCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: 'ok' } }],
+      usage: { prompt_tokens: 5, completion_tokens: 3 },
+    })
+    await createOpenAiClient().execute(GPT_4O, 'text-generation', { prompt: 'hi' })
+    expect(chatCreate.mock.calls[0][0].messages).toEqual([{ role: 'user', content: 'hi' }])
+  })
+
+  it('text-generation fails when prompt is missing', async () => {
+    const res = await createOpenAiClient().execute(GPT_4O, 'text-generation', {})
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/prompt is required/)
+    expect(chatCreate).not.toHaveBeenCalled()
+  })
+
+  it('text-generation fails without API key, without calling SDK', async () => {
+    delete process.env.OPENAI_API_KEY
+    const res = await createOpenAiClient().execute(GPT_4O, 'text-generation', { prompt: 'x' })
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/OPENAI_API_KEY/)
+    expect(chatCreate).not.toHaveBeenCalled()
+  })
+
+  it('text-generation maps SDK APIError 429 to Rate limited failure', async () => {
+    chatCreate.mockRejectedValueOnce(
+      new (MockAPIError as unknown as new (s: number, m: string) => Error)(429, 'slow down'),
+    )
+    const res = await createOpenAiClient().execute(GPT_4O, 'text-generation', { prompt: 'x' })
+    expect(res.success).toBe(false)
+    expect(res.error).toMatch(/Rate limited/)
+  })
+
   // --- Unsupported capability ---
 
   it('returns failure for unsupported capability', async () => {
     const res = await createOpenAiClient().execute(
       DALL_E,
-      'text-generation',
+      'voice-synthesis',
       defaultImageParams,
     )
     expect(res.success).toBe(false)

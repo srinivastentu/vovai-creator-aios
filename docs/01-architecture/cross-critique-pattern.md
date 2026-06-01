@@ -75,6 +75,10 @@ Gemini in V1. Future flexibility: any cross-model judge works.
 ```typescript
 interface CrossCritiqueConfig {
   producers: AgentConfig[]                    // V1: 2 producers (Claude + GPT-4o)
+  critics: AgentConfig[]                      // V1: 2 critics (Claude-on-GPT, GPT-on-Claude).
+                                              // Explicit (CR-6): the engine needs each critic's
+                                              // own model.primary for the gateway call — it cannot
+                                              // be inferred from criticAssignments (critic→target).
   criticAssignments: Record<string, string>   // criticAgentId → targetProducerAgentId
                                               // V1: { "claude-on-gpt": "gpt-producer",
                                               //       "gpt-on-claude": "claude-producer" }
@@ -96,8 +100,11 @@ interface LoopStage<T> {
 interface CrossCritiqueIterationRecord extends IterationRecord {
   producerArtifacts: Record<string, unknown>  // producerAgentId → artifact
   critiques: Record<string, string>           // criticAgentId → critique text
-  integratedArtifact: unknown                  // the integrator's output
-  judgeGrade: GradeReport
+  integratedArtifact: unknown                  // the integrator's output; null on
+                                              // graceful degradation (rule 9 — integration failed)
+  judgeGrade: GradeReport | null              // null when the judge is skipped: integration
+                                              // produced nothing usable (rule 9) OR the integrated
+                                              // artifact failed the validator (rule 6)
   iterationCostUSD: number                    // sum across all 6 sub-calls
 }
 ```

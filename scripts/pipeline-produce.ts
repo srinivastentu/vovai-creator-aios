@@ -1,19 +1,22 @@
 #!/usr/bin/env tsx
-// CR-5 — Stage 5 (Repurpose) single-model producer CLI runner.
+// CR-7 — Stage 5 (Repurpose) Cross-Critique CLI runner.
 // Usage:
 //   npm run pipeline:produce -- --longFormMasterId=<id> --type=linkedin_post
 //   npm run pipeline:produce -- --longFormMasterId=<id> --type=long_form_article
 //
 // Loads a Long-Form Master (its ordered sections) plus the Idea + Workspace +
-// CreatorPersona, runs the single-producer loop (Claude producer → validator →
-// Gemini judge → revise) to completion (auto-presented — Gate B UI arrives in
-// CR-11), persists an Artifact row with the judge's best composite score, and
-// writes the rendered output to tmp/runs/<ideaId>/<type>.md.
+// CreatorPersona, runs the CROSS-CRITIQUE loop (Pattern 5) to completion: two
+// producers (Claude + GPT-4o) → two cross-model critics → Claude integrator →
+// Gemini judge, repeating until threshold / budget / max iterations. It then
+// persists an Artifact row (derivedVia='cross_critique', the judge's best
+// composite as bestScore), writes the rendered output to tmp/runs/<ideaId>/
+// <type>.md, prints the full iteration history, and reports the cosine similarity
+// between consecutive integrated artifacts (acceptance check: ≤ 0.92).
 //
-// CR-5 needs ANTHROPIC_API_KEY (Claude producer) + GOOGLE_GEMINI_API_KEY (the
-// cross-model Gemini judge, via the MMS gateway). Load .env.local first
-// (canonical local secrets) then .env — earlier files win, matching Next.js
-// precedence. dotenv/config alone only reads .env.
+// CR-7 needs ANTHROPIC_API_KEY (Claude producer/critic/integrator) +
+// OPENAI_API_KEY (GPT-4o producer/critic + embeddings) + GOOGLE_GEMINI_API_KEY
+// (Gemini judge). All route through the MMS gateway. Load .env.local first
+// (canonical local secrets) then .env — earlier files win (Next.js precedence).
 import { config as loadEnv } from 'dotenv'
 loadEnv({ path: ['.env.local', '.env'] })
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -21,12 +24,12 @@ import { join, resolve } from 'node:path'
 import { PrismaClient, Prisma } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import {
-  createLinkedInStage,
-  createArticleStage,
-  runProducerLoop,
-  buildArtifactPersistence,
-  type ProducerIterationEvent,
-} from '../src/lib/domain/workflows/creator/single-producer-stage'
+  createLinkedInCrossCritiqueStage,
+  createArticleCrossCritiqueStage,
+  runCrossCritiqueLoop,
+  type CrossCritiqueIterationEvent,
+} from '../src/lib/domain/workflows/creator/cross-critique-stage'
+import { buildArtifactPersistence } from '../src/lib/domain/workflows/creator/single-producer-stage'
 import type {
   ArtifactKind,
   ArticleArtifact,
@@ -35,6 +38,7 @@ import type {
   RepurposeArtifact,
   RepurposeContext,
 } from '../src/lib/domain/workflows/creator/types'
+import { consecutiveSimilarities } from './lib/embedding-similarity'
 
 function parseArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -108,6 +112,11 @@ function sizeLabel(type: ArtifactKind, artifact: RepurposeArtifact): string {
   return `${(artifact as ArticleArtifact).wordCount} words`
 }
 
+/** Collapse whitespace/newlines so a snippet prints on one console line. */
+function truncate(s: string): string {
+  return s.replace(/\s+/g, ' ').trim()
+}
+
 async function main() {
   const longFormMasterId = parseArg('longFormMasterId')
   const type = parseArg('type')
@@ -119,7 +128,11 @@ async function main() {
   }
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL not set')
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('ANTHROPIC_API_KEY must be set (Claude producer).')
+    console.error('ANTHROPIC_API_KEY must be set (Claude producer/critic/integrator).')
+    process.exit(1)
+  }
+  if (!process.env.OPENAI_API_KEY) {
+    console.error('OPENAI_API_KEY must be set (GPT-4o producer/critic + embeddings).')
     process.exit(1)
   }
   if (!process.env.GOOGLE_GEMINI_API_KEY) {
@@ -160,43 +173,63 @@ async function main() {
       })),
     }
 
-    console.log(`\n=== STAGE 5 (REPURPOSE) — ${type} — "${master.idea.title}" ===`)
+    console.log(`\n=== STAGE 5 (REPURPOSE — CROSS-CRITIQUE) — ${type} — "${master.idea.title}" ===`)
     console.log(
-      `Persona: ${persona.name}  |  Workspace: ${master.workspace.name}  |  ${master.sections.length} master sections\n`
+      `Persona: ${persona.name}  |  Workspace: ${master.workspace.name}  |  ${master.sections.length} master sections`
+    )
+    console.log(
+      'Producers: Claude + GPT-4o  |  Critics: cross-model  |  Integrator: Claude  |  Judge: Gemini\n'
     )
 
     const personaContext = renderPersonaContext(persona)
 
-    const onIteration = (e: ProducerIterationEvent) => {
-      if (e.validationFailed) {
-        console.log(`v${e.version}: VALIDATION FAILED — revising.`)
-        return
+    const onIteration = (e: CrossCritiqueIterationEvent) => {
+      console.log(`── Iteration ${e.version} ${'─'.repeat(40)}`)
+      for (const p of e.producers) {
+        console.log(`  [producer ${p.agentId}] (${p.size}) ${truncate(p.snippet)}`)
       }
-      const dims = e.dimensionScores.map((d) => `${d.name} ${d.score}`).join(', ')
-      console.log(`Iteration ${e.version}: judge score ${e.score}/100${dims ? ` — ${dims}` : ''}.`)
+      for (const c of e.critiques) {
+        console.log(`  [critic ${c.criticId}] ${truncate(c.snippet)}`)
+      }
+      if (e.integratorSnippet !== null) {
+        console.log(`  [integrator] ${truncate(e.integratorSnippet)}`)
+      }
+      if (e.judgeSkipped) {
+        console.log('  [judge] skipped (integration unusable or validator rejected) — revising.')
+      } else {
+        const dims = e.dimensionScores.map((d) => `${d.name} ${d.score}`).join(', ')
+        console.log(`  [judge] score ${e.score}/100${dims ? ` — ${dims}` : ''}`)
+      }
+      console.log(`  iteration cost: $${e.iterationCostUSD.toFixed(4)}\n`)
     }
 
     // Branch on artifact type — each stage carries a distinct artifact T. The
-    // stage builds a cross-model Gemini judge (default gateway) graded against
-    // the personaContext; cost (producer + judge) accrues to result.totalCostUSD.
+    // stage routes all 6 sub-calls per iteration through the MMS gateway; the
+    // Gemini judge grades against personaContext. result.totalCostUSD is the
+    // engine's cumulativeCostUSD (producers + critics + integrator + judge).
     const result =
       type === 'linkedin_post'
-        ? await runProducerLoop({
-            stage: createLinkedInStage({ personaContext }),
+        ? await runCrossCritiqueLoop({
+            stage: createLinkedInCrossCritiqueStage({ personaContext }),
             context,
             onIteration,
           })
-        : await runProducerLoop({
-            stage: createArticleStage({ personaContext }),
+        : await runCrossCritiqueLoop({
+            stage: createArticleCrossCritiqueStage({ personaContext }),
             context,
             onIteration,
           })
 
     const best = result.bestArtifact as RepurposeArtifact | null
-    if (!best) throw new Error(`Producer loop produced no usable ${type}`)
+    if (!best) {
+      throw new Error(
+        `Cross-critique loop produced no usable ${type}` +
+          (result.error ? ` (${result.error.message})` : '')
+      )
+    }
 
-    // Auto-present (dev): persist the Artifact row with the judge's best
-    // composite score (CR-5). TODO(CR-9): cost → StageSession.
+    // Auto-present (dev): persist the Artifact row. derivedVia='cross_critique' is
+    // now literally true (CR-7); bestScore is the Gemini judge's best composite.
     const payload = buildArtifactPersistence(type, best, result.totalCostUSD, result.bestScore)
     const saved = await db.artifact.create({
       data: {
@@ -222,9 +255,9 @@ async function main() {
 
     const scoreLabel = result.bestScore !== null ? `${result.bestScore}/100` : 'n/a'
     console.log(
-      `\nGenerated ${type} at ${outPath}. ${sizeLabel(type, best)}. ` +
+      `Generated ${type} at ${outPath}. ${sizeLabel(type, best)}. ` +
         `Best score: ${scoreLabel} over ${result.iterations.length} iteration(s). ` +
-        `Cost: $${result.totalCostUSD.toFixed(4)}.`
+        `Cost: $${result.totalCostUSD.toFixed(4)}. Termination: ${result.terminationReason ?? 'n/a'}.`
     )
     console.log(
       `Artifact ${saved.id} → status=${saved.status}, derivedVia=${saved.derivedVia}, bestScore=${saved.bestScore ?? 'null'}.`
@@ -235,6 +268,32 @@ async function main() {
       console.log(
         `(loop surfaced an error at iteration ${result.error.iteration}: ${result.error.message})`
       )
+    }
+
+    // Acceptance check (decisions log): cosine similarity between consecutive
+    // integrated artifacts must be ≤ 0.92 — higher means producers are stuck.
+    // A warning, not a gate.
+    const integratedTexts = result.integratedArtifacts.map((a) =>
+      type === 'linkedin_post' ? (a as LinkedInArtifact).text : (a as ArticleArtifact).markdown
+    )
+    if (integratedTexts.length >= 2) {
+      try {
+        const sims = await consecutiveSimilarities(integratedTexts)
+        const label = sims.map((s, i) => `v${i + 1}→v${i + 2}: ${s.toFixed(3)}`).join(', ')
+        const maxSim = Math.max(...sims)
+        console.log(`Cross-critique similarity (text-embedding-3-large): ${label}`)
+        if (maxSim > 0.92) {
+          console.log(
+            `⚠️  similarity ${maxSim.toFixed(3)} > 0.92 — iterations may be superficial (tuning signal).`
+          )
+        } else {
+          console.log(`✓ all consecutive similarities ≤ 0.92 (substantively different iterations).`)
+        }
+      } catch (err) {
+        console.log(`(similarity check skipped: ${err instanceof Error ? err.message : String(err)})`)
+      }
+    } else {
+      console.log(`(similarity check needs ≥2 integrated artifacts; got ${integratedTexts.length}.)`)
     }
   } finally {
     await db.$disconnect()

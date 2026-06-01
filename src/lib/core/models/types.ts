@@ -50,6 +50,15 @@ export interface PricingEntry {
   costPerUnit: number
   unit: 'image' | '1k-tokens-in' | '1k-tokens-out' | 'minute' | 'second' | 'character'
   byResolution?: ResolutionPricing
+  /**
+   * Optional per-1k-OUTPUT-token rate for token-billed text models. When set on a
+   * `'1k-tokens-in'` entry the gateway bills `input × costPerUnit + output ×
+   * costPerUnitOut`, so generation spend (output-dominated: producers, the
+   * integrator) lands in the ledger accurately. Entries that omit it bill input
+   * only — preserving the CR-5 judge convention (`text-scoring`, input-dominated)
+   * and every existing single-unit entry unchanged.
+   */
+  costPerUnitOut?: number
 }
 
 export interface ParamSchema {

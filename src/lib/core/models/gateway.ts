@@ -84,8 +84,15 @@ const calculateFinalCost = (
   const entry: PricingEntry | undefined = model.pricing[capability]
   if (!entry) return { costUsd: 0, unit: 'none' }
   if (entry.unit === '1k-tokens-in') {
-    const tokens = result.tokensIn ?? 0
-    return { costUsd: (tokens / 1000) * entry.costPerUnit, unit: entry.unit }
+    const tokensIn = result.tokensIn ?? 0
+    const inCost = (tokensIn / 1000) * entry.costPerUnit
+    // Generation models (producers, integrator) set costPerUnitOut so the
+    // output-dominated spend is billed too; input-only entries (judges) omit it.
+    const outCost =
+      typeof entry.costPerUnitOut === 'number'
+        ? ((result.tokensOut ?? 0) / 1000) * entry.costPerUnitOut
+        : 0
+    return { costUsd: inCost + outCost, unit: entry.unit }
   }
   if (entry.unit === '1k-tokens-out') {
     const tokens = result.tokensOut ?? 0

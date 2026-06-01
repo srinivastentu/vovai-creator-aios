@@ -440,6 +440,8 @@ beats selection. For images/video where outputs are atomic (you can't
 ```typescript
 interface CrossCritiqueConfig {
   producers: AgentConfig[]
+  critics: AgentConfig[]                      // explicit (CR-6): the engine needs each
+                                              // critic's own model for the gateway call
   criticAssignments: Record<string, string>   // criticAgentId → targetProducerAgentId
   integratorAgent: AgentConfig                // sequential, single model
   judgeAgent: AgentConfig                     // different model from producers + integrator

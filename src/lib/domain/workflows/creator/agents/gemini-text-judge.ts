@@ -31,6 +31,15 @@ import type { RepurposeCostEvent } from '../types'
 /** Default judge model. Premium tier — judge quality drives the loop. */
 export const DEFAULT_JUDGE_MODEL = 'gemini-2.5-pro'
 const JUDGE_TIMEOUT_MS = 60_000
+/**
+ * Explicit output bound for the judge call (CR-5 sign-off follow-up, due before
+ * CR-7). gemini-2.5-pro reasons before answering; a generous-but-finite cap keeps
+ * runaway generation from inflating real API spend while leaving ample room for
+ * the per-dimension reasoning + the 6-dimension JSON verdict. An over-budget
+ * (MAX_TOKENS) empty response degrades to a synthetic failing grade → the loop
+ * revises (graceful, rule 9).
+ */
+const JUDGE_MAX_OUTPUT_TOKENS = 4096
 
 export interface GeminiTextJudgeDeps {
   /** Inject the gateway (tests). Defaults to the shared singleton (one ledger). */
@@ -39,6 +48,8 @@ export interface GeminiTextJudgeDeps {
   modelId?: string
   /** Target persona voice + audience, for the personaFit / audienceFit dims. */
   personaContext?: string
+  /** Explicit output-token cap for the judge call. Defaults to JUDGE_MAX_OUTPUT_TOKENS. */
+  maxOutputTokens?: number
   onCost?: (event: RepurposeCostEvent) => void
   context?: Partial<GatewayContext>
 }
@@ -165,6 +176,7 @@ export function createGeminiTextJudge(
 ): JudgeFunction {
   const modelId = deps.modelId ?? DEFAULT_JUDGE_MODEL
   const personaContext = deps.personaContext
+  const maxOutputTokens = deps.maxOutputTokens ?? JUDGE_MAX_OUTPUT_TOKENS
   const onCost = deps.onCost
   const contextOverrides = deps.context ?? {}
   // Short-circuits to the injected gateway in tests; the default singleton (one
@@ -189,6 +201,7 @@ export function createGeminiTextJudge(
           prompt: userMessage,
           responseMimeType: 'application/json',
           temperature: 0,
+          maxOutputTokens,
         },
         preferences: { modelId, timeoutMs: JUDGE_TIMEOUT_MS },
         context: { callerTag: spec.callerTag, ...contextOverrides },

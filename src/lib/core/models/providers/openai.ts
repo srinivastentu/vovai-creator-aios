@@ -238,6 +238,66 @@ export const createOpenAiClient = (): ProviderClient => {
     }
   }
 
+  // text-generation (CR-7): plain system + user chat completion. Used by the
+  // Cross-Critique runner for the GPT-4o producer and the GPT-on-Claude critic.
+  // `prompt` is the user message; `systemPrompt` the optional system message.
+  const handleTextGeneration = async (
+    modelApiId: string,
+    params: Record<string, unknown>,
+    startedAt: number,
+  ): Promise<ProviderResult> => {
+    const apiKey = process.env.OPENAI_API_KEY
+    if (!apiKey) return failure('OPENAI_API_KEY not set', startedAt)
+
+    const prompt = typeof params.prompt === 'string' ? params.prompt : ''
+    if (!prompt) return failure('prompt is required', startedAt)
+
+    const systemPrompt =
+      typeof params.systemPrompt === 'string' ? params.systemPrompt : undefined
+    const temperature =
+      typeof params.temperature === 'number' ? params.temperature : 1
+    const maxTokens =
+      typeof params.maxOutputTokens === 'number' ? params.maxOutputTokens : 4096
+    const timeoutMs =
+      typeof params.timeoutMs === 'number' ? params.timeoutMs : DEFAULT_TIMEOUT_MS
+    const abortSignal =
+      params.abortSignal instanceof AbortSignal ? params.abortSignal : undefined
+
+    const messages: ChatMessage[] = []
+    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
+    messages.push({ role: 'user', content: prompt })
+
+    let response: ChatCompletionResponse
+    try {
+      const client = getClient(apiKey)
+      response = (await client.chat.completions.create(
+        {
+          model: modelApiId,
+          messages: messages as never,
+          temperature,
+          max_tokens: maxTokens,
+        },
+        { signal: abortSignal },
+      )) as unknown as ChatCompletionResponse
+    } catch (err) {
+      return failure(mapApiError(err, timeoutMs), startedAt)
+    }
+
+    const content = response.choices?.[0]?.message?.content
+    if (typeof content !== 'string' || content.length === 0) {
+      return failure('Empty response from OpenAI', startedAt)
+    }
+
+    return {
+      success: true,
+      rawResponse: response as unknown as Record<string, unknown>,
+      content,
+      tokensIn: response.usage?.prompt_tokens ?? 0,
+      tokensOut: response.usage?.completion_tokens ?? 0,
+      durationMs: Date.now() - startedAt,
+    }
+  }
+
   const execute = async (
     modelApiId: string,
     capability: Capability,
@@ -249,6 +309,9 @@ export const createOpenAiClient = (): ProviderClient => {
     }
     if (capability === 'image-scoring') {
       return handleImageScoring(modelApiId, params, startedAt)
+    }
+    if (capability === 'text-generation') {
+      return handleTextGeneration(modelApiId, params, startedAt)
     }
     return failure(`Unsupported capability: ${capability}`, startedAt)
   }

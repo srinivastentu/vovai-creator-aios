@@ -34,6 +34,7 @@ import type {
 } from '../../../core/engine/types'
 import type { ModelGateway } from '../../../core/models/gateway'
 import { calculateWeightedScore, checkThresholds } from '../../../core/agentic/grader'
+import { classifyModelFamily } from '../../../core/engine/cross-critique'
 import { createLinkedInProducer } from './agents/linkedin/producer-claude'
 import { createArticleProducer } from './agents/article/producer-claude'
 import { createLinkedInJudge } from './agents/linkedin/judge'
@@ -201,25 +202,16 @@ const ARTICLE_SPEC: ProducerStageSpec<ArticleArtifact> = {
 }
 
 /**
- * Model-family classification for the cross-model guard. Generic, but domain-
- * local in CR-5; TODO(CR-6): the Core engine centralizes this at cross-critique
- * iteration start.
- */
-function modelFamily(modelId: string): string {
-  const m = modelId.toLowerCase()
-  if (m.includes('claude')) return 'anthropic'
-  if (m.includes('gemini') || m.startsWith('google')) return 'google'
-  if (m.includes('gpt') || m.startsWith('o1') || m.startsWith('o3')) return 'openai'
-  return m
-}
-
-/**
  * Cross-model enforcement (loop rule 7 / Pattern-5 rule 10): the producer and
  * the judge MUST be different model families. Throws at stage-build time on
  * overlap — an agent cannot grade its own output.
+ *
+ * CR-7 (discharges the CR-5 "[due before CR-6] clause 3" follow-up): delegates to
+ * the Core `classifyModelFamily` instead of a domain-local copy, so there is one
+ * family classifier across the Standard and Cross-Critique stages.
  */
 export function assertCrossModel(producerModel: string, judgeModel: string): void {
-  if (modelFamily(producerModel) === modelFamily(judgeModel)) {
+  if (classifyModelFamily(producerModel) === classifyModelFamily(judgeModel)) {
     throw new Error(
       `[single-producer-stage] producer (${producerModel}) and judge (${judgeModel}) ` +
         'must be different model families (loop rule 7 / Pattern-5 rule 10)'

@@ -2,6 +2,17 @@ import type { ModelDefinition, ProviderDefinition } from '../types'
 
 export const getDefaultProviders = (): ProviderDefinition[] => [
   {
+    id: 'anthropic',
+    name: 'Anthropic',
+    authType: 'api-key',
+    authEnvVar: 'ANTHROPIC_API_KEY',
+    baseUrl: 'https://api.anthropic.com',
+    apiPattern: 'sync',
+    status: 'available',
+    rateLimits: { requestsPerMinute: 50, requestsPerDay: 10000 },
+    metadata: {},
+  },
+  {
     id: 'google-gemini',
     name: 'Google Gemini API',
     authType: 'api-key',
@@ -59,6 +70,39 @@ export const getDefaultProviders = (): ProviderDefinition[] => [
 ]
 
 export const getDefaultModels = (): ModelDefinition[] => [
+  // Anthropic (text-generation) — CR-7. The Cross-Critique producers (Producer A),
+  // critics (Claude-on-GPT), and the integrator route through the gateway here so
+  // their spend lands in the cost ledger. Token pricing bills BOTH input and
+  // output (costPerUnitOut) — generation is output-dominated — matching the
+  // direct-SDK rates in core/agentic/pricing.ts (Sonnet $3/$15, Haiku $1/$5 per MTok).
+  {
+    id: 'claude-sonnet-4-20250514',
+    name: 'Claude Sonnet 4',
+    providerId: 'anthropic',
+    capabilities: ['text-generation'],
+    qualityTier: 'premium',
+    pricing: {
+      'text-generation': { costPerUnit: 0.003, unit: '1k-tokens-in', costPerUnitOut: 0.015 },
+    },
+    supportedParams: { maxTokensIn: 200000, maxTokensOut: 8192 },
+    status: 'active',
+    apiModelId: 'claude-sonnet-4-20250514',
+    metadata: {},
+  },
+  {
+    id: 'claude-haiku-4-5-20251001',
+    name: 'Claude Haiku 4.5',
+    providerId: 'anthropic',
+    capabilities: ['text-generation'],
+    qualityTier: 'standard',
+    pricing: {
+      'text-generation': { costPerUnit: 0.001, unit: '1k-tokens-in', costPerUnitOut: 0.005 },
+    },
+    supportedParams: { maxTokensIn: 200000, maxTokensOut: 8192 },
+    status: 'active',
+    apiModelId: 'claude-haiku-4-5-20251001',
+    metadata: {},
+  },
   // Google Gemini
   {
     id: 'nanobanan-2',
@@ -228,6 +272,24 @@ export const getDefaultModels = (): ModelDefinition[] => [
     status: 'active',
     apiModelId: 'dall-e-3',
     metadata: { quality: 'hd' },
+  },
+  // GPT-4o (text-generation) — CR-7. The Cross-Critique Producer B + the
+  // GPT-on-Claude critic. Distinct catalog id from gpt-4o-vision (image-scoring)
+  // because the producer config references model id 'gpt-4o'. Bills input + output
+  // (gpt-4o $2.50/$10 per MTok = $0.0025/$0.01 per 1k).
+  {
+    id: 'gpt-4o',
+    name: 'GPT-4o',
+    providerId: 'openai',
+    capabilities: ['text-generation'],
+    qualityTier: 'premium',
+    pricing: {
+      'text-generation': { costPerUnit: 0.0025, unit: '1k-tokens-in', costPerUnitOut: 0.01 },
+    },
+    supportedParams: { maxTokensIn: 128000, maxTokensOut: 16384 },
+    status: 'active',
+    apiModelId: 'gpt-4o',
+    metadata: {},
   },
   {
     id: 'gpt-4o-vision',
