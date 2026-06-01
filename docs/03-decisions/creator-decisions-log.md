@@ -924,11 +924,15 @@ seam — and wiring the V1 `PassthroughCurator` at Stage 3 + Stage 5.
   on the seeded workspace. V1 has no authz logic (single hardcoded admin user), so
   nothing reads `role` in a way that could be wrong. The CR-8 build item
   "finish the workspace/role schema if anything was deferred from CR-1" found
-  nothing deferred. `// TODO(V2): wire Clerk + role-based authz` remains the
-  forward marker.
-- **2026-06-01 — Critics + integrator are NOT curation consumers in V1.** Only the
-  producers receive the curated persona+master block (the canonical Stage-5
-  curation point per context-system.md — "producers run with curated subset, not
-  full Master"). Critics consume a single target draft; the integrator consumes the
-  producer drafts + critiques (the dialectic), not the raw source pool. Wiring them
-  through a curator is a V2 consideration, not CR-8 scope.
+  nothing deferred. The Clerk + role-based-authz forward marker lands with the
+  CR-9 UI code — no such marker exists in the V1 schema/seed/CLI yet.
+- **2026-06-01 — Only the producers are curation consumers in V1.** They receive
+  the curated persona+master block (the canonical Stage-5 curation point per
+  context-system.md — "producers run with curated subset, not full Master"). The
+  critics consume a single target draft; the integrator currently receives the FULL
+  (uncurated) Long-Form Master (`integrator.ts` master block) alongside both drafts
+  + both critiques. Under V1 passthrough this is inert (nothing is curated away).
+  **V2 follow-up:** when a non-passthrough curator lands, thread the curated master
+  into the integrator (and optionally the critics) too — otherwise the integrator,
+  which writes the final artifact, would synthesize from a fuller source pool than
+  the producers it draws on. Out of CR-8 (and V1) scope.
