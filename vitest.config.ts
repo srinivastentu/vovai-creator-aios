@@ -12,6 +12,7 @@ export default defineConfig({
     // CR-0: archived eLearn code lives under src/ and tests/ but must not run.
     exclude: [
       ...configDefaults.exclude,
+      'tests/e2e/**',
       'tests/_eLearn_archive/**',
       'src/_eLearn_archive_api/**',
       'src/_eLearn_archive_pages/**',

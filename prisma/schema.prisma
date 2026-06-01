@@ -97,14 +97,18 @@ model CreatorPersona {
 }
 
 model Workspace {
-  id          String        @id @default(cuid())
-  userId      String
-  personaId   String
-  name        String
-  description String
-  role        WorkspaceRole @default(admin)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String        @id @default(cuid())
+  userId       String
+  personaId    String
+  name         String
+  description  String
+  // CR-9: workspace-level niche tags (mirrors the per-Idea niches) and the
+  // "last active" timestamp powering the list ordering + dashboard touch.
+  niches       String[]      @default([])
+  role         WorkspaceRole @default(admin)
+  lastActiveAt DateTime      @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   user    User           @relation(fields: [userId], references: [id], onDelete: Restrict)
   persona CreatorPersona @relation(fields: [personaId], references: [id], onDelete: Restrict)
