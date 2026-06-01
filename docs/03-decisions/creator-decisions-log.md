@@ -1466,3 +1466,44 @@ CR steps' smaller/mocked runs never exercised. Fixing them is the CR-12
   test). (3) CR-5 "bound the Gemini judge output budget" → cap + thinkingBudget,
   above. (4) CR-6 "[due before CR-11] Gate-B handles null bestArtifact" — the
   acceptance runner throws a clear error if any stage yields no usable artifact.
+
+### CR-12 sign-off follow-ups (2026-06-01)
+
+The CR-12 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high confidence,
+zero blockers, zero majors, five minors — `docs/sign-off-review/CR-12-sign-off.md`).
+V1 is done (v1.0 tagged). All follow-ups are V2 hardening, recorded here so the
+post-V1 work is tracked:
+
+- **2026-06-01 — [V2] Unit-test the Gemini judge transient-retry path.** Fake
+  gateway returns `{success:false, error:'503 high demand'}` then a valid grade →
+  assert the judge retried and returned the real grade; a second test where
+  `> JUDGE_MAX_RETRIES` transient failures fall back to the synthetic 40. The
+  retry is the headline reliability fix and currently has no direct unit test.
+- **2026-06-01 — [V2] Client-level assertion for `thinkingBudget` + the MAX_TOKENS
+  diagnostic.** Assert a request with `params.thinkingBudget` emits
+  `body.generationConfig.thinkingConfig.thinkingBudget`, and that an empty-text
+  MAX_TOKENS candidate surfaces the `finishReason`/`thoughtsTokenCount` string.
+- **2026-06-01 — [V2] Sweep stale `gemini-2.5-pro` comment/JSDoc references** to
+  `gemini-2.5-flash` (or "the Gemini judge model") now that `DEFAULT_JUDGE_MODEL`
+  is flash.
+- **2026-06-01 — [V2] Route Stage 2/3 producers + OpenAI judges through the MMS
+  gateway (Option A).** Makes `CostLedger.getTotal()` the authoritative single
+  source of truth and converges the acceptance cost assertion with the spec's
+  literal wording. Already named above as the V2 cost cleanup.
+- **2026-06-01 — [V2] Resolve the untracked `scripts/demo-gate-b.ts`** (a
+  pre-existing dev scratch file, not part of CR-12): commit it as a documented dev
+  tool alongside `scripts/pipeline-*.ts`, or add `scripts/demo-*.ts` to
+  `.gitignore`. Left untracked in CR-12 (out of scope).
+- **2026-06-01 — [V2] Close the CR-9 "CI must provision DATABASE_URL" follow-up.**
+  Wire CI provisioning for the DB-gated integration suites (and the gated
+  acceptance test's keys), or formally accept the vacuous-skip risk here.
+- **2026-06-01 — [V2] Article iteration-divergence tuning.** The article
+  cross-critique converges to cosine ~0.98 (the differentiator is only
+  demonstrably divergent on LinkedIn, ~0.89). Tune long-form divergence and
+  consider a hard cosine gate for at least the LinkedIn stage in a future
+  hardening pass. See the "Cosine-similarity criterion" decision above for why
+  high long-form similarity is currently expected, not a defect.
+- **2026-06-01 — [human input] Acceptance criteria 2 & 3 are human-judged.** The
+  audit verified the mechanized criteria and the pipeline; the LinkedIn post
+  (91.3/100, 1,770 chars) and the article (94/100, 1,880 words) must be confirmed
+  publishable-without-rewrite by reading `tests/e2e/output/acceptance-run-<ts>/`.

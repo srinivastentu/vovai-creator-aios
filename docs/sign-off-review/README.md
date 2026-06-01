@@ -153,6 +153,7 @@ decision or architecture rule, or would break the next CR step.
 | CR-9 — CRUD UIs (Persona + Workspace + IdeaLog) + Idea Coach | SIGN-OFF WITH FOLLOW-UPS | [CR-9-sign-off.md](CR-9-sign-off.md) |
 | CR-10 — Gate A UI (source traceability panel) | SIGN-OFF WITH FOLLOW-UPS | [CR-10-sign-off.md](CR-10-sign-off.md) |
 | CR-11 — Gate B UI (inline editor + regenerate + diff) | SIGN-OFF WITH FOLLOW-UPS | [CR-11-sign-off.md](CR-11-sign-off.md) |
+| CR-12 — V1 acceptance test (v1.0) | SIGN-OFF WITH FOLLOW-UPS | [CR-12-sign-off.md](CR-12-sign-off.md) |
 
 _(Append a row per step as reviews complete.)_
 
