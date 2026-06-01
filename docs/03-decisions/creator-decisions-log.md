@@ -1045,3 +1045,99 @@ scope-affecting follow-ups, recorded so future CR steps plan for them:
 - **2026-06-01 — [human input] UI/UX quality is human-judged.** The five lenses
   verified behavior, routing, and data discipline — not visual polish. Recommend a
   manual walkthrough (or the production-build Playwright spec) before CR-10.
+
+---
+
+## CR-10 decisions (2026-06-01)
+
+Pinned while building Gate A (the Long-Form Master source-traceability review
+UI). The code shipped in commit `74990f2`; this section was added in the CR-10
+sign-off follow-up commit (the audit flagged the cadence gap as a MAJOR — the
+decisions were documented only as code comments — so the binding record is
+restored here).
+
+### Architecture
+
+- **2026-06-01 — Gate A review logic lives in Domain
+  (`src/lib/domain/workflows/creator/review/master-review.ts`), NOT routed
+  through the Core `review/processReview` path.** Stage 3 synthesis is
+  CLI-driven in V1, so there is no live `LoopState<LongFormMaster>` to hand to
+  the Core engine at review time; Gate A reviews a *persisted* master. The
+  domain module therefore mirrors the Core review *principles* — allowed-action
+  gating + human sovereignty — over the `MasterStatus` lifecycle, as pure logic
+  (no Prisma, no I/O; the `data/masters.ts` layer applies the transition).
+  Placing it in Core would have broken the import rule (it touches
+  `MasterStatus`/`LongFormMaster`). The Explore-agent suggestion of a
+  `src/lib/core/master-review/` module was rejected for exactly this reason.
+  `TODO(V2)`: when Stage 3 runs live in-UI, reconstruct a
+  `LoopState<LongFormMaster>` and route Gate A through Core `processReview` so
+  the two share one path.
+- **2026-06-01 — V1 surfaces 4 of the engine's 6 review actions at Gate A**
+  (`approve`, `feedback`, `reject`, `inline_edit`); `use_segments` + `mix_produce`
+  are gated out of the UI with the mandated `TODO(V2)` comment
+  (`GateAActions.tsx`, `master-review.ts`). Per review-system-v1.md.
+
+### Data model / semantics
+
+- **2026-06-01 — Gate A action → `MasterStatus` mapping (V1):**
+  `approve` and `inline_edit` → `approved` (inline_edit is implicit approval —
+  the edited sections are the accepted final); `feedback` and `reject` →
+  `draft` (the master leaves the review queue, flagged for CLI re-synthesis).
+  This deliberately collapses review-system-v1.md's distinct LoopState
+  transitions (`feedback`→generating, `reject`→generating-clean) onto a single
+  persisted `MasterStatus='draft'` — correct for a CLI-driven Stage 3 with no
+  live loop state. The reject-vs-feedback distinction is carried by the
+  persisted note, not the status. The V2 TODO above is where reject must regain
+  its "clear all iterations/context" semantics.
+- **2026-06-01 — Gate A approve terminates at `MasterStatus='approved'`, NOT
+  `in_repurpose`.** `in_repurpose` is reserved for Stage-4 entry (a later CR);
+  approve at Gate A only unlocks repurpose, it does not enter it. This refines
+  the CR-4 phrasing ("flipping the master to `in_repurpose` is a Gate-A-approval
+  consequence") — the consequence is `approved`; `in_repurpose` is a separate,
+  later transition. (Resolves the sign-off human-input item on approve terminal
+  status.)
+- **2026-06-01 — `LongFormMaster` gains nullable `reviewFeedback` + `reviewedAt`
+  via additive migration** (`20260601120000_cr_10_master_review_fields`, applied
+  with `migrate deploy` per the CR-2/CR-9 precedent that `migrate dev` is
+  non-interactive-blocked here). `feedback`/`reject` persist the reviewer note +
+  timestamp; `approve` nulls the note. Srinivas approved persisting the note
+  (vs. a leaner status-only, no-schema option) this session so "Request changes"
+  leaves a durable record. Both columns default-backed (no backfill).
+- **2026-06-01 — inline_edit on Gate A is lightweight per-section markdown
+  textareas, not a rich editor.** The full Tiptap inline editor is CR-11
+  (Gate B). All sections are submitted together on "Save & approve"; the
+  mutation persists edited sections + status + note in one `db.$transaction`.
+
+### CR-10 sign-off follow-ups (2026-06-01)
+
+The CR-10 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high confidence,
+zero blockers; one MAJOR = this decisions-log cadence gap, discharged by this
+section — `docs/sign-off-review/CR-10-sign-off.md`). Scope-affecting follow-ups,
+recorded so future steps plan for them:
+
+- **2026-06-01 — [due before CR-11] Harden `submitGateAReview` against a TOCTOU
+  race.** Add `status: REVIEWABLE_STATUS` to the `updateMany` where-clause so the
+  transition is atomic/idempotent, and treat a zero-row update as
+  "already reviewed". Add a zero-row-path test
+  (`src/lib/domain/data/masters.ts`).
+- **2026-06-01 — [due before CR-11] Clear `reviewFeedback`/`reviewedAt` on
+  re-synthesis** back to `gate_a_pending`, so a stale prior note can't persist
+  across a re-synthesis cycle. Lands wherever Stage-3 re-synthesis is wired live
+  in-UI.
+- **2026-06-01 — [due before CR-11] Add a one-line "V1 Gate A adaptation" note in
+  `review-system-v1.md`** clarifying that the doc's `generating`-state
+  transitions describe the live-LoopState path; V1's persisted-master Gate A maps
+  `reject`/`feedback` to `MasterStatus='draft'`. Closes the doc-vs-code gap before
+  CR-11 reuses the review module.
+- **2026-06-01 — [due before CR-12] Add a cross-user isolation test** asserting
+  `getMasterForReview` returns null and `submitGateAReview` throws for a master
+  owned by a second seeded user — mechanically guarding the CR-9 user-scoping
+  decision before the V2 Clerk swap.
+- **2026-06-01 — [due before CR-12] Narrow the server-action surface.** Move the
+  `submitGateAReview` mutation into a dedicated `"use server"` actions file and
+  import the two read queries (`getMasterForReview`, `listMastersForWorkspace`) as
+  plain async functions in the server pages.
+- **2026-06-01 — [human input] Gate A visual polish is human-judged.** The five
+  lenses verified routing, layout structure, data discipline, and behavior — not
+  the rendered look-and-feel. Recommend a manual walkthrough of
+  `/workspaces/[id]/master/[masterId]/review` before CR-11.
