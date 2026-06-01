@@ -4,7 +4,9 @@
 
 **Tag on completion:** `CR-9-crud-ui`
 
-This document is the implementation contract for the session. It assumes Core (`src/lib/core/`) and the Drizzle schema for the Domain entities exist from earlier CRs; CR-9 builds the **UI + the Idea Coach agent + one API route**. Where a data-layer call is referenced, it is a thin server action over the existing schema — do not redesign the schema in this CR.
+This document is the implementation contract for the session. It assumes Core (`src/lib/core/`) and the **Prisma** schema (`prisma/schema.prisma`, from CR-1) for the Domain entities exist from earlier CRs; CR-9 builds the **UI + the Idea Coach agent + one API route**. Where a data-layer call is referenced, it is a thin server action over the existing Prisma client — do not redesign the schema in this CR.
+
+> **ORM note:** this repo uses **Prisma**, not Drizzle. All data-layer code below is Prisma (`prisma.<model>.findMany/create/update/delete`). Field types in the entity tables use Prisma vocabulary (`String[]`, `Json`).
 
 ---
 
@@ -44,11 +46,11 @@ CR-9 touches three entities. Field lists below are the source of truth for the f
 | `id` | uuid | — |
 | `userId` | text (`local-user`) | hidden |
 | `name` | text | Identity group |
-| `niches` | text[] | Identity group (tag input) |
-| `creatorProfile` | jsonb `{ bio, expertiseAreas[], pov, hooks[] }` | Creator group |
-| `voiceTone` | jsonb `{ formality: 0–1, vocabulary, signaturePhrases[], doNotSay[] }` | Voice group (advanced collapsible) |
-| `audienceProfile` | jsonb `{ role, level, interests[], painPoints[] }` | Audience group |
-| `defaultRubrics` | jsonb `{ linkedin_post: rubricId, long_form_article: rubricId }` | Rubrics group (**read-only in V1**) |
+| `niches` | String[] | Identity group (tag input) |
+| `creatorProfile` | Json `{ bio, expertiseAreas[], pov, hooks[] }` | Creator group |
+| `voiceTone` | Json `{ formality: 0–1, vocabulary, signaturePhrases[], doNotSay[] }` | Voice group (advanced collapsible) |
+| `audienceProfile` | Json `{ role, level, interests[], painPoints[] }` | Audience group |
+| `defaultRubrics` | Json `{ linkedin_post: rubricId, long_form_article: rubricId }` | Rubrics group (**read-only in V1**) |
 | `createdAt` / `updatedAt` | timestamp | meta |
 
 **Workspace** — project container; picks one persona on creation.
@@ -58,7 +60,7 @@ CR-9 touches three entities. Field lists below are the source of truth for the f
 | `userId` | text | hidden |
 | `personaId` | uuid (FK) | New-workspace select |
 | `name` | text | New-workspace + dashboard header |
-| `niches` | text[] | optional tag input |
+| `niches` | String[] | optional tag input |
 | `lastActiveAt` | timestamp | list row |
 | `createdAt` | timestamp | meta |
 
@@ -69,7 +71,7 @@ CR-9 touches three entities. Field lists below are the source of truth for the f
 | `workspaceId` | uuid (FK) | hidden |
 | `title` | text (required) | table + quick-add |
 | `description` | text | preview + quick-add expander |
-| `niches` | text[] | tag column + filter |
+| `niches` | String[] | tag column + filter |
 | `sourceUrl` | text? | quick-add expander |
 | `status` | enum `captured \| in_progress \| completed \| archived` | badge + filter |
 | `createdAt` / `updatedAt` | timestamp | "captured" column |
@@ -138,64 +140,72 @@ Thin, typed, user-scoped. Example for personas; workspaces and ideas mirror the 
 ```ts
 // src/lib/domain/data/personas.ts
 "use server";
-import { db } from "@/lib/db";
-import { creatorPersonas } from "@/lib/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { prisma } from "@/lib/db";              // PrismaClient singleton
 import { getCurrentUserId } from "@/lib/auth/current-user";
 import { revalidatePath } from "next/cache";
 
 export async function listPersonas() {
-  return db.select().from(creatorPersonas)
-    .where(eq(creatorPersonas.userId, getCurrentUserId()))
-    .orderBy(desc(creatorPersonas.updatedAt));
+  return prisma.creatorPersona.findMany({
+    where: { userId: getCurrentUserId() },
+    orderBy: { updatedAt: "desc" },
+  });
 }
 
 export async function getPersona(id: string) {
-  const [row] = await db.select().from(creatorPersonas)
-    .where(and(eq(creatorPersonas.id, id), eq(creatorPersonas.userId, getCurrentUserId())));
-  return row ?? null;
+  return prisma.creatorPersona.findFirst({
+    where: { id, userId: getCurrentUserId() },   // user-scoped; null if not owned
+  });
 }
 
 export async function createPersona(input: PersonaInput) {
-  const [row] = await db.insert(creatorPersonas)
-    .values({ ...input, userId: getCurrentUserId() }).returning();
+  const row = await prisma.creatorPersona.create({
+    data: { ...input, userId: getCurrentUserId() },
+  });
   revalidatePath("/personas");
   return row;
 }
 
 export async function updatePersona(id: string, input: PersonaInput) {
-  const [row] = await db.update(creatorPersonas)
-    .set({ ...input, updatedAt: new Date() })
-    .where(and(eq(creatorPersonas.id, id), eq(creatorPersonas.userId, getCurrentUserId())))
-    .returning();
+  // updateMany so the userId scope is enforced in the where clause
+  await prisma.creatorPersona.updateMany({
+    where: { id, userId: getCurrentUserId() },
+    data: { ...input },                          // updatedAt via @updatedAt in schema
+  });
   revalidatePath("/personas"); revalidatePath(`/personas/${id}`);
-  return row;
+  return getPersona(id);
 }
 
 export async function deletePersona(id: string) {
-  await db.delete(creatorPersonas)
-    .where(and(eq(creatorPersonas.id, id), eq(creatorPersonas.userId, getCurrentUserId())));
+  await prisma.creatorPersona.deleteMany({
+    where: { id, userId: getCurrentUserId() },
+  });
   revalidatePath("/personas");
 }
 ```
 
-`ideas.ts` adds a filtered list:
+`ideas.ts` adds a filtered list. `niches` is a Postgres `String[]` in the Prisma schema, so use `has` for the array-contains match:
 
 ```ts
 // src/lib/domain/data/ideas.ts → listIdeas
 export async function listIdeas(
   workspaceId: string,
-  filter?: { status?: IdeaStatus; niche?: string }
+  filter?: { status?: IdeaStatus; niche?: string; q?: string }
 ) {
-  const where = [eq(ideas.workspaceId, workspaceId)];
-  if (filter?.status) where.push(eq(ideas.status, filter.status));
-  // niche match: ideas.niches is text[]; use array-contains
-  if (filter?.niche) where.push(sql`${ideas.niches} @> ARRAY[${filter.niche}]::text[]`);
-  return db.select().from(ideas).where(and(...where)).orderBy(desc(ideas.createdAt));
+  return prisma.idea.findMany({
+    where: {
+      workspaceId,
+      ...(filter?.status ? { status: filter.status } : {}),
+      ...(filter?.niche ? { niches: { has: filter.niche } } : {}),
+      ...(filter?.q ? { title: { contains: filter.q, mode: "insensitive" } } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+  });
 }
 ```
 
-`workspaces.ts` includes `touchLastActive(id)` (sets `lastActiveAt = now()`), called from the dashboard loader.
+> If `niches` is instead modeled as `Json` (not `String[]`) in `prisma/schema.prisma`, swap `{ niches: { has } }` for a `String[]` migration or filter in application code — check the schema before writing this.
+
+`workspaces.ts` includes `touchLastActive(id)` → `prisma.workspace.update({ where: { id }, data: { lastActiveAt: new Date() } })`, called from the dashboard loader.
 
 **Rule:** every action filters by `getCurrentUserId()` (personas/workspaces) or by `workspaceId` already scoped to the user. No action returns another user's rows — even though there's only one user today, this keeps the Clerk swap a one-line change.
 
