@@ -709,3 +709,141 @@ Scope-affecting follow-ups, recorded so future steps plan for them:
   omitted the `Co-Authored-By` trailer (matching CR-1..CR-5, which also
   omit it). Re-include it on subsequent commits per the harness convention;
   noted in `tasks/lessons.md`.
+
+---
+
+## CR-7 decisions (2026-06-01)
+
+Pinned while wiring Stage 5 (Repurpose) LinkedIn + article stages to the
+Cross-Critique pattern (Pattern 5) — the differentiator. (These were recorded
+in the CR-7 sign-off follow-up commit, not the CR-7 code commit `5447eff` — the
+sign-off audit flagged the gap; the cadence is restored here.)
+
+### Architecture
+
+- **2026-06-01 — CR-7 enables an MMS text-generation path; this is required
+  scope, not creep.** The CR-6 cross-critique runner routes producers, critics,
+  and the integrator through `gateway.requestMultiple`/`request` with
+  `capability: 'text-generation'`, but the MMS had no Claude/GPT text path (only
+  Gemini text, from CR-5). CR-7 adds the **Anthropic provider + client**
+  (`core/models/providers/anthropic.ts`, text-generation via the Messages API),
+  an **OpenAI text-generation handler** (`providers/openai.ts`), and catalog
+  entries `claude-sonnet-4-20250514` / `claude-haiku-4-5-20251001` (anthropic) +
+  `gpt-4o` (openai, distinct id from `gpt-4o-vision` which stays image-scoring,
+  sharing apiModelId `gpt-4o`). All zero-domain-word Core machinery. Directly
+  parallels the CR-2..CR-6 pattern of adding what the engine contract requires
+  beyond the action-plan build list. The runner cannot make a single call
+  without it.
+- **2026-06-01 — Cross-critique role files: both producers share ONE persona.**
+  `agents/{linkedin,article}/producer-gpt.ts` houses the shared producer system
+  prompt + user builder + artifact parser AND both producer AgentConfigs
+  (`*_PRODUCER_CLAUDE` + `*_PRODUCER_GPT`), because the two producers receive
+  identical task params via `requestMultiple` and differ only by model. The CR-4
+  `producer-claude.ts` is left intact as the Standard-loop single-producer (test
+  double + off-CLI path). The two critics share one critic persona
+  (`critic-claude-on-gpt.ts`; `critic-gpt-on-claude.ts` re-exports it + its own
+  config). Sign-off noted the `*_PRODUCER_CLAUDE` config living in
+  `producer-gpt.ts` is mildly surprising; the file header documents it. Rename
+  to `producer-shared.ts` is an optional discoverability follow-up (no functional
+  impact).
+- **2026-06-01 — The engine owns orchestration; the Domain supplies a
+  `CrossCritiqueAdapter` (prompts + parsers) + `CrossCritiqueConfig` (models).**
+  `cross-critique-stage.ts` composes them into `LINKEDIN_POST_STAGE` /
+  `LONG_FORM_ARTICLE_STAGE` (`loopPattern='cross-critique'`) + a
+  `runCrossCritiqueLoop` driver (mirrors `runProducerLoop`). The driver passes a
+  throwing `NOOP_EXECUTOR` for the unused `AgentExecutor` arg (the runner
+  dispatches cross-critique before the executor is reached).
+
+### Cost and quality
+
+- **2026-06-01 — MMS token billing extended to input + output (additive,
+  backward-compatible).** `PricingEntry` gains an optional `costPerUnitOut`;
+  `gateway.calculateFinalCost`'s `'1k-tokens-in'` branch now adds
+  `output × costPerUnitOut` when present. Generation models (claude / gpt-4o
+  text-generation) set it (output-dominated → accurate ledger); the Gemini
+  judges (`text-scoring`) omit it, preserving the CR-5 input-only judge
+  convention. Every existing single-unit entry is unchanged. Rates match the
+  authoritative direct-SDK `core/agentic/pricing.ts` (Sonnet $3/$15, Haiku
+  $1/$5, GPT-4o $2.50/$10 per MTok).
+- **2026-06-01 — Stage-5 termination bar ramped to 80 via a NEW
+  `CROSS_CRITIQUE_THRESHOLD=80` constant; `SINGLE_PRODUCER_THRESHOLD` stays 75.**
+  Supersedes the literal CR-5 follow-up wording ("change `SINGLE_PRODUCER_
+  THRESHOLD`"): CR-7 routes the production CLI to the new cross-critique stages,
+  so the single-producer stages (75) are now off the production path (test
+  doubles / Standard-loop). The cross-critique stages set threshold 80, min 2,
+  max 4, `maxBudgetUSD=2.00`. The CR-5 follow-up is **discharged** under this
+  reconciliation.
+- **2026-06-01 — Live CR-7 run (BuildOS master, 6 sections): LinkedIn 92.8/100
+  in 2 iterations ($0.138); article 91.3/100 in 2 iterations ($0.310); total
+  ~$0.45** — far under the $4.00 session ceiling and each stage's $2.00 cap. 6
+  gateway calls per iteration (2 producers + 2 critics + integrator + judge).
+  The integrator visibly synthesized both producers' drafts. Cosine similarity
+  between consecutive integrated artifacts: LinkedIn v1→v2 ≈ 0.920, article
+  v1→v2 ≈ 0.937 — both marginally over the 0.92 advisory. Per the decisions-log
+  mechanization this is a **warning, not a gate**; it signals iteration 2 stayed
+  close to iteration 1 (both converged on the same strong framing; best score
+  came from iteration 1 in both). Judge-calibration / iteration-divergence tuning
+  is a CR-12 follow-up, not a CR-7 blocker.
+- **2026-06-01 — Gemini judge output bounded (`maxOutputTokens=4096`, discharges
+  the CR-5 "[due before CR-7]" follow-up).** `GeminiTextJudgeDeps.maxOutputTokens`
+  is configurable; the judge passes it into the gateway request. A generous-but-
+  finite cap; an over-budget (MAX_TOKENS) empty response degrades to a synthetic
+  failing grade → the loop revises (rule 9). Judges still bill input-only, so the
+  cap is a real-API-spend guard, not a ledger-cost lever.
+
+### Discharged carry-forward follow-ups
+
+- **2026-06-01 — CR-6 "[due before CR-7]" follow-ups DONE.** (1) `options.
+  getJudgeCostUsd` is wired from the gateway-routed Gemini judge via a
+  delta-accumulator in `cross-critique-stage.ts`, so judge spend folds into
+  `cumulativeCostUSD` before the budget check (tested). (2) Doc alignment:
+  `cross-critique-pattern.md` + `loop-patterns.md` now show
+  `critics: AgentConfig[]` and `judgeGrade: GradeReport | null` (+ nullable
+  `integratedArtifact`).
+- **2026-06-01 — CR-5 "[due before CR-6] clause 2 + 3" DONE.** Clause 2: the
+  rule-10 family guard is backed by the MMS catalog `providerId` via
+  `catalogModelFamily` (modelId → catalog providerId, falling back to the Core
+  structural classifier), injected as `CrossCritiqueRunnerOptions.classifyFamily`.
+  Clause 3: `single-producer-stage.ts` `assertCrossModel` now delegates to the
+  Core `classifyModelFamily` (domain-local `modelFamily` deleted; stale
+  `TODO(CR-6)` removed).
+- **2026-06-01 — CR-5 "[MAJOR, due before CR-12] producer ledger" PARTIALLY
+  discharged.** Stage-5 producer/critic/integrator spend now routes through the
+  gateway → lands in `CostLedger`. Remaining for CR-12: Stage 2 (source-curator,
+  research-judge) and Stage 3 (long-form-synthesizer, long-form-master-judge)
+  still call SDKs directly and bypass the ledger; the off-CLI single-producer
+  Standard path too. See the CR-7 follow-ups below.
+
+### CR-7 sign-off follow-ups (2026-06-01)
+
+The CR-7 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high confidence,
+zero blockers — `docs/sign-off-review/CR-7-sign-off.md`). Scope-affecting
+follow-ups, recorded so future steps plan for them:
+
+- **2026-06-01 — [MAJOR, due before CR-12] Finish cost-ledger completeness.**
+  Pin the CR-12 approach: either route the Stage-2/3 producers + OpenAI judges
+  (`source-curator`, `research-judge`, `long-form-synthesizer`,
+  `long-form-master-judge`) through the MMS gateway (`text-generation`), OR change
+  the CR-12 budget assertion to sum the stage-level cost totals rather than read
+  `CostLedger.getTotal` alone. Stage-5 cross-critique spend already lands in the
+  ledger; the remaining work is narrowed to Stages 2/3.
+- **2026-06-01 — [due before CR-12] Unit-test `cosineSimilarity` +
+  `consecutiveSimilarities`** (`scripts/lib/embedding-similarity.ts`): the pure
+  math is load-bearing for the acceptance cosine ≤ 0.92 check and CR-12 reuses it
+  identically (orthogonal→0, identical→1, a known-pair value).
+- **2026-06-01 — [due before CR-11] Surface a dialectic-degradation signal on the
+  cross-critique iteration record** (e.g. a `producersSucceeded` count) when
+  `producerArtifacts` has < 2 entries, so the Gate-B UI shows the loop degraded to
+  single-author synthesis rather than a normal iteration; add a zero-producers
+  unit test.
+- **2026-06-01 — [due before CR-12] Thread role `AgentConfig.timeoutMs` into the
+  adapter `CallSpec.timeoutMs`** in `buildAdapter` (or drop the unused 180_000 on
+  the article producer config and document the deliberate 120s gateway default),
+  so the declared timeout is the effective timeout.
+- **2026-06-01 — [minor] Optional rename `producer-gpt.ts` → `producer-shared.ts`**
+  for discoverability (it houses both producer configs + the shared persona). No
+  functional impact.
+- **2026-06-01 — [human input] Manual quality judgment (acceptance criteria 2 &
+  3).** Are the live-run LinkedIn post (92.8/100) and article (91.3/100)
+  publishable without rewrite? Lenses verified the mechanized loop, not the prose;
+  artifacts are at `tmp/runs/<idea-id>/`.

@@ -148,6 +148,7 @@ decision or architecture rule, or would break the next CR step.
 | CR-4 — Single-model producers (LinkedIn + article) | SIGN-OFF WITH FOLLOW-UPS | [CR-4-sign-off.md](CR-4-sign-off.md) |
 | CR-5 — MMS Gemini + judge + rubrics | SIGN-OFF WITH FOLLOW-UPS | [CR-5-sign-off.md](CR-5-sign-off.md) |
 | CR-6 — Cross-Critique types + runtime | SIGN-OFF WITH FOLLOW-UPS | [CR-6-sign-off.md](CR-6-sign-off.md) |
+| CR-7 — Cross-Critique production (LinkedIn + article) | SIGN-OFF WITH FOLLOW-UPS | [CR-7-sign-off.md](CR-7-sign-off.md) |
 
 _(Append a row per step as reviews complete.)_
 
