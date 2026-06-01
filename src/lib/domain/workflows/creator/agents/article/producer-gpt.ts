@@ -9,7 +9,7 @@
 import type { AgentConfig } from '../../../../../core/engine/types'
 import type { ArticleArtifact, RepurposeContext } from '../../types'
 import { articleWordCount } from '../../validators/article-validator'
-import { defaultProducerContext, stripFences } from '../cross-critique-shared'
+import { defaultProducerContext, priorEditBlock, stripFences } from '../cross-critique-shared'
 
 export const ARTICLE_PRODUCER_SYSTEM_PROMPT = [
   '# Identity',
@@ -79,6 +79,7 @@ export function buildArticleProducerUser(ctx: RepurposeContext, feedback: string
   return [
     contextBlock,
     '',
+    priorEditBlock(ctx),
     feedback ? `A reviewer graded the current best article. Improve on it:\n${feedback}\n` : '',
     `Write ONE long-form article (1,200–3,000 words) on "${ctx.ideaTitle}".`,
     'H1 title, an intro before the first H2, at least 2 H2 body sections, and an',

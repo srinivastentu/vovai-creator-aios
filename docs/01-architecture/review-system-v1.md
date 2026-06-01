@@ -104,6 +104,29 @@ When the user inline-edits an artifact then clicks Regenerate:
 This preserves the eight-principles invariant: **Immutable History.**
 No work is overwritten. Every version is reachable.
 
+## V1 gate adaptation — persisted artifacts (CR-10 / CR-11)
+
+The `LoopState` transitions in the 6-action table above describe the **live**
+loop path. V1 Gates A and B both review a **persisted** row (Stage 3 / Stage 5
+are CLI-driven), so there is no in-memory `LoopState` to hand to
+`core/review.processReview`. The domain review modules
+(`workflows/creator/review/master-review.ts`,
+`workflows/creator/review/artifact-review.ts`) mirror the Core *principles*
+(allowed-action gating + human sovereignty) over the persisted status lifecycle:
+
+| Action | Gate A → `MasterStatus` | Gate B → `ArtifactStatus` |
+|---|---|---|
+| `approve` / `inline_edit` | `approved` | `approved` |
+| `feedback` | `draft` (flagged for CLI re-synthesis) | `draft` (flagged for CLI re-produce) |
+| `reject` | `draft` (note carries the distinction) | `rejected` |
+
+Gate A `inline_edit` mutates the master's sections in place; Gate B `inline_edit`
+mutates the artifact body in place (both implicit approval). The explicit
+fork-on-regenerate path (Gate B **Regenerate**, below) is the only place a new
+Artifact row is created. `TODO(V2)`: when the stages run live in-UI, reconstruct
+the `LoopState` and route both gates through Core `processReview` so the live and
+persisted paths converge.
+
 ## Reviewer assignment (V1 — single user)
 
 V1 has one local user. The `WorkspaceRole` enum exists in the schema

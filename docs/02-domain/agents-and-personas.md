@@ -145,8 +145,10 @@ synthesize intent, not just text.
 ## Where these live in the repo
 
 ```
+src/lib/domain/agents/
+  └── idea-coach.ts              # see note below — flat single-call agent
+
 src/lib/domain/workflows/creator/agents/
-  ├── idea-coach.ts
   ├── research-agent.ts
   ├── source-curator.ts
   ├── long-form-synthesizer.ts
@@ -169,6 +171,15 @@ src/lib/domain/workflows/creator/agents/
 Each `.ts` file exports an `AgentConfig` object whose `systemPrompt`
 field is the rendered Markdown body of the persona document above.
 The YAML frontmatter becomes structured fields on the AgentConfig.
+
+> **Idea Coach location (CR-9 reconciliation, blessed 2026-06-01).** The Idea
+> Coach lives at `src/lib/domain/agents/idea-coach.ts`, not under
+> `workflows/creator/agents/`. It is an optional, single-LLM-call helper (no loop,
+> no rubric, no Forge persona document) that routes through the MMS gateway, so it
+> sits beside other lightweight domain agents rather than in the loop-agent tree.
+> This is a deliberate placement, not drift — the `agent-persona-creation` skill's
+> persona-document template applies to the loop agents above, not to this flat
+> helper.
 
 ## Agent composition patterns
 

@@ -146,7 +146,13 @@ interface MockGateway {
 }
 
 function makeGateway(
-  costs: { producer?: number; critic?: number; integrator?: number; integratorFails?: boolean } = {}
+  costs: {
+    producer?: number
+    critic?: number
+    integrator?: number
+    integratorFails?: boolean
+    producersFail?: boolean
+  } = {}
 ): MockGateway {
   const producerCost = costs.producer ?? 0
   const criticCost = costs.critic ?? 0
@@ -156,7 +162,11 @@ function makeGateway(
 
   const requestMultiple = vi.fn(async (_req: GatewayRequest, modelIds: string[]) => {
     underlying += modelIds.length
-    return modelIds.map((id) => textResponse(id, `producer:${id}`, producerCost))
+    // producersFail → every producer returns a failure response (parses to null),
+    // exercising the rule-9 dialectic-degradation path (producersSucceeded === 0).
+    return modelIds.map((id) =>
+      costs.producersFail ? failureResponse(id) : textResponse(id, `producer:${id}`, producerCost)
+    )
   })
 
   const request = vi.fn(async (req: GatewayRequest) => {
@@ -289,11 +299,32 @@ describe('runCrossCritiqueIteration', () => {
     const rec = result.iterations[0] as CrossCritiqueIterationRecord
     expect(Object.keys(rec.producerArtifacts)).toEqual(['producer-claude', 'producer-gpt'])
     expect(rec.producerArtifacts['producer-claude']).toEqual({ text: 'producer:claude-sonnet-4-20250514' })
+    expect(rec.producersSucceeded).toBe(2) // both producers returned a usable draft
     expect(Object.keys(rec.critiques)).toEqual(['claude-on-gpt', 'gpt-on-claude'])
     expect(rec.integratedArtifact).toEqual({ text: 'integrated:1' })
     expect(rec.judgeGrade?.overallScore).toBe(90)
     expect(rec.grade).toBe(rec.judgeGrade) // slots into IterationRecord uniformly
     expect(result.currentArtifact).toEqual({ text: 'integrated:1' })
+  })
+
+  it('records producersSucceeded=0 when every producer parses to null (rule 9 degradation)', async () => {
+    const mock = makeGateway({ producersFail: true })
+    const stage = makeStage({ threshold: 80, min: 1, max: 1 })
+    const state = createInitialState<TextArtifact>(stage.id)
+
+    const result = await runCrossCritiqueIteration(
+      mock.gateway,
+      stage,
+      state,
+      { brief: 'x' },
+      makeJudge([90]),
+      adapter,
+    )
+
+    const rec = result.iterations[0] as CrossCritiqueIterationRecord
+    expect(Object.keys(rec.producerArtifacts)).toHaveLength(0)
+    expect(rec.producersSucceeded).toBe(0) // dialectic collapsed — surfaced to Gate B
+    expect(Object.keys(rec.critiques)).toHaveLength(0) // no target → critics skipped
   })
 
   it('sums cost across all six sub-calls into the iteration + cumulative totals', async () => {

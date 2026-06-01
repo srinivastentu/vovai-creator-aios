@@ -328,6 +328,10 @@ export async function runCrossCritiqueIteration<T>(
     integratedArtifact,
     judgeGrade,
     iterationCostUSD,
+    // Dialectic-degradation signal (CR-7 follow-up): how many producers parsed to
+    // a usable artifact. < config.producers.length means a producer dropped out
+    // (rule 9) and the integration leaned on fewer voices than designed.
+    producersSucceeded: Object.keys(producerArtifacts).length,
   }
 
   let current: LoopState<T> = {

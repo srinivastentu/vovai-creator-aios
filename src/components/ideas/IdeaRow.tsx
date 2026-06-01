@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import { MoreHorizontal } from "lucide-react"
 import type { Idea } from "@/generated/prisma/client"
 import { updateIdea, deleteIdea, type IdeaStatus } from "@/lib/domain/data/ideas"
@@ -85,7 +86,8 @@ export function IdeaRow({ idea }: { idea: Idea }) {
       await updateIdea(idea.id, { status: "archived" })
       router.refresh()
     } catch {
-      /* archive failures are non-destructive; surfaced on next load */
+      // CR-9 follow-up: surface the failure inline instead of swallowing it.
+      toast.error("Could not archive this idea. Try again.")
     }
   }
 

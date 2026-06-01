@@ -69,6 +69,22 @@ export async function prepareRepurposeContext(
 }
 
 /**
+ * PRIOR-EDIT block (Gate B regenerate, CR-11): when a human edited a previous
+ * version, the producers start from that edit as priority context. Appended raw
+ * (a per-run control signal, like PRESERVE/IMPROVE feedback — never curated, never
+ * the rubric). Empty string when there is no prior edit (normal production run).
+ */
+export function priorEditBlock(ctx: RepurposeContext): string {
+  const prior = ctx.priorEditText?.trim()
+  if (!prior) return ''
+  return [
+    'PRIOR HUMAN-EDITED VERSION — a reviewer edited an earlier version. Preserve their',
+    'intent and edits, then strengthen the piece further (do NOT discard their changes):',
+    prior,
+  ].join('\n')
+}
+
+/**
  * PRESERVE/IMPROVE block derived from the judge's grade (loop rule 4 + Pattern-5
  * rule 11 — producers/integrator see this, NEVER the rubric). Null grade → ''.
  */

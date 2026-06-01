@@ -215,6 +215,14 @@ export interface RepurposeContext {
    * fallback — the field is the architectural seam, not a behaviour change.
    */
   curatedContextBlock?: string
+  /**
+   * Gate B regenerate (CR-11): the human-edited prior version (A_edited's body),
+   * fed in as "priority context" so the regenerated artifact starts from the
+   * reviewer's edits rather than from scratch. Set only on a regenerate run; the
+   * producer builders append it as a raw control signal (like PRESERVE/IMPROVE
+   * feedback), never curated. Empty/undefined on a first production run.
+   */
+  priorEditText?: string
 }
 
 /** Artifact.content for `linkedin_post`. charCount is recomputed from text by code. */

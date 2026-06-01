@@ -222,6 +222,9 @@ model Artifact {
   derivedVia        DerivedVia
   bestScore         Float?
   status            ArtifactStatus @default(draft)
+  // Gate B (CR-11) reviewer note (feedback/reject) + timestamp; null until reviewed.
+  reviewFeedback    String?
+  reviewedAt        DateTime?
   costUSD           Float          @default(0)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -240,6 +243,10 @@ model StageSession {
   workspaceId       String
   stageId           String
   status            String
+  // Soft reference (deliberately NOT a Prisma @relation): an artifact's StageSession
+  // is looked up by finalArtifactId in code (data/artifacts.ts). A formal FK is avoided
+  // because Artifact↔StageSession would couple two independently-cleaned-up history
+  // rows; the lookup is user-scoped, and cleanup is application-managed.
   finalArtifactId   String?
   terminationReason String?
   costUSD           Float     @default(0)
@@ -258,6 +265,10 @@ model IterationRecord {
   version        Int
   // gradeJson shape: GradeReport — see src/lib/core/engine/types.ts
   gradeJson      Json?
+  // detailJson (CR-11): cross-critique per-role iteration detail for the Gate B
+  // history panel — producer A/B + integrator snippets, judgeSkipped,
+  // producersSucceeded. Null for non-cross-critique (Standard-loop) iterations.
+  detailJson     Json?
   modelUsed      String
   tokensIn       Int
   tokensOut      Int

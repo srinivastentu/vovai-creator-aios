@@ -13,7 +13,12 @@
 
 import type { AgentConfig, GradeReport } from '../../../../../core/engine/types'
 import type { LinkedInArtifact, RepurposeContext } from '../../types'
-import { defaultProducerContext, preserveImproveBlock, stripFences } from '../cross-critique-shared'
+import {
+  defaultProducerContext,
+  preserveImproveBlock,
+  priorEditBlock,
+  stripFences,
+} from '../cross-critique-shared'
 
 export const LINKEDIN_PRODUCER_SYSTEM_PROMPT = [
   '# Identity',
@@ -81,6 +86,7 @@ export function buildLinkedInProducerUser(ctx: RepurposeContext, feedback: strin
   return [
     contextBlock,
     '',
+    priorEditBlock(ctx),
     feedback ? `A reviewer graded the current best post. Improve on it:\n${feedback}\n` : '',
     `Write ONE LinkedIn post (1,300–3,000 characters) on "${ctx.ideaTitle}".`,
     'Hook in the first 3 lines. Use blank-line paragraph breaks. One closing thought.',

@@ -149,6 +149,14 @@ export interface CrossCritiqueIterationRecord extends IterationRecord {
   judgeGrade: GradeReport | null
   /** Sum of all 6 sub-call costs (producers ×2 + critics ×2 + integrator + judge). */
   iterationCostUSD: number
+  /**
+   * How many producers returned a usable artifact this iteration (= the number of
+   * keys in `producerArtifacts`). Surfaces dialectic degradation: < 2 means the
+   * cross-critique collapsed toward single-author synthesis (a producer parsed to
+   * null, rule 9). The Gate-B history panel shows this so a degraded iteration
+   * reads as such rather than as a normal one. (CR-7 follow-up.)
+   */
+  producersSucceeded: number
 }
 
 // ---------------------------------------------------------------------------

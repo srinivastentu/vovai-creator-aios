@@ -14,6 +14,7 @@ import {
   validateGateAReview,
   resolveGateATransition,
   resolveReviewFeedback,
+  REVIEWABLE_STATUS,
   type GateAReviewAction,
 } from "@/lib/domain/workflows/creator/review/master-review"
 
@@ -99,10 +100,13 @@ export async function submitGateAReview(
         })
       }
     }
-    await tx.longFormMaster.updateMany({
-      where: { id: masterId, workspace: { userId } },
+    // TOCTOU-guard: constrain the transition to the awaiting-review status so a
+    // concurrent review can't double-apply. Zero rows → already reviewed elsewhere.
+    const updated = await tx.longFormMaster.updateMany({
+      where: { id: masterId, status: REVIEWABLE_STATUS, workspace: { userId } },
       data: { status: nextStatus, reviewFeedback: note, reviewedAt },
     })
+    if (updated.count === 0) throw new Error("This master was already reviewed.")
   })
 
   revalidatePath(`/workspaces`)

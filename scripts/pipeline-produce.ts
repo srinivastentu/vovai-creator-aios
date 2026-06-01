@@ -28,15 +28,21 @@ import {
   createArticleCrossCritiqueStage,
   runCrossCritiqueLoop,
   type CrossCritiqueIterationEvent,
+  type CrossCritiqueStage,
+  type RunCrossCritiqueLoopResult,
 } from '../src/lib/domain/workflows/creator/cross-critique-stage'
 import { buildArtifactPersistence } from '../src/lib/domain/workflows/creator/single-producer-stage'
+import { buildRepurposeContext } from '../src/lib/domain/workflows/creator/repurpose-context'
+import {
+  buildIterationHistoryRows,
+  type IterationHistoryRow,
+} from '../src/lib/domain/workflows/creator/repurpose-persistence'
+import type { CrossCritiqueIterationRecord } from '../src/lib/core/engine/types'
 import type {
   ArtifactKind,
   ArticleArtifact,
   LinkedInArtifact,
-  ProducerPersona,
   RepurposeArtifact,
-  RepurposeContext,
 } from '../src/lib/domain/workflows/creator/types'
 import { consecutiveSimilarities } from './lib/embedding-similarity'
 
@@ -46,60 +52,9 @@ function parseArg(name: string): string | undefined {
   return hit ? hit.slice(prefix.length) : undefined
 }
 
-function asRecord(v: unknown): Record<string, unknown> {
-  return v && typeof v === 'object' ? (v as Record<string, unknown>) : {}
-}
-function str(v: unknown): string {
-  return typeof v === 'string' ? v : ''
-}
-function strArr(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
-}
-
 const ARTIFACT_KINDS: ArtifactKind[] = ['linkedin_post', 'long_form_article']
 function isArtifactKind(v: string | undefined): v is ArtifactKind {
   return v !== undefined && (ARTIFACT_KINDS as string[]).includes(v)
-}
-
-function toProducerPersona(persona: {
-  name: string
-  voiceTone: unknown
-  audienceProfile: unknown
-  creatorProfile: unknown
-}): ProducerPersona {
-  const voice = asRecord(persona.voiceTone)
-  const audience = asRecord(persona.audienceProfile)
-  const creator = asRecord(persona.creatorProfile)
-  return {
-    name: persona.name,
-    voiceSummary: [str(voice.formality), str(voice.vocabulary), str(voice.sentenceRhythm)]
-      .filter(Boolean)
-      .join(' '),
-    pointOfView: str(creator.pointOfView),
-    audienceSummary: [
-      str(audience.primaryRole),
-      str(audience.experienceLevel),
-      str(audience.whatTheyWant),
-    ]
-      .filter(Boolean)
-      .join(' — '),
-    signaturePhrases: strArr(voice.signaturePhrases),
-    signatureHooks: strArr(creator.signatureHooks),
-    doNotSay: strArr(voice.doNotSay),
-  }
-}
-
-/** Persona block the Gemini judge grades personaFit / audienceFit against. */
-function renderPersonaContext(p: ProducerPersona): string {
-  return [
-    `Name: ${p.name}`,
-    p.voiceSummary ? `Voice: ${p.voiceSummary}` : '',
-    p.pointOfView ? `Point of view: ${p.pointOfView}` : '',
-    p.audienceSummary ? `Audience: ${p.audienceSummary}` : '',
-    p.doNotSay.length ? `Never say: ${p.doNotSay.join('; ')}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n')
 }
 
 function renderOutput(type: ArtifactKind, artifact: RepurposeArtifact): string {
@@ -159,29 +114,29 @@ async function main() {
       )
     }
 
-    const persona = toProducerPersona(master.workspace.persona)
-    const context: RepurposeContext = {
-      longFormMasterId: master.id,
-      artifactType: type,
-      masterTitle: master.title,
-      ideaTitle: master.idea.title,
-      niches: master.idea.niches,
-      persona,
-      sections: master.sections.map((s) => ({
-        heading: s.heading,
-        contentMarkdown: s.contentMarkdown,
-      })),
-    }
+    // Shared persona/context mapping (repurpose-context.ts) — the same builder the
+    // Gate B regenerate runner uses, so the CLI and the UI assemble context identically.
+    const { context, personaContext } = buildRepurposeContext(
+      {
+        id: master.id,
+        title: master.title,
+        idea: { title: master.idea.title, niches: master.idea.niches },
+        sections: master.sections.map((s) => ({
+          heading: s.heading,
+          contentMarkdown: s.contentMarkdown,
+        })),
+        persona: master.workspace.persona,
+      },
+      type
+    )
 
     console.log(`\n=== STAGE 5 (REPURPOSE — CROSS-CRITIQUE) — ${type} — "${master.idea.title}" ===`)
     console.log(
-      `Persona: ${persona.name}  |  Workspace: ${master.workspace.name}  |  ${master.sections.length} master sections`
+      `Persona: ${context.persona.name}  |  Workspace: ${master.workspace.name}  |  ${master.sections.length} master sections`
     )
     console.log(
       'Producers: Claude + GPT-4o  |  Critics: cross-model  |  Integrator: Claude  |  Judge: Gemini\n'
     )
-
-    const personaContext = renderPersonaContext(persona)
 
     const onIteration = (e: CrossCritiqueIterationEvent) => {
       console.log(`── Iteration ${e.version} ${'─'.repeat(40)}`)
@@ -207,18 +162,24 @@ async function main() {
     // stage routes all 6 sub-calls per iteration through the MMS gateway; the
     // Gemini judge grades against personaContext. result.totalCostUSD is the
     // engine's cumulativeCostUSD (producers + critics + integrator + judge).
-    const result =
+    // Capture the iteration-history rows (Gate B / CR-11) while T is still known.
+    async function runStage<T extends RepurposeArtifact>(
+      stage: CrossCritiqueStage<T>
+    ): Promise<{ result: RunCrossCritiqueLoopResult<T>; historyRows: IterationHistoryRow[]; stageId: string }> {
+      const r = await runCrossCritiqueLoop<T>({ stage, context, onIteration })
+      const records = r.iterations as CrossCritiqueIterationRecord[]
+      const integratorModel = stage.stage.crossCritique?.integratorAgent.model.primary ?? stage.stage.id
+      return {
+        result: r,
+        historyRows: buildIterationHistoryRows<T>(records, stage.preview, integratorModel),
+        stageId: stage.stage.id,
+      }
+    }
+    const ran =
       type === 'linkedin_post'
-        ? await runCrossCritiqueLoop({
-            stage: createLinkedInCrossCritiqueStage({ personaContext }),
-            context,
-            onIteration,
-          })
-        : await runCrossCritiqueLoop({
-            stage: createArticleCrossCritiqueStage({ personaContext }),
-            context,
-            onIteration,
-          })
+        ? await runStage(createLinkedInCrossCritiqueStage({ personaContext }))
+        : await runStage(createArticleCrossCritiqueStage({ personaContext }))
+    const result = ran.result as RunCrossCritiqueLoopResult<RepurposeArtifact>
 
     const best = result.bestArtifact as RepurposeArtifact | null
     if (!best) {
@@ -245,6 +206,33 @@ async function main() {
         bestScore: payload.bestScore,
         status: payload.status,
         costUSD: payload.costUSD,
+      },
+    })
+
+    // Persist the StageSession + iteration history (CR-11) so the Gate B history
+    // panel has a source. finalArtifactId links the session to the artifact above.
+    await db.stageSession.create({
+      data: {
+        workspaceId: master.workspaceId,
+        stageId: ran.stageId,
+        status: 'completed',
+        finalArtifactId: saved.id,
+        terminationReason: result.terminationReason ?? null,
+        costUSD: result.totalCostUSD,
+        completedAt: new Date(),
+        iterationRecords: {
+          create: ran.historyRows.map((r) => ({
+            version: r.version,
+            gradeJson: r.gradeJson
+              ? (r.gradeJson as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+            detailJson: r.detailJson as unknown as Prisma.InputJsonValue,
+            modelUsed: r.modelUsed,
+            tokensIn: r.tokensIn,
+            tokensOut: r.tokensOut,
+            costUSD: r.costUSD,
+          })),
+        },
       },
     })
 
