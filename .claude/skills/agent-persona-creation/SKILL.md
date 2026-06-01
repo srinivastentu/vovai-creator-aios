@@ -18,7 +18,10 @@ src/lib/domain/workflows/creator/agents/<stage>/<role>.ts
 Examples:
 - `src/lib/domain/workflows/creator/agents/linkedin/producer-claude.ts`
 - `src/lib/domain/workflows/creator/agents/article/judge.ts`
-- `src/lib/domain/workflows/creator/agents/idea-coach.ts`
+
+(The Idea Coach is NOT a loop/persona-document agent — it is a flat single-LLM-call
+helper at `src/lib/domain/agents/idea-coach.ts`; this template does not apply to it.
+See `docs/02-domain/agents-and-personas.md`.)
 
 ## File template
 

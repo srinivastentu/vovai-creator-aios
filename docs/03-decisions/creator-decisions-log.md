@@ -1141,3 +1141,175 @@ recorded so future steps plan for them:
   lenses verified routing, layout structure, data discipline, and behavior — not
   the rendered look-and-feel. Recommend a manual walkthrough of
   `/workspaces/[id]/master/[masterId]/review` before CR-11.
+
+---
+
+## CR-11 decisions (2026-06-01)
+
+Pinned while building Gate B (per-artifact review: inline editor + fork-on-
+regenerate + iteration-history panel + diff). Code in commit `7e6616a`.
+
+### Architecture
+
+- **2026-06-01 — Gate B editor is a markdown-safe Textarea + live preview, NOT
+  Tiptap.** The CR-11 prompt names Tiptap, but V1 artifacts are plain text
+  (LinkedIn) / markdown (article); a WYSIWYG would round-trip markdown lossily and
+  risk corrupting output the acceptance test needs publishable byte-clean. A
+  Textarea preserves the body exactly and matches Gate A's editor precedent + the
+  CR-9 "use the repo's actual machinery, document the deviation" pattern
+  (`react-markdown` already powers the preview; no new dep). The editing
+  *capability* (edit → save/approve, or feed into regenerate) is what the
+  acceptance test needs, not the widget. `TODO(V2)`: a richer editor if artifact
+  types diversify.
+- **2026-06-01 — Gate B review logic lives in Domain
+  (`workflows/creator/review/artifact-review.ts`), mirroring CR-10's Gate A.**
+  Stage 5 is CLI-driven in V1, so Gate B reviews a *persisted* Artifact — there is
+  no live `LoopState` to hand to Core `processReview`. The domain module mirrors
+  the Core review principles (allowed-action gating + human sovereignty) over the
+  `ArtifactStatus` lifecycle as pure logic; the data layer applies the transition.
+  Same `TODO(V2)` as Gate A: converge on Core `processReview` when Stage 5 runs
+  live in-UI. The doc-vs-code note added to `review-system-v1.md` covers both gates.
+- **2026-06-01 — Regenerate runs a LIVE cross-critique loop in a server action,
+  gated on API keys, with the runner injectable for tests.** Honors the prompt's
+  "kick off new cross-critique iteration … both branches side-by-side." V1 is
+  otherwise CLI-driven, but Gate B's regenerate is the one in-UI loop because the
+  prompt requires A_regen to materialize in the UI. `regenerateArtifact(id, body,
+  { runner })` defaults to `liveRegenRunner` (real loop via the MMS gateway) but
+  takes an injected `RegenRunner` so the integration test exercises the fork
+  lineage + persistence with zero model calls. The live path checks
+  ANTHROPIC/OPENAI/GOOGLE_GEMINI keys *before* creating any fork and throws a clear
+  "run via the CLI" error if absent (no half-created state). "Priority context" is
+  threaded as `RepurposeContext.priorEditText` → a `priorEditBlock` in both
+  producer user-builders (a raw control signal like PRESERVE/IMPROVE — never the
+  rubric, Pattern-5 rule 11).
+
+### Data model / semantics
+
+- **2026-06-01 — Only Regenerate forks; inline-edit Save mutates in place.** The
+  decisions-log "Inline-edit + Regenerate resolves as FORK" names the *regenerate*
+  flow. A standalone inline-edit Save is implicit approval (review-system-v1:
+  `inline_edit` → use editedArtifact as final), mutated in place — matching Gate A
+  (which mutates sections in place) and avoiding lingering duplicate artifacts.
+  Regenerate is the explicit fork: A_edited (`derivedVia='inline_edit'`,
+  parent=[current], status `draft` — the seed) → A_regen (`derivedVia='regenerate'`,
+  parent=[A_edited], status `awaiting_review`). Originals are never mutated
+  (Immutable History). Fork specs are pure helpers (`editForkSpec`/`regenForkSpec`)
+  so the lineage is unit-tested.
+- **2026-06-01 — Gate B action → `ArtifactStatus` mapping (V1):** `approve` /
+  `inline_edit` → `approved`; `feedback` → `draft` (flagged for CLI re-produce, note
+  persisted); `reject` → `rejected` (note persisted). The richer `ArtifactStatus`
+  enum (which has `rejected`, unlike `MasterStatus`) lets Gate B distinguish
+  feedback (draft) from reject (rejected), where Gate A collapsed both to `draft`.
+  Inline-edit content is rebuilt with counts recomputed by code and **re-validated**
+  against the deterministic publishable bounds (blocks an out-of-bounds edit).
+- **2026-06-01 — Idea completion requires an approved artifact of BOTH V1 types.**
+  `bothArtifactTypesApproved` (pure) is true iff `linkedin_post` AND
+  `long_form_article` each have ≥1 approved artifact for the master; on a Gate B
+  approve that satisfies it, the source Idea → `status='completed'` in the same
+  transaction. If only one type was produced, the Idea does not auto-complete
+  (acceptable V1 — the user can mark it complete manually). "Any branch approved"
+  counts the type as approved (fork-aware).
+- **2026-06-01 — Iteration history persists in `StageSession` + `IterationRecord`
+  (the tables entities.md reserved for the Gate B panel), with an additive
+  `IterationRecord.detailJson`.** The cross-critique runner did not write these;
+  CR-11 makes BOTH the produce CLI (`pipeline-produce.ts`) and the regenerate
+  action persist a StageSession (linked to the artifact by `finalArtifactId`) +
+  one IterationRecord per loop iteration. `gradeJson` holds the judge GradeReport;
+  the new `detailJson` holds the cross-critique per-role detail (producer A/B +
+  integrator snippets, `judgeSkipped`, `producersSucceeded`) the generic columns
+  can't capture. `tokensIn/Out` are 0 for cross-critique rows (cost is the
+  per-iteration signal; tokens live in the ledger). Migration `cr_11_gate_b`
+  (additive: `Artifact.reviewFeedback/reviewedAt` + `IterationRecord.detailJson`)
+  applied via `migrate deploy` per the CR-2/CR-9/CR-10 precedent that `migrate dev`
+  is non-interactive-blocked here.
+- **2026-06-01 — `StageSession.finalArtifactId` is a deliberate soft reference, not
+  a Prisma `@relation`.** The artifact↔session link is resolved by id in the data
+  layer; a formal FK is avoided (it would couple two independently-cleaned-up
+  history rows). Documented on the schema field (architect-reviewer follow-up).
+
+### Core
+
+- **2026-06-01 — `CrossCritiqueIterationRecord` gains `producersSucceeded`
+  (discharges the CR-7 "[due before CR-11]" follow-up).** Populated in
+  `cross-critique.ts` as `Object.keys(producerArtifacts).length`; surfaces dialectic
+  degradation (< producers.length = a producer dropped out, rule 9) to the Gate B
+  panel. A zero-producers Core unit test asserts `producersSucceeded === 0`. The
+  only literal construction is the runner; all other references are casts, so the
+  required-field addition is non-breaking.
+
+### Scope / UI
+
+- **2026-06-01 — Route segment is `[artifactId]`, not the prompt's literal
+  `[id]`.** `/workspaces/[id]/artifacts/[id]/review` has two `[id]` segments, which
+  Next.js rejects (duplicate dynamic param). Mirrors Gate A's `[masterId]`.
+- **2026-06-01 — Data layer split: reads (`data/artifacts.ts`, plain module) vs
+  mutations (`data/artifact-actions.ts`, `"use server"`).** Proactively satisfies
+  the CR-10 "[due before CR-12] narrow the server-action surface" follow-up for the
+  new Gate B surface — only the two mutations are server actions; the page imports
+  the reads as plain async functions. `submitGateBReview` is TOCTOU-guarded
+  (`status` in the `updateMany` where-clause; zero rows → "already reviewed").
+
+### Carry-forward follow-ups discharged (due before CR-11)
+
+- **2026-06-01 — CR-6 "[due before CR-11] Gate-B handles null bestArtifact +
+  terminationReason gracefully" — DONE.** The persisted Artifact always carries
+  content (the CLI only persists a usable best); `terminationReason` is surfaced in
+  the top meta bar (when not `threshold_met`), and the history panel renders
+  `judgeSkipped` / degraded iterations distinctly.
+- **2026-06-01 — CR-7 "[due before CR-11] dialectic-degradation signal" — DONE**
+  (`producersSucceeded`, above).
+- **2026-06-01 — CR-10 "[due before CR-11] TOCTOU-harden `submitGateAReview`" —
+  DONE.** `status: REVIEWABLE_STATUS` added to the `updateMany` where-clause; zero
+  rows throws "already reviewed". (The CR-10 "[due before CR-11] clear
+  `reviewFeedback`/`reviewedAt` on re-synthesis" remains open — Stage-3 re-synthesis
+  is not wired live in CR-11; it lands with that work.)
+- **2026-06-01 — CR-10 "[due before CR-11] `review-system-v1.md` V1 gate
+  adaptation note" — DONE** (covers both Gate A and Gate B persisted-status maps).
+- **2026-06-01 — CR-9 "[due before CR-11] Idea Coach agent home" — DONE**
+  (doc-blessed at `src/lib/domain/agents/idea-coach.ts` in agents-and-personas.md —
+  it is a flat single-call helper, not a loop/persona-document agent).
+- **2026-06-01 — CR-9 "[due before CR-11] surface IdeaRow archive failures
+  inline" — DONE** (toast on archive failure).
+
+### CR-11 sign-off follow-ups (2026-06-01)
+
+The CR-11 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high confidence,
+zero blockers, two non-blocking majors — `docs/sign-off-review/CR-11-sign-off.md`).
+Scope-affecting follow-ups, recorded so future steps plan for them:
+
+- **2026-06-01 — [MAJOR, due before CR-12] `regenerateArtifact` has no atomic
+  in-flight guard.** The status read at `artifact-actions.ts` is read-only (unlike
+  the TOCTOU-guarded `submitGateBReview`), so a concurrent / double-submit (two
+  tabs, a retry) could create a second `A_edited` seed and run a second LIVE, billed
+  cross-critique loop. Bounded for V1 by per-stage `maxBudgetUSD` (~$2) + the client
+  button-disable, so major-not-blocker. Before CR-12 hardens the acceptance harness:
+  add an atomic claim (a lock column or a transient status flipped on the source via
+  `updateMany` with the status in the where-clause; treat `count===0` as "already
+  regenerating", restore on failure). Deferred (not patched into the sign-off commit)
+  because a clean guard needs a small schema/semantics change, not a one-liner.
+- **2026-06-01 — [MAJOR, recurring → DISCHARGED this commit] Decisions-log + sign-off
+  cadence.** The `## CR-11 decisions` section + `CR-11-sign-off.md` were not in the
+  implementation commit `7e6616a`; they land in this post-audit follow-up commit
+  (the CR-9/CR-10 two-commit cadence). Recorded so the pattern is acknowledged; the
+  binding record now exists before CR-12.
+- **2026-06-01 — [due before CR-12] Add the explicit zero-row-path test** (the CR-10
+  follow-up): drive the row out of `awaiting_review` between read and write (or stub
+  `updateMany` count=0) and assert the "already reviewed" throw with no double-apply,
+  for BOTH `submitGateAReview` and `submitGateBReview`.
+- **2026-06-01 — [minor] "Side-by-side branches" is realized as branch-chips +
+  `DiffView`,** not dual editor panes — functionally equivalent (every branch is
+  reachable + approvable; the diff is genuinely side-by-side). Noted to forestall a
+  future spec-mismatch flag.
+- **2026-06-01 — [DONE this commit] Stale Idea Coach example path in the
+  `agent-persona-creation` skill** corrected to point at the flat-helper location
+  (the CR-9 follow-up named "doc/skill"; only the doc had been updated).
+- **2026-06-01 — [DONE this commit] Dashboard artifact list excludes `inline_edit`
+  seed forks** (intermediate A_edited rows), still reachable via the Branches panel.
+- **2026-06-01 — [human input] Gate B UI quality is human-judged** (acceptance
+  criteria 2 & 3). The five lenses verified routing, data discipline, transitions,
+  and lineage — not rendered visual polish. Recommend a manual walkthrough of
+  `/workspaces/[id]/artifacts/[artifactId]/review` before CR-12.
+- **2026-06-01 — [human input] Confirm the Tiptap → Textarea substitution** is
+  acceptable as the V1 Gate B editor. Supersedes the CR-10 line "the full Tiptap
+  inline editor is CR-11 (Gate B)"; rationale: byte-clean markdown round-trip protects
+  the deterministic validator counts (see the CR-11 Architecture decision above).

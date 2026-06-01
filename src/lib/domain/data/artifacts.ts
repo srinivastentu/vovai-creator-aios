@@ -61,10 +61,18 @@ export async function getArtifactForReview(artifactId: string) {
 
 export type ArtifactForReview = NonNullable<Awaited<ReturnType<typeof getArtifactForReview>>>
 
-/** Artifacts for a workspace — the dashboard "repurposed artifacts" list. */
+/**
+ * Artifacts for a workspace — the dashboard "repurposed artifacts" list. Excludes
+ * `inline_edit` seed forks (the intermediate A_edited of a regenerate): they are not
+ * standalone deliverables and remain reachable via a branch's Gate B Branches panel.
+ */
 export async function listArtifactsForWorkspace(workspaceId: string) {
   return db.artifact.findMany({
-    where: { workspaceId, workspace: { userId: getCurrentUserId() } },
+    where: {
+      workspaceId,
+      workspace: { userId: getCurrentUserId() },
+      NOT: { derivedVia: "inline_edit" },
+    },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
