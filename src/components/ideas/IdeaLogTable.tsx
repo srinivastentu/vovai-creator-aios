@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { useCallback, useEffect, useState } from "react"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { Lightbulb } from "lucide-react"
 import type { Idea } from "@/generated/prisma/client"
 import type { IdeaStatus } from "@/lib/domain/data/ideas"
@@ -39,15 +39,18 @@ export function IdeaLogTable({
   nicheUnion,
   defaultNiche,
   filter,
+  selectedIdeaId,
 }: {
   workspaceId: string
   ideas: Idea[]
   nicheUnion: string[]
   defaultNiche?: string
   filter: IdeaFilterValues
+  selectedIdeaId?: string
 }) {
   const router = useRouter()
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [q, setQ] = useState(filter.q ?? "")
   const [coachOpen, setCoachOpen] = useState(false)
 
@@ -56,6 +59,9 @@ export function IdeaLogTable({
     setQ(filter.q ?? "")
   }, [filter.q])
 
+  // Build the next query string ON TOP OF the current one so unrelated params
+  // (notably ?idea, which drives the preview pane) are preserved across filter
+  // changes. Only status|niche|q are touched here.
   function pushFilter(next: IdeaFilterValues) {
     const merged: IdeaFilterValues = {
       status: filter.status,
@@ -63,13 +69,37 @@ export function IdeaLogTable({
       q: filter.q,
       ...next,
     }
-    const params = new URLSearchParams()
+    const params = new URLSearchParams(searchParams.toString())
     if (merged.status) params.set("status", merged.status)
+    else params.delete("status")
     if (merged.niche) params.set("niche", merged.niche)
+    else params.delete("niche")
     if (merged.q) params.set("q", merged.q)
+    else params.delete("q")
     const qs = params.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname)
   }
+
+  // Clear status/niche/q but KEEP ?idea (the selected preview).
+  function clearFilters() {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("status")
+    params.delete("niche")
+    params.delete("q")
+    const qs = params.toString()
+    router.replace(qs ? `${pathname}?${qs}` : pathname)
+  }
+
+  // Select an idea for the preview pane: set ?idea=<id> while PRESERVING the
+  // current status/niche/q filters.
+  const selectIdea = useCallback(
+    (ideaId: string) => {
+      const params = new URLSearchParams(searchParams.toString())
+      params.set("idea", ideaId)
+      router.replace(`${pathname}?${params.toString()}`)
+    },
+    [router, pathname, searchParams],
+  )
 
   // Debounce the search box → URL.
   useEffect(() => {
@@ -140,7 +170,7 @@ export function IdeaLogTable({
         filtersActive ? (
           <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
             <span>No ideas match these filters.</span>
-            <Button variant="link" onClick={() => router.replace(pathname)}>
+            <Button variant="link" onClick={clearFilters}>
               Clear filters
             </Button>
           </div>
@@ -155,7 +185,12 @@ export function IdeaLogTable({
       ) : (
         <div className="space-y-2">
           {ideas.map((idea) => (
-            <IdeaRow key={idea.id} idea={idea} />
+            <IdeaRow
+              key={idea.id}
+              idea={idea}
+              selected={idea.id === selectedIdeaId}
+              onSelect={() => selectIdea(idea.id)}
+            />
           ))}
         </div>
       )}

@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { StatusBadge } from "@/components/common/StatusBadge"
 import { NicheTagInput } from "@/components/common/NicheTagInput"
 import { ConfirmDialog } from "@/components/common/ConfirmDialog"
+import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,7 +44,15 @@ const STATUS_ITEMS: { value: IdeaStatus; label: string }[] = [
   { value: "archived", label: "Archived" },
 ]
 
-export function IdeaRow({ idea }: { idea: Idea }) {
+export function IdeaRow({
+  idea,
+  selected = false,
+  onSelect,
+}: {
+  idea: Idea
+  selected?: boolean
+  onSelect?: () => void
+}) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -103,7 +112,27 @@ export function IdeaRow({ idea }: { idea: Idea }) {
   }
 
   return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-4">
+    <div
+      className={cn(
+        "relative flex items-start justify-between gap-3 rounded-lg border border-border bg-card p-4 transition-colors",
+        selected && "ring-2 ring-blue-600",
+      )}
+    >
+      {/* Selection overlay: a transparent, absolute button that captures clicks
+          on the card body to select this idea for the preview pane. It is a
+          SIBLING of the content — never an ancestor of the <h3> — so the heading
+          keeps its role in the accessibility tree (a heading nested in a <button>
+          is stripped to presentational). The action controls sit above it at z-10. */}
+      {onSelect ? (
+        <button
+          type="button"
+          onClick={onSelect}
+          aria-label={`Preview ${idea.title}`}
+          aria-pressed={selected}
+          className="absolute inset-0 cursor-pointer rounded-lg"
+        />
+      ) : null}
+
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className="truncate font-medium">{idea.title}</h3>
@@ -124,7 +153,7 @@ export function IdeaRow({ idea }: { idea: Idea }) {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="relative z-10 flex shrink-0 items-center gap-1.5">
         {idea.status === "captured" ? (
           <Button
             size="sm"
