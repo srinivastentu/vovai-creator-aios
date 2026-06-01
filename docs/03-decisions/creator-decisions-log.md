@@ -1507,3 +1507,94 @@ post-V1 work is tracked:
   audit verified the mechanized criteria and the pipeline; the LinkedIn post
   (91.3/100, 1,770 chars) and the article (94/100, 1,880 words) must be confirmed
   publishable-without-rewrite by reading `tests/e2e/output/acceptance-run-<ts>/`.
+
+---
+
+## CR-13 decisions (2026-06-01)
+
+CR-13 is an **additive UI/UX elevation** on top of shipped v1.0 (the Workbench
+layout) — not a new build. These were pinned during Phase 0 (read-only
+discovery) and Phase 1 (the shared frame foundation).
+
+### Scope
+
+- **2026-06-01 — CR-13 migrates ONLY the 9 routes that already exist; the 3
+  routes CR-13 §2 named that do NOT exist are deferred to V1.1.** Phase 0
+  discovery found that `/workspaces/[id]/pipelines/[ideaId]` (Pipeline run),
+  `/workspaces/[id]/master/[masterId]/repurpose` (Repurpose), and
+  `/workspaces/[id]/audit` (Audit) have no page, directory, or code reference —
+  the §2 premise "all routes already exist — restyle, don't recreate" was
+  partly false. Building them is net-new pages + (for Repurpose) a net-new
+  server-triggered production capability, which exceeds CR-13's "wrap, don't
+  rewrite / additive, gap-driven only" prime directives (§0.2, §0.4, §0.6).
+  Srinivas chose **"migrate the 9 existing routes only"** at the Phase-0 pause.
+  Net effect on the §5 tracks: A, B, E stay; D keeps Gate A (drops the missing
+  Repurpose route); C (Pipeline) is dropped; F keeps only the GovernanceRibbon
+  wiring (which the in-scope Gate A/B screens need) and drops the Audit route +
+  CSV export.
+- **2026-06-01 — When the 3 deferred routes are built (V1.1), production runs
+  stay CLI-driven and the UI polls the DB.** Srinivas's Phase-0 choice for the
+  run-trigger model: runs remain in `scripts/pipeline-produce.ts`; the future
+  Pipeline/Repurpose UI shows results and polls `StageSession.completedAt`
+  (pure additive reads — no new in-request, billed run capability, unlike a
+  CR-11-style live server-action loop). Recorded for V1.1; nothing built in CR-13.
+
+### Backend (additive, gap-driven)
+
+- **2026-06-01 — CR-13 ships ZERO schema migrations (confirmed at the Phase-0
+  pause).** All governance/score/cost/lineage data already lives on
+  `Artifact` (bestScore, costUSD, status, reviewFeedback/reviewedAt),
+  `IterationRecord` (version, gradeJson.overallScore, costUSD, modelUsed,
+  detailJson), and `StageSession`. Artifact/master content is already stored
+  render-ready. No new field is strictly needed.
+- **2026-06-01 — The Gate A "Rubric" tab renders the in-memory
+  `LONG_FORM_MASTER_RUBRIC` constant inline; the rubric is NOT persisted on
+  `LongFormMaster`.** This was the only candidate that could have forced a
+  migration; per §4 "default: zero migrations" the constant is imported and
+  rendered (the rubric is a static domain constant, identical for every master),
+  so no `rubricJson` column is added.
+- **2026-06-01 — The GovernanceRibbon needs NO new backend read.** Discovery
+  proposed a `getGovernanceRibbon(artifactId)` server action, but every field is
+  already present on the `ReviewArtifact` / `ReviewMaster` view models the Gate
+  A/B pages already fetch. CR-13 ships pure frontend mappers
+  (`governanceFromArtifact` / `governanceFromMaster` in
+  `src/components/shell/governance.ts`) instead — fully additive, zero new
+  server code. Gate A masters are deterministic (no judge/iterations), so the
+  ribbon shows a "Deterministic synthesis" label and hides score/iterations/lineage.
+
+### Design system
+
+- **2026-06-01 — `--radius` changed from base-nova's `0.625rem` to the §3-locked
+  `0.5rem` in `globals.css`.** Applying the locked token (not invention); a
+  minor global corner-radius tightening, no test asserts radius. Inter +
+  JetBrains Mono are already wired in `layout.tsx`; the status palette
+  (slate/blue/amber/green/red/muted) already matches §3; the accent is `blue-600`
+  (established in EmptyState/StatusBadge) — so no other token changes were needed.
+
+### Architecture / process
+
+- **2026-06-01 — The Workbench shell is built additively in
+  `src/components/shell/`; no existing page is touched in Phase 1.** `AppFrame`
+  is a server component that composes the client `NavRail` + `SplitPane` and
+  threads server-rendered `left`/`preview` content through as props (the
+  supported App-Router pattern). Pure logic (SplitPane clamp, NavRail
+  active-section, governance mapping) is split into plain modules
+  (`split.ts`, `nav.ts`, `governance.ts`) so it is unit-testable without
+  rendering. Existing routes keep working until Phase 2 migrates them.
+- **2026-06-01 — NavRail surfaces Pipeline + Audit as DISABLED items
+  ("Coming in V1.1"), and Ideas as workspace-scoped.** Consistent with the
+  existing disabled-"Promote" precedent; the deferred routes are visible-but-gated
+  rather than hidden, so the V1.1 path is discoverable.
+
+### Risk recorded at Phase 0
+
+- **2026-06-01 — [risk] The two review gates have NO automated e2e UI
+  coverage.** The only Playwright spec (`tests/e2e/crud-walkthrough.spec.ts`)
+  covers personas/workspaces/ideas/coach — NOT Gate A or Gate B — and it pins
+  ~17 exact text/role/`data-slot` selectors + requires `build && start` (so it is
+  not in fast CI). The §6 "behavior preserved (e2e)" claim for the gates is
+  therefore backed only by the integration/unit tests on the server-action LOGIC
+  (`submitGateAReview`/`submitGateBReview`/`regenerateArtifact` signatures stay
+  stable) plus manual walkthrough. Tracks D/E must preserve those signatures and
+  the crud-walkthrough selectors verbatim; visual polish of the gates is
+  human-judged.
