@@ -1,9 +1,9 @@
-import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
 import { getPersona } from "@/lib/domain/data/personas"
 import { personaToFormValues } from "@/lib/domain/persona-schema"
 import { PersonaForm } from "@/components/personas/PersonaForm"
+import { AppFrame } from "@/components/shell/AppFrame"
+import { PersonaPreview } from "@/components/shell/previews/PersonaPreview"
 
 export const dynamic = "force-dynamic"
 
@@ -18,17 +18,22 @@ export default async function EditPersonaPage({
 
   const initial = personaToFormValues(persona)
 
-  return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <Link
-        href="/personas"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Personas
-      </Link>
+  const left = (
+    <div className="mx-auto max-w-4xl px-6 py-8">
       <h1 className="mb-8 font-heading text-2xl font-semibold">{persona.name}</h1>
       <PersonaForm initial={initial} personaId={persona.id} />
-    </main>
+    </div>
+  )
+
+  return (
+    <AppFrame
+      breadcrumbs={[
+        { label: "Personas", href: "/personas" },
+        { label: persona.name },
+      ]}
+      left={left}
+      preview={<PersonaPreview persona={initial} />}
+      previewTitle="Persona"
+    />
   )
 }

@@ -15,8 +15,15 @@ import {
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/common/ConfirmDialog"
+import { cn } from "@/lib/utils"
 
-export function PersonaCard({ persona }: { persona: CreatorPersona }) {
+export function PersonaCard({
+  persona,
+  selected = false,
+}: {
+  persona: CreatorPersona
+  selected?: boolean
+}) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const bio = (persona.creatorProfile as { bio?: string } | null)?.bio ?? ""
@@ -33,7 +40,20 @@ export function PersonaCard({ persona }: { persona: CreatorPersona }) {
   }
 
   return (
-    <Card className="flex flex-col">
+    <Card
+      className={cn(
+        "relative flex flex-col transition-colors hover:bg-muted/40",
+        selected && "ring-2 ring-blue-600",
+      )}
+    >
+      {/* Selection link selects the persona for the preview pane. It sits
+          beneath the Edit/Delete controls (which get z-10) — never nested. */}
+      <Link
+        href={`/personas?persona=${persona.id}`}
+        scroll={false}
+        className="absolute inset-0 rounded-xl"
+        aria-label={`Preview ${persona.name}`}
+      />
       <CardHeader>
         <CardTitle>{persona.name}</CardTitle>
       </CardHeader>
@@ -54,7 +74,7 @@ export function PersonaCard({ persona }: { persona: CreatorPersona }) {
           </div>
         ) : null}
       </CardContent>
-      <CardFooter className="justify-between">
+      <CardFooter className="relative z-10 justify-between">
         <Button variant="outline" size="sm" render={<Link href={`/personas/${persona.id}`} />}>
           <Pencil className="size-3.5" />
           Edit

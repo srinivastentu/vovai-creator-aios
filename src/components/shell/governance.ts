@@ -1,6 +1,6 @@
-import type { ArtifactType } from "@/generated/prisma/client"
 import type { ReviewArtifact } from "@/components/review/artifact-types"
 import type { ReviewMaster } from "@/components/review/types"
+import { ARTIFACT_TYPE_LABEL } from "@/lib/domain/artifact-labels"
 import type { GovernanceApproval, GovernanceRibbonData } from "./types"
 
 // Pure mappers: existing Gate A/B view models → the governance-ribbon data.
@@ -10,11 +10,6 @@ import type { GovernanceApproval, GovernanceRibbonData } from "./types"
 
 /** Cross-critique stage pass threshold (CROSS_CRITIQUE_THRESHOLD); both V1 artifact types share it. */
 export const STAGE_THRESHOLD = 80
-
-const ARTIFACT_TYPE_LABEL: Record<ArtifactType, string> = {
-  linkedin_post: "LinkedIn post",
-  long_form_article: "Long-form article",
-}
 
 /** Friendly model name from a producer agent id (resilient: unknown ids pass through). */
 function friendlyModel(agentId: string): string {

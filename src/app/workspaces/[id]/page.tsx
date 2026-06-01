@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import { ArrowLeft, Lightbulb } from "lucide-react"
+import { Lightbulb } from "lucide-react"
 import { getWorkspaceDetail, touchLastActive } from "@/lib/domain/data/workspaces"
 import { listMastersForWorkspace } from "@/lib/domain/data/masters"
 import { listArtifactsForWorkspace } from "@/lib/domain/data/artifacts"
@@ -9,37 +9,50 @@ import { StatusBadge } from "@/components/common/StatusBadge"
 import { MasterStatusBadge } from "@/components/review/MasterStatusBadge"
 import { ArtifactStatusBadge } from "@/components/review/ArtifactStatusBadge"
 import { WorkspaceHeader } from "@/components/workspaces/WorkspaceHeader"
-
-const ARTIFACT_TYPE_LABEL: Record<string, string> = {
-  linkedin_post: "LinkedIn post",
-  long_form_article: "Long-form article",
-}
+import {
+  MasterSummaryPreview,
+  ArtifactSummaryPreview,
+} from "@/components/workspaces/DashboardItemPreview"
+import { ARTIFACT_TYPE_LABEL } from "@/lib/domain/artifact-labels"
+import { AppFrame } from "@/components/shell/AppFrame"
+import { cn } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 
 export default async function WorkspaceDashboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>
+  searchParams: Promise<{ preview?: string }>
 }) {
   const { id } = await params
   const workspace = await getWorkspaceDetail(id)
   if (!workspace) notFound()
 
   await touchLastActive(id)
-  const masters = await listMastersForWorkspace(id)
-  const artifacts = await listArtifactsForWorkspace(id)
+  const [masters, artifacts, { preview }] = await Promise.all([
+    listMastersForWorkspace(id),
+    listArtifactsForWorkspace(id),
+    searchParams,
+  ])
 
-  return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <Link
-        href="/workspaces"
-        className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-4" />
-        Workspaces
-      </Link>
+  // preview = "master:<id>" | "artifact:<id>". Prisma CUIDs are colon-free, so a
+  // single split on the first ":" is unambiguous (kind first, id second).
+  const [previewKind, previewId] = preview ? preview.split(":") : [undefined, undefined]
+  const selectedMaster =
+    previewKind === "master" ? masters.find((m) => m.id === previewId) : undefined
+  const selectedArtifact =
+    previewKind === "artifact" ? artifacts.find((a) => a.id === previewId) : undefined
 
+  const previewNode = selectedMaster ? (
+    <MasterSummaryPreview workspaceId={workspace.id} master={selectedMaster} />
+  ) : selectedArtifact ? (
+    <ArtifactSummaryPreview workspaceId={workspace.id} artifact={selectedArtifact} />
+  ) : undefined
+
+  const left = (
+    <div className="mx-auto max-w-4xl px-6 py-8">
       <WorkspaceHeader
         workspace={{
           id: workspace.id,
@@ -86,26 +99,24 @@ export default async function WorkspaceDashboardPage({
           ) : (
             <ul className="space-y-2">
               {masters.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{m.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {m._count.sections} sections · {m._count.researchSources} sources
-                      {m._count.artifacts > 0 ? ` · ${m._count.artifacts} artifacts` : ""}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <MasterStatusBadge status={m.status} />
-                    <Link
-                      href={`/workspaces/${workspace.id}/master/${m.id}/review`}
-                      className="text-sm text-blue-600 hover:underline"
-                    >
-                      {m.status === "gate_a_pending" ? "Review →" : "View →"}
-                    </Link>
-                  </div>
+                <li key={m.id}>
+                  <Link
+                    href={`/workspaces/${workspace.id}?preview=master:${m.id}`}
+                    scroll={false}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted/40",
+                      selectedMaster?.id === m.id && "ring-2 ring-blue-600",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{m.title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {m._count.sections} sections · {m._count.researchSources} sources
+                        {m._count.artifacts > 0 ? ` · ${m._count.artifacts} artifacts` : ""}
+                      </p>
+                    </div>
+                    <MasterStatusBadge status={m.status} className="shrink-0" />
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -123,29 +134,27 @@ export default async function WorkspaceDashboardPage({
         ) : (
           <ul className="space-y-2">
             {artifacts.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {ARTIFACT_TYPE_LABEL[a.artifactType] ?? a.artifactType}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {a.longFormMaster.title}
-                    {a.bestScore !== null ? ` · ${a.bestScore}/100` : ""} · $
-                    {a.costUSD.toFixed(2)}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <ArtifactStatusBadge status={a.status} />
-                  <Link
-                    href={`/workspaces/${workspace.id}/artifacts/${a.id}/review`}
-                    className="text-sm text-blue-600 hover:underline"
-                  >
-                    {a.status === "awaiting_review" ? "Review →" : "View →"}
-                  </Link>
-                </div>
+              <li key={a.id}>
+                <Link
+                  href={`/workspaces/${workspace.id}?preview=artifact:${a.id}`}
+                  scroll={false}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2 transition-colors hover:bg-muted/40",
+                    selectedArtifact?.id === a.id && "ring-2 ring-blue-600",
+                  )}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {ARTIFACT_TYPE_LABEL[a.artifactType] ?? a.artifactType}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.longFormMaster.title}
+                      {a.bestScore !== null ? ` · ${a.bestScore}/100` : ""} · $
+                      {a.costUSD.toFixed(2)}
+                    </p>
+                  </div>
+                  <ArtifactStatusBadge status={a.status} className="shrink-0" />
+                </Link>
               </li>
             ))}
           </ul>
@@ -161,6 +170,23 @@ export default async function WorkspaceDashboardPage({
           Go to IdeaLog
         </Button>
       </div>
-    </main>
+    </div>
+  )
+
+  return (
+    <AppFrame
+      workspaceId={workspace.id}
+      breadcrumbs={[
+        { label: "Workspaces", href: "/workspaces" },
+        { label: workspace.name },
+      ]}
+      left={left}
+      preview={previewNode}
+      previewTitle={selectedArtifact ? "Artifact" : "Pipeline run"}
+      previewEmpty={{
+        title: "Select a run or artifact",
+        description: "Choose a pipeline run or repurpose output to see its summary and jump to review.",
+      }}
+    />
   )
 }
