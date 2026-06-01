@@ -2,8 +2,10 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { ArrowLeft, Lightbulb } from "lucide-react"
 import { getWorkspaceDetail, touchLastActive } from "@/lib/domain/data/workspaces"
+import { listMastersForWorkspace } from "@/lib/domain/data/masters"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/common/StatusBadge"
+import { MasterStatusBadge } from "@/components/review/MasterStatusBadge"
 import { WorkspaceHeader } from "@/components/workspaces/WorkspaceHeader"
 
 export const dynamic = "force-dynamic"
@@ -18,6 +20,7 @@ export default async function WorkspaceDashboardPage({
   if (!workspace) notFound()
 
   await touchLastActive(id)
+  const masters = await listMastersForWorkspace(id)
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-10">
@@ -65,12 +68,40 @@ export default async function WorkspaceDashboardPage({
           )}
         </section>
 
-        {/* TODO(CR-pipeline): real approved-artifact data once the pipeline UI lands. */}
-        <section className="rounded-lg border border-dashed border-border p-4">
-          <h2 className="mb-3 font-medium">Recently approved</h2>
-          <p className="text-sm text-muted-foreground">
-            Approved artifacts will appear here once the pipeline runs.
-          </p>
+        <section className="rounded-lg border border-border p-4">
+          <h2 className="mb-3 font-medium">Pipeline runs</h2>
+          {masters.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No Long-Form Masters yet. Run the research → master pipeline to
+              produce one for review.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {masters.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{m.title}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {m._count.sections} sections · {m._count.researchSources} sources
+                      {m._count.artifacts > 0 ? ` · ${m._count.artifacts} artifacts` : ""}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <MasterStatusBadge status={m.status} />
+                    <Link
+                      href={`/workspaces/${workspace.id}/master/${m.id}/review`}
+                      className="text-sm text-blue-600 hover:underline"
+                    >
+                      {m.status === "gate_a_pending" ? "Review →" : "View →"}
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
 

@@ -148,6 +148,8 @@ model LongFormMaster {
   ideaId      String
   title       String
   status      MasterStatus @default(draft)
+  reviewFeedback String?    // Gate A reviewer note (feedback/reject); null until reviewed
+  reviewedAt     DateTime?  // when a human acted at Gate A; null while gate_a_pending
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
