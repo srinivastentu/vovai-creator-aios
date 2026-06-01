@@ -936,3 +936,112 @@ seam — and wiring the V1 `PassthroughCurator` at Stage 3 + Stage 5.
   into the integrator (and optionally the critics) too — otherwise the integrator,
   which writes the final artifact, would synthesize from a fuller source pool than
   the producers it draws on. Out of CR-8 (and V1) scope.
+
+---
+
+## CR-9 decisions (2026-06-01)
+
+Pinned while building the CRUD UIs (Persona + Workspace + IdeaLog) + the
+Idea Coach agent + the coach API route.
+
+### Architecture
+
+- **2026-06-01 — The Idea Coach routes through the MMS gateway, not the spec's
+  `executeAgent` helper (which does not exist in this repo).** The CR-9 spec
+  §6.1 sketched `import { executeAgent } from "@/lib/core/agentic/executor"`;
+  there is no such module. The real agent-execution path — used by every existing
+  agent (e.g. the Gemini judge) — is `gateway.request(...)`. `coachIdeas`
+  (`src/lib/domain/agents/idea-coach.ts`) calls
+  `gateway.request({ capability: 'text-generation', preferences: { modelId:
+  'claude-sonnet-4-20250514' }, params: { prompt, systemPrompt, maxOutputTokens },
+  context: { callerTag: 'idea-coach', projectId: workspaceId, stageId: 'idea-coach' } })`,
+  zod-validates the result with one repair re-prompt, and throws on failure (the
+  route maps that to 422). The gateway records the cost in the Core `CostLedger`
+  tagged `callerTag: 'idea-coach'` — honoring the MMS single-gateway /
+  cost-transparency principle. A faithful implementation of the spec's *intent*
+  in the repo's actual machinery, paralleling the CR-2..CR-7 pattern of adding
+  what the runtime contract requires beyond the action-plan/spec literal.
+- **2026-06-01 — The CR-9 UI uses the repo's Base UI Nova design system, not
+  Radix.** `components.json` `style: base-nova` resolves `npx shadcn add` against
+  a Base UI (`@base-ui/react`) registry, so the 5 added primitives
+  (`table, dropdown-menu, skeleton, tabs, sonner`) match the existing
+  `dialog/select/button/...` components. Only the missing primitives were added
+  (running `shadcn add` on the already-present Base UI ones would have overwritten
+  them with Radix and broken the app). The base-nova registry ships no
+  react-hook-form `form` wrapper, so forms use `react-hook-form` + `zodResolver`
+  directly (deps added: `react-hook-form`, `@hookform/resolvers`; `sonner` +
+  `next-themes` came with the sonner primitive). `slider` was installed per the
+  spec list but is unused (see the persona-formality decision below).
+
+### Data model
+
+- **2026-06-01 — Workspace gains `niches String[] @default([])` and
+  `lastActiveAt DateTime @default(now())` via an additive migration**
+  (`20260601093500_cr_9_workspace_fields`, applied with `migrate deploy` per the
+  CR-2 precedent that `migrate dev` is non-interactive-blocked here). The CR-9 UI
+  depends on both (the new-workspace niche input + the list "last active" column /
+  dashboard `touchLastActive`), and neither existed in the CR-1 schema or
+  `entities.md`. Srinivas approved completing the schema. Both columns are
+  default-backed (no backfill); all other entities and FK delete policies are
+  unchanged, honoring the spec's "do not redesign the schema in this CR." V1's
+  `touchLastActive` updates `lastActiveAt` without revalidating (avoids a
+  render→revalidate loop).
+
+### Scope / doc precedence
+
+- **2026-06-01 — Persona `formality`/`vocabulary` are free-text descriptors
+  (strings), per `docs/02-domain/buildos-persona.md`, NOT the spec §1 "0–1
+  slider."** `buildos-persona.md` is pinned in this log (2026-05-31) as "the
+  contract for CreatorPersona's Json columns AND the CR-9 persona CRUD forms,"
+  so it overrides the spec body. A numeric slider would have broken the seeded
+  BuildOS persona (string formality) and the CR-4/CR-7 producers that read it as
+  a descriptor. The form's persona Json shape (`src/lib/domain/persona-schema.ts`)
+  matches `buildos-persona.md` field-for-field; the canonical column name
+  `defaultRubricRefs` is used over the spec table's stale `defaultRubrics`.
+- **2026-06-01 — V1 user-scoping is enforced in every data-layer action.** All
+  `src/lib/domain/data/*.ts` queries filter by `getCurrentUserId()`; the ideas
+  path joins through `workspace.userId` so a forged `workspaceId` cannot leak
+  another user's rows. Makes the V2 Clerk swap a one-line change
+  (`src/lib/auth/current-user.ts`, `TODO(V2)` marker present, discharging the
+  CR-8 note that the marker "lands with the CR-9 UI code"). Out-of-scope items
+  stay stubbed: Promote is a disabled button; Gate A/B + the pipeline are absent.
+
+### Process / verification
+
+- **2026-06-01 — Per the user's CR-9 choices: tests run against the real dev DB
+  and Playwright is installed + run.** `tests/integration/data-crud.test.ts`
+  exercises real Prisma CRUD + the `niches has` / status / search filters
+  (skips cleanly when `DATABASE_URL` is absent); the Idea Coach agent + route
+  tests mock the gateway; `tests/e2e/crud-walkthrough.spec.ts` runs the four-step
+  "you will see" walkthrough under Playwright against a **production build**
+  (`build && start`) — `next dev`'s on-demand compilation made the e2e timing
+  flaky; the production server removed it. `tests/e2e/**` is excluded from vitest.
+
+### CR-9 sign-off follow-ups (2026-06-01)
+
+The CR-9 sign-off audit returned **SIGN-OFF WITH FOLLOW-UPS** (high confidence,
+zero blockers, zero majors — `docs/sign-off-review/CR-9-sign-off.md`). The
+scope-affecting follow-ups, recorded so future CR steps plan for them:
+
+- **2026-06-01 — [due before CR-11] Reconcile the Idea Coach agent home.** It
+  lives at `src/lib/domain/agents/idea-coach.ts` (the CR-9 spec §2 file tree),
+  but the 19 other agents + `agents-and-personas.md` + the `agent-persona-creation`
+  skill name it under `src/lib/domain/workflows/creator/agents/`. Either move it
+  there (and adopt the Forge persona-document template instead of the flat
+  `SYSTEM_PROMPT`) or amend the doc/skill to bless the new location. Not an
+  import-rule violation (still Domain→Core).
+- **2026-06-01 — [due before CR-11] Surface archive failures inline.**
+  `src/components/ideas/IdeaRow.tsx` archive has a silent empty `catch`, deviating
+  from the CR-9 "all errors inline" rule (practical risk ~zero — archive is a
+  non-destructive status update).
+- **2026-06-01 — [due before CR-12] CI must provision `DATABASE_URL`** (or fail
+  when the DB-gated CRUD/filter suite skips), so the round-trip/filter gate can't
+  pass vacuously. Optionally add an assertion that `gateway.request` is called
+  with `callerTag === 'idea-coach'`.
+- **2026-06-01 — [minor] Spec/doc drift.** `docs/04-plans/CR-9-crud-ui.md`'s
+  entity table still labels the field `defaultRubrics` (code uses
+  `defaultRubricRefs`) and names a `form` primitive (built with react-hook-form
+  directly); both harmless — the spec doc is the stale one.
+- **2026-06-01 — [human input] UI/UX quality is human-judged.** The five lenses
+  verified behavior, routing, and data discipline — not visual polish. Recommend a
+  manual walkthrough (or the production-build Playwright spec) before CR-10.

@@ -150,6 +150,7 @@ decision or architecture rule, or would break the next CR step.
 | CR-6 — Cross-Critique types + runtime | SIGN-OFF WITH FOLLOW-UPS | [CR-6-sign-off.md](CR-6-sign-off.md) |
 | CR-7 — Cross-Critique production (LinkedIn + article) | SIGN-OFF WITH FOLLOW-UPS | [CR-7-sign-off.md](CR-7-sign-off.md) |
 | CR-8 — Context Engineering System (System 6) + Stage 3/5 wiring | SIGN-OFF WITH FOLLOW-UPS | [CR-8-sign-off.md](CR-8-sign-off.md) |
+| CR-9 — CRUD UIs (Persona + Workspace + IdeaLog) + Idea Coach | SIGN-OFF WITH FOLLOW-UPS | [CR-9-sign-off.md](CR-9-sign-off.md) |
 
 _(Append a row per step as reviews complete.)_
 
