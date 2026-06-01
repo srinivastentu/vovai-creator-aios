@@ -9,7 +9,7 @@
 import type { AgentConfig } from '../../../../../core/engine/types'
 import type { ArticleArtifact, RepurposeContext } from '../../types'
 import { articleWordCount } from '../../validators/article-validator'
-import { masterBlock, personaBlock, stripFences } from '../cross-critique-shared'
+import { defaultProducerContext, stripFences } from '../cross-critique-shared'
 
 export const ARTICLE_PRODUCER_SYSTEM_PROMPT = [
   '# Identity',
@@ -70,12 +70,14 @@ export const ARTICLE_PRODUCER_SYSTEM_PROMPT = [
   '}',
 ].join('\n')
 
-/** Producer user message: persona + master, plus PRESERVE/IMPROVE on revise rounds. */
+/** Master-block label — shared by the curated-context prep and the inline fallback. */
+export const ARTICLE_MASTER_LABEL = 'raw material to expand and structure'
+
+/** Producer user message: curated persona + master, plus PRESERVE/IMPROVE on revise rounds. */
 export function buildArticleProducerUser(ctx: RepurposeContext, feedback: string | null): string {
+  const contextBlock = ctx.curatedContextBlock ?? defaultProducerContext(ctx, ARTICLE_MASTER_LABEL)
   return [
-    personaBlock(ctx),
-    '',
-    masterBlock(ctx, 'raw material to expand and structure'),
+    contextBlock,
     '',
     feedback ? `A reviewer graded the current best article. Improve on it:\n${feedback}\n` : '',
     `Write ONE long-form article (1,200–3,000 words) on "${ctx.ideaTitle}".`,

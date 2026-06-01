@@ -24,6 +24,7 @@ import type {
   MasterSourceInput,
   MasterSourceRef,
 } from '../types'
+import { assembleCreatorContext, CREATOR_CONTEXT_PRIORITIES } from '../context/curation'
 
 export interface LongFormSynthesizerDeps {
   client?: Anthropic
@@ -51,17 +52,18 @@ const DEFAULT_MODEL = 'claude-sonnet-4-20250514'
 const DEFAULT_MAX_TOKENS = 8192
 
 /**
- * Context-block priorities (docs/01-architecture/context-system.md). V1 is a
- * passthrough: all blocks are included; the ordering reflects priority so the
- * highest-priority context leads the prompt.
- * TODO(CR-8): lift this into the Core PassthroughCurator (src/lib/core/context)
- * — CR-8 owns the Context Engineering System; this is the V1 domain-local seam.
+ * Context-block priorities for the Stage-3 synthesizer prompt. CR-8 lifted the
+ * curation MACHINERY into the Core PassthroughCurator (assembleMasterContext
+ * below routes through it via the domain curation seam); these numbers are the
+ * Stage-3 view of the shared CREATOR_CONTEXT_PRIORITIES
+ * (docs/01-architecture/context-system.md) and are still printed inline so the
+ * model sees each block's relative importance.
  */
 export const MASTER_CONTEXT_PRIORITIES = {
-  persona: 10,
-  idea: 10,
-  researchSources: 8,
-  uploadedDocs: 6,
+  persona: CREATOR_CONTEXT_PRIORITIES.persona,
+  idea: CREATOR_CONTEXT_PRIORITIES.idea,
+  researchSources: CREATOR_CONTEXT_PRIORITIES.researchSources,
+  uploadedDocs: CREATOR_CONTEXT_PRIORITIES.uploadedDocs,
 } as const
 
 // ─── Citation handles ────────────────────────────────────────────────────────
@@ -198,16 +200,25 @@ function uploadsBlock(ctx: MasterContext): string {
   return [`UPLOADED DOCS (priority ${MASTER_CONTEXT_PRIORITIES.uploadedDocs}):`, list].join('\n')
 }
 
-/** Assemble context blocks highest-priority-first (V1 passthrough curation). */
-function buildContextBlocks(ctx: MasterContext): string {
-  return [personaBlock(ctx), ideaBlock(ctx), sourcesBlock(ctx), uploadsBlock(ctx)]
-    .filter(Boolean)
-    .join('\n\n')
+/**
+ * Assemble the synthesizer's context through the Core curator (System 6). V1
+ * PassthroughCurator keeps every non-empty block in priority order, so the result
+ * matches the prior hand-ordered join — the curator now owns the keep/drop/order
+ * decision (docs/01-architecture/context-system.md).
+ */
+async function assembleMasterContext(ctx: MasterContext): Promise<string> {
+  const { text } = await assembleCreatorContext([
+    { id: 'persona', priority: MASTER_CONTEXT_PRIORITIES.persona, text: personaBlock(ctx) },
+    { id: 'idea', priority: MASTER_CONTEXT_PRIORITIES.idea, text: ideaBlock(ctx) },
+    { id: 'sources', priority: MASTER_CONTEXT_PRIORITIES.researchSources, text: sourcesBlock(ctx) },
+    { id: 'uploads', priority: MASTER_CONTEXT_PRIORITIES.uploadedDocs, text: uploadsBlock(ctx) },
+  ])
+  return text
 }
 
-function buildProduceUser(ctx: MasterContext): string {
+function buildProduceUser(ctx: MasterContext, contextText: string): string {
   return [
-    buildContextBlocks(ctx),
+    contextText,
     '',
     `Synthesize the Long-Form Master now. At least 3 sections, at least 800 words,`,
     `every section cited. Refined title should sharpen "${ctx.ideaTitle}".`,
@@ -252,10 +263,10 @@ function renderPreviousMaster(
     .join('\n\n')
 }
 
-function buildReviseUser(args: SynthesizeReviseArgs): string {
-  const { context: ctx, previous, grade } = args
+function buildReviseUser(args: SynthesizeReviseArgs, contextText: string): string {
+  const { previous, grade } = args
   return [
-    buildContextBlocks(ctx),
+    contextText,
     '',
     'A reviewer graded your previous Long-Form Master. Revise it.',
     '',
@@ -379,7 +390,8 @@ export function createLongFormSynthesizer(
 
   return {
     async produce({ context }: SynthesizeProduceArgs): Promise<MasterArtifact> {
-      const text = await call(buildProduceUser(context))
+      const contextText = await assembleMasterContext(context)
+      const text = await call(buildProduceUser(context, contextText))
       const parsed = parseSynthResponse(text)
       if (!parsed) return emptyMaster(context)
       return toMasterArtifact(parsed, context, context.ideaTitle)
@@ -387,7 +399,8 @@ export function createLongFormSynthesizer(
 
     async revise(args: SynthesizeReviseArgs): Promise<MasterArtifact> {
       const { context, previous } = args
-      const text = await call(buildReviseUser(args))
+      const contextText = await assembleMasterContext(context)
+      const text = await call(buildReviseUser(args, contextText))
       const parsed = parseSynthResponse(text)
       // On a bad revise turn, keep the prior master rather than discarding work.
       if (!parsed) return previous

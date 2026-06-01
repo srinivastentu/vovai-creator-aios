@@ -206,6 +206,15 @@ export interface RepurposeContext {
   persona: ProducerPersona
   /** The approved Master's ordered sections (heading + body). */
   sections: RepurposeSection[]
+  /**
+   * Curated persona + Long-Form Master block, assembled once by the Core
+   * ContextCurator (System 6) before the cross-critique loop (CR-8). Producers
+   * read it verbatim; when absent (direct unit-test calls) the producer builder
+   * renders persona+master inline via defaultProducerContext. Under the V1
+   * PassthroughCurator budget nothing is dropped, so this block equals that inline
+   * fallback — the field is the architectural seam, not a behaviour change.
+   */
+  curatedContextBlock?: string
 }
 
 /** Artifact.content for `linkedin_post`. charCount is recomputed from text by code. */

@@ -13,7 +13,7 @@
 
 import type { AgentConfig, GradeReport } from '../../../../../core/engine/types'
 import type { LinkedInArtifact, RepurposeContext } from '../../types'
-import { masterBlock, personaBlock, preserveImproveBlock, stripFences } from '../cross-critique-shared'
+import { defaultProducerContext, preserveImproveBlock, stripFences } from '../cross-critique-shared'
 
 export const LINKEDIN_PRODUCER_SYSTEM_PROMPT = [
   '# Identity',
@@ -72,12 +72,14 @@ export const LINKEDIN_PRODUCER_SYSTEM_PROMPT = [
   '}',
 ].join('\n')
 
-/** Producer user message: persona + master, plus PRESERVE/IMPROVE on revise rounds. */
+/** Master-block label — shared by the curated-context prep and the inline fallback. */
+export const LINKEDIN_MASTER_LABEL = 'raw material; extract the strongest insight'
+
+/** Producer user message: curated persona + master, plus PRESERVE/IMPROVE on revise rounds. */
 export function buildLinkedInProducerUser(ctx: RepurposeContext, feedback: string | null): string {
+  const contextBlock = ctx.curatedContextBlock ?? defaultProducerContext(ctx, LINKEDIN_MASTER_LABEL)
   return [
-    personaBlock(ctx),
-    '',
-    masterBlock(ctx, 'raw material; extract the strongest insight'),
+    contextBlock,
     '',
     feedback ? `A reviewer graded the current best post. Improve on it:\n${feedback}\n` : '',
     `Write ONE LinkedIn post (1,300–3,000 characters) on "${ctx.ideaTitle}".`,

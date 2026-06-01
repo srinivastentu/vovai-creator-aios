@@ -39,7 +39,7 @@ import { getDefaultGateway } from '../../../core/models/default-gateway'
 import type { ModelGateway } from '../../../core/models/gateway'
 import type { GatewayResponse } from '../../../core/models/types'
 
-import { preserveImproveBlock } from './agents/cross-critique-shared'
+import { prepareRepurposeContext, preserveImproveBlock } from './agents/cross-critique-shared'
 import { LINKEDIN_POST_RUBRIC } from './rubrics/linkedin-post-rubric'
 import { LONG_FORM_ARTICLE_RUBRIC } from './rubrics/article-rubric'
 import { validateLinkedInPost } from './validators/linkedin-post-validator'
@@ -48,6 +48,7 @@ import { type GeminiTextJudgeDeps } from './agents/gemini-text-judge'
 
 import { createLinkedInJudge, LINKEDIN_JUDGE_AGENT } from './agents/linkedin/judge'
 import {
+  LINKEDIN_MASTER_LABEL,
   LINKEDIN_PRODUCER_CLAUDE,
   LINKEDIN_PRODUCER_GPT,
   LINKEDIN_PRODUCER_SYSTEM_PROMPT,
@@ -69,6 +70,7 @@ import {
 
 import { createArticleJudge, ARTICLE_JUDGE_AGENT } from './agents/article/judge'
 import {
+  ARTICLE_MASTER_LABEL,
   ARTICLE_PRODUCER_CLAUDE,
   ARTICLE_PRODUCER_GPT,
   ARTICLE_PRODUCER_SYSTEM_PROMPT,
@@ -186,6 +188,8 @@ interface RoleKit<T> {
   ) => string
   parseArtifactText: (text: string) => T | null
   maxOutputTokens: number
+  /** Master-block label this producer uses — drives the pre-loop context curation. */
+  masterLabel: string
   /** Text + size preview for the iteration-history panel / cosine similarity. */
   preview: (artifact: T) => { text: string; size: number }
 }
@@ -243,6 +247,7 @@ const LINKEDIN_KIT: RoleKit<LinkedInArtifact> = {
   buildIntegratorUser: buildLinkedInIntegratorUser,
   parseArtifactText: parseLinkedInArtifact,
   maxOutputTokens: LINKEDIN_MAX_OUTPUT_TOKENS,
+  masterLabel: LINKEDIN_MASTER_LABEL,
   preview: (a) => ({ text: a.text, size: a.charCount }),
 }
 
@@ -256,6 +261,7 @@ const ARTICLE_KIT: RoleKit<ArticleArtifact> = {
   buildIntegratorUser: buildArticleIntegratorUser,
   parseArtifactText: (text) => parseArticleArtifact(text, 'Untitled'),
   maxOutputTokens: ARTICLE_MAX_OUTPUT_TOKENS,
+  masterLabel: ARTICLE_MASTER_LABEL,
   preview: (a) => ({ text: a.markdown, size: a.wordCount }),
 }
 
@@ -283,6 +289,8 @@ export interface CrossCritiqueStage<T> {
   judge: JudgeFunction
   gateway: ModelGateway
   options: CrossCritiqueRunnerOptions
+  /** Master-block label — feeds the pre-loop context curation (System 6 / CR-8). */
+  masterLabel: string
   preview: (artifact: T) => { text: string; size: number }
 }
 
@@ -354,7 +362,15 @@ function buildCrossCritiqueStage<T>(
     }
   }
 
-  return { stage, adapter: buildAdapter(spec.kit), judge, gateway, options, preview: spec.kit.preview }
+  return {
+    stage,
+    adapter: buildAdapter(spec.kit),
+    judge,
+    gateway,
+    options,
+    masterLabel: spec.kit.masterLabel,
+    preview: spec.kit.preview,
+  }
 }
 
 const LINKEDIN_SPEC: CrossCritiqueStageSpec<LinkedInArtifact> = {
@@ -426,6 +442,12 @@ export async function runCrossCritiqueLoop<T>(
   args: RunCrossCritiqueLoopArgs<T>,
 ): Promise<RunCrossCritiqueLoopResult<T>> {
   const { stage, context, onIteration, snippetChars = 200 } = args
+  // CR-8: curate the producer's stable context (persona + Long-Form Master) through
+  // the Core ContextCurator (System 6) ONCE, before the loop. Producers read the
+  // resulting curatedContextBlock each iteration; per-iteration judge feedback is
+  // appended raw (it is a control signal, not curated context). V1 passthrough →
+  // byte-identical to the inline persona+master assembly; the value is the seam.
+  const curatedContext = await prepareRepurposeContext(context, stage.masterLabel)
   let state = createInitialState<T>(stage.stage.id)
   const deps: CrossCritiqueDeps<T> = {
     gateway: stage.gateway,
@@ -438,7 +460,7 @@ export async function runCrossCritiqueLoop<T>(
   let error: { iteration: number; message: string } | undefined
   for (let i = 0; i < hardCap; i++) {
     try {
-      state = await runLoop<T>(stage.stage, state, context, NOOP_EXECUTOR, stage.judge, deps)
+      state = await runLoop<T>(stage.stage, state, curatedContext, NOOP_EXECUTOR, stage.judge, deps)
     } catch (err) {
       error = {
         iteration: state.loopCount + 1,

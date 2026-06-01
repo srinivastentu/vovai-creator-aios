@@ -847,3 +847,88 @@ follow-ups, recorded so future steps plan for them:
   3).** Are the live-run LinkedIn post (92.8/100) and article (91.3/100)
   publishable without rewrite? Lenses verified the mechanized loop, not the prose;
   artifacts are at `tmp/runs/<idea-id>/`.
+
+---
+
+## CR-8 decisions (2026-06-01)
+
+Pinned while building the Context Engineering System (System 6) — the thin
+seam — and wiring the V1 `PassthroughCurator` at Stage 3 + Stage 5.
+
+### Architecture
+
+- **2026-06-01 — System 6 ships as a Core seam: contract + one default
+  implementation, zero curation logic.** `src/lib/core/context/types.ts`
+  (`ContextSource`, `ContextBudget`, `CuratedContext`, `ContextCurator`,
+  `estimateTokens`) + `passthrough-curator.ts` (`PassthroughCurator`) are pure,
+  domain-agnostic machinery (three-question test: PASS — zero domain words in
+  code; the grep-check stays empty). The curation **decision** (which curator per
+  stage, what priorities) is Domain:
+  `src/lib/domain/workflows/creator/context/curation.ts` exports
+  `CREATOR_CONTEXT_PRIORITIES` (the single source of truth for the
+  context-system.md priority table), `assembleCreatorContext`, and
+  `DEFAULT_CONTEXT_BUDGET`. Swapping the one `new PassthroughCurator()` line in
+  the domain module upgrades every CreatorOS stage at once — that is the seam.
+- **2026-06-01 — `PassthroughCurator` semantics: stable priority-DESC sort, greedy
+  keep-if-fits, drop lowest-priority first; `compressed` always empty.** Token
+  estimate = `ceil(byteSize / 4)` (context-system.md). An explicit index tiebreak
+  in the comparator guarantees equal-priority sources keep input order (so the
+  domain's intended block order is preserved). Greedy keep-if-fits (not
+  keep-the-prefix) lets a small low-priority source survive after a large
+  high-priority one is dropped — token-efficient and still "lowest dropped first"
+  because iteration descends by priority. An optional `maxBytes` hard cap is
+  enforced independently of the token budget.
+- **2026-06-01 — Stage 3 discharges the CR-3 `TODO(CR-8)`.** The synthesizer's
+  domain-local `MASTER_CONTEXT_PRIORITIES` now derives from the shared
+  `CREATOR_CONTEXT_PRIORITIES`, and `assembleMasterContext` routes the persona /
+  idea / sources / uploads blocks through the Core curator inside the (already
+  async) `produce`/`revise`. V1 passthrough keeps all blocks in priority order, so
+  the assembled prompt is byte-identical to the prior hand-ordered `'\n\n'` join.
+- **2026-06-01 — Stage 5 curates the producer's STABLE context (persona +
+  Long-Form Master) ONCE before the cross-critique loop, not per-iteration.**
+  `runCrossCritiqueLoop` calls `prepareRepurposeContext(context, masterLabel)`
+  (cross-critique-shared.ts), which curates persona+master into a new
+  `RepurposeContext.curatedContextBlock`; the producer user builders read it
+  verbatim, falling back to inline `defaultProducerContext` when absent (direct
+  unit-test calls). Rationale: the bulky input (the Master) is invariant across
+  iterations, so curating once is correct and cheaper. Per-iteration judge
+  feedback (PRESERVE/IMPROVE) is deliberately NOT curated — it is a small per-turn
+  control signal (priority 7, never dropped), appended raw. This keeps the sync
+  producer builders sync (the Core `CrossCritiqueAdapter.producerRequest` is
+  synchronous) without pulling any async change into Core. The per-producer master
+  label travels on `RoleKit.masterLabel` → `CrossCritiqueStage.masterLabel`.
+
+### Cost and quality
+
+- **2026-06-01 — `DEFAULT_CONTEXT_BUDGET = { maxTokens: 180_000 }`.** Generous by
+  design: a modern producer window fits one Master + persona + feedback with room
+  to spare, so V1 curation never drops. The seam exists so a V2 curator
+  (summarization, relevance ranking) can tighten this without touching any stage's
+  prompt code. No live LLM run was needed for CR-8 (no model calls added; the
+  curator is pure logic) — gates are typecheck + 22 new unit tests.
+- **2026-06-01 — One deliberate, negligible normalization at Stage 5: the producer
+  persona↔master separator becomes `\n\n`.** Pre-CR-8 the producer builders wrote
+  `[personaBlock, '', masterBlock, ''].filter(Boolean).join('\n')`; `filter(Boolean)`
+  dropped the `''` separators the author placed to create a blank line, collapsing
+  persona→master to a single `\n`. The CR-8 curated/fallback path joins blocks with
+  `'\n\n'`, restoring the intended blank line — a one-character change per producer
+  message that is functionally inert for the model and below any cosine-similarity
+  signal. The CR-7 cosine baselines (≈0.92 LinkedIn, ≈0.937 article) are advisory
+  warnings, not gates; CR-12 owns iteration-divergence tuning.
+
+### Scope
+
+- **2026-06-01 — Workspace.role verified already correct from CR-1; no change.**
+  `prisma/schema.prisma` has `role WorkspaceRole @default(admin)` (enum
+  `{ admin, writer, editor, reviewer }`) and `prisma/seed.ts` sets `role: 'admin'`
+  on the seeded workspace. V1 has no authz logic (single hardcoded admin user), so
+  nothing reads `role` in a way that could be wrong. The CR-8 build item
+  "finish the workspace/role schema if anything was deferred from CR-1" found
+  nothing deferred. `// TODO(V2): wire Clerk + role-based authz` remains the
+  forward marker.
+- **2026-06-01 — Critics + integrator are NOT curation consumers in V1.** Only the
+  producers receive the curated persona+master block (the canonical Stage-5
+  curation point per context-system.md — "producers run with curated subset, not
+  full Master"). Critics consume a single target draft; the integrator consumes the
+  producer drafts + critiques (the dialectic), not the raw source pool. Wiring them
+  through a curator is a V2 consideration, not CR-8 scope.
